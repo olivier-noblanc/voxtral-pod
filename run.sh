@@ -1,43 +1,67 @@
 #!/bin/bash
 
-# Voxtral Pod Launcher v2.6 (Modular & Robust)
-PORT=8000
+# ==============================================================================
+# Voxtral Pod Launcher v3.0 (Super-Bootstrap)
+# Ce script est conçu pour être copié-collé seul dans un dossier vide sur le Pod.
+# Il se charge de tout : code, environnement, dépendances et lancement.
+# ==============================================================================
+
+REPO_URL="https://github.com/olivier-noblanc/voxtral-pod.git"
 VENV_DIR="venv_asr"
+PORT=8000
 MODEL="${1:-voxtral}"
 
-echo "[*] Démarrage du launcher Voxtral..."
+echo "===================================================="
+echo "   🎙️  LANCEUR VOXTRAL-POD AUTOMATIQUE  🎙️"
+echo "===================================================="
 
-# Auto-update if repo exists
-if [ -d ".git" ]; then
-    echo "[*] Vérification des mises à jour Git..."
-    git pull origin main || echo "[!] Attention : impossible de pull les dernières modifications."
+# 1. Récupération du code
+if [ ! -d ".git" ]; then
+    echo "[*] Installation initiale du code depuis GitHub..."
+    # Astuce pour cloner dans un dossier qui contient déjà le script
+    git init .
+    git remote add origin "$REPO_URL"
+    git fetch
+    git checkout -f main || (echo "❌ Erreur: Impossible de récupérer le code. Vérifie l'accès au repo." && exit 1)
+else
+    echo "[*] Mise à jour du code..."
+    git pull origin main || echo "[!] Attention: échec de la mise à jour, utilisation de la version locale."
 fi
 
-# Choix de l'exécutable python (priorité 3.11)
+# 2. Vérification de Python 3.11+
 PYTHON_CMD="python3"
 if command -v python3.11 &> /dev/null; then
     PYTHON_CMD="python3.11"
 fi
 
-# Setup environnement
+# 3. Setup de l'environnement virtuel
 if [ ! -d "$VENV_DIR" ]; then
-    echo "[*] Création de l'environnement virtuel avec $PYTHON_CMD..."
+    echo "[*] Création de l'environnement virtuel ($PYTHON_CMD)..."
     $PYTHON_CMD -m venv "$VENV_DIR"
 fi
 
 source "$VENV_DIR/bin/activate"
 
-# Vérification de la présence de torch dans le venv
-echo "[*] Vérification des dépendances..."
+# 4. Installation/Vérification des dépendances
+# On vérifie la présence de torch pour gagner du temps au reboot
 if ! python -c "import torch" &> /dev/null; then
-    echo "[!] Torch non détecté ou venv corrompu. Installation des dépendances via requirements.txt..."
+    echo "[!] Dépendances manquantes. Installation (cela peut prendre quelques minutes)..."
     pip install -U pip
-    pip install -r requirements.txt
+    if [ -f "requirements.txt" ]; then
+        pip install -r requirements.txt
+    else
+        echo "❌ requirements.txt introuvable !"
+        exit 1
+    fi
 else
-    echo "[*] Dépendances OK."
+    echo "[*] Environnement Python OK."
 fi
 
+# 5. Lancement du serveur
 export ASR_MODEL="$MODEL"
-echo "==== Lancement du serveur Voxtral Modulaire ===="
-# On utilise l'exécutable python du venv pour être 100% sûr
+echo "===================================================="
+echo "🚀 LANCEMENT : Modèle=$MODEL | Port=$PORT"
+echo "===================================================="
+
+# On s'assure d'utiliser le python du venv
 "./$VENV_DIR/bin/python" server_asr.py
