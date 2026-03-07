@@ -382,7 +382,15 @@ class SotaASR:
                     inputs[k] = v.to(torch.float16)
 
             with torch.no_grad():
-                out = self.model.generate(**inputs, max_new_tokens=128)
+                # Optimisation Inférence: On réduit max_new_tokens pour le live
+                # do_sample=False (Greedy Decoding) est beaucoup plus rapide.
+                out = self.model.generate(
+                    **inputs, 
+                    max_new_tokens=64, 
+                    do_sample=False,
+                    use_cache=True,
+                    num_beams=1
+                )
                 return self.processor.batch_decode(out, skip_special_tokens=True)[0].strip()
         elif self.model_id == "whisper":
             # Simple conversion pour faster-whisper (mocké ici pour simplicité)
