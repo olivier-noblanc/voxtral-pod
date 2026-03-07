@@ -51,6 +51,7 @@ source "$VENV_DIR/bin/activate"
 if [ "$FORCE_REINSTALL" = true ] || ! pip show fastapi &> /dev/null; then
     echo "[*] Installation des dépendances (pip)..."
     pip install -U pip
+    pip install setuptools # Indispensable pour pkg_resources sur Python 3.12+
     pip install -r requirements.txt || (echo "❌ Erreur critique lors de l'installation pip." && exit 1)
 else
     echo "[*] Dépendances OK."
