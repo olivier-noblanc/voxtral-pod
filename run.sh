@@ -9,8 +9,11 @@ VENV_DIR="venv_asr"
 MODEL="${1:-voxtral}"
 
 echo "===================================================="
-echo "   🎙️  LANCEUR VOXTRAL-POD v8.0 (AUTO-REPAIR)  🎙️"
+echo "   🎙️  LANCEUR VOXTRAL-POD v9.0 (AUTO-REPAIR)  🎙️"
 echo "===================================================="
+
+# Diagnostic version
+echo "[#] Python Système : $(python3 --version 2>&1)"
 
 # 1. Récupération & Réparation du code
 git config --global --add safe.directory "$PWD"

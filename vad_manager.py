@@ -54,6 +54,15 @@ class VADManager:
         
         # 2. Deuxième passage : Silero Check (précision)
         with self._lock:
-            audio_float = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / INT16_MAX_ABS_VALUE
-            vad_prob = self.silero_model(torch.from_numpy(audio_float), SAMPLE_RATE).item()
+            # Silero VAD v5+ n'accepte QUE des chunks de 512 samples (32ms) à 16kHz
+            # Si on a plus, on prend les 512 derniers pour la détection "live"
+            audio_np = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / INT16_MAX_ABS_VALUE
+            
+            if len(audio_np) > 512:
+                audio_np = audio_np[-512:]
+            elif len(audio_np) < 512:
+                # Trop court pour Silero, on complète avec du silence (padding)
+                audio_np = np.pad(audio_np, (0, 512 - len(audio_np)))
+                
+            vad_prob = self.silero_model(torch.from_numpy(audio_np), SAMPLE_RATE).item()
             return vad_prob > (1 - self.silero_sensitivity)
