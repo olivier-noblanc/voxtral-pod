@@ -36,9 +36,9 @@ from vad_manager import VADManager, SAMPLE_RATE
 
 # === CONFIGURATION TERMINÉE ===
 
-app = FastAPI(title="SOTA ASR Server", version="2.7.0")
+app = FastAPI(title="SOTA ASR Server", version="2.8.0")
 
-model_name = os.getenv("ASR_MODEL", "voxtral").lower()
+model_name = os.getenv("ASR_MODEL", "whisper").lower()
 device = "cuda" if torch.cuda.is_available() else "cpu"
 torch_dtype = (
     torch.bfloat16
@@ -393,8 +393,16 @@ class SotaASR:
                 )
                 return self.processor.batch_decode(out, skip_special_tokens=True)[0].strip()
         elif self.model_id == "whisper":
-            # Simple conversion pour faster-whisper (mocké ici pour simplicité)
-            return "Whisper live text..."
+            # Inférence Faster-Whisper (Stack de Référence)
+            segments, _ = self.model.transcribe(
+                audio, 
+                beam_size=1, 
+                language="fr",
+                word_timestamps=True,
+                condition_on_previous_text=True
+            )
+            text = "".join([s.text for s in segments]).strip()
+            return text
         return ""
 
     async def finalize_live_session(self, client_id: str):
