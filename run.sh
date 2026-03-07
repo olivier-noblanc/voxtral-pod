@@ -10,7 +10,7 @@ VENV_DIR="venv_asr"
 MODEL="${1:-voxtral}"
 
 echo "===================================================="
-echo "   🎙️  LANCEUR VOXTRAL-POD v4.1 (AUTO-REPAIR)  🎙️"
+echo "   🎙️  LANCEUR VOXTRAL-POD v4.2 (AUTO-REPAIR)  🎙️"
 echo "===================================================="
 
 # 1. Récupération & Réparation du code
@@ -25,13 +25,12 @@ echo "[*] Synchronisation GitHub..."
 git fetch origin main && git reset --hard origin/main || echo "[!] Mode local (échec sync)"
 
 # 2. Gestion de l'environnement virtuel (Auto-Correction)
-# Si le venv existe mais n'a pas été créé avec --system-site-packages, on le recrée
-# car sur Onyxia c'est indispensable pour Torch/CUDA.
 FORCE_REINSTALL=false
 if [ -d "$VENV_DIR" ]; then
-    # Petit test : est-ce que le venv est complet (Torch + pkg_resources pour Python 3.12+) ?
-    if ! "./$VENV_DIR/bin/python" -c "import torch; import pkg_resources" &> /dev/null; then
-        echo "[!] Venv incomplet ou corrompu (Torch ou setuptools manquant). Nettoyage..."
+    # Test critique : est-ce que webrtcvad arrive à se charger ? (Test pkg_resources)
+    # On teste webrtcvad car c'est lui qui déclenche l'erreur pkg_resources sur Python 3.12+
+    if ! "./$VENV_DIR/bin/python" -c "import torch; import webrtcvad" &> /dev/null; then
+        echo "[!] Venv incomplet ou incompatible (erreur webrtcvad/pkg_resources). Nettoyage..."
         rm -rf "$VENV_DIR"
         FORCE_REINSTALL=true
     fi
