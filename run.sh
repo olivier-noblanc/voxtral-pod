@@ -41,8 +41,9 @@ fi
 
 # 3. Setup de l'environnement virtuel
 if [ ! -d "$VENV_DIR" ]; then
-    echo "[*] Création de l'environnement virtuel ($PYTHON_CMD)..."
-    $PYTHON_CMD -m venv "$VENV_DIR"
+    echo "[*] Création de l'environnement virtuel ($PYTHON_CMD) avec accès aux paquets système..."
+    # --system-site-packages permet d'utiliser torch/cuda déjà installés sur le pod
+    $PYTHON_CMD -m venv --system-site-packages "$VENV_DIR"
 fi
 
 source "$VENV_DIR/bin/activate"
