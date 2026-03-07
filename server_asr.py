@@ -36,7 +36,7 @@ from vad_manager import VADManager, SAMPLE_RATE
 
 # === CONFIGURATION TERMINÉE ===
 
-app = FastAPI(title="SOTA ASR Server", version="2.6.0")
+app = FastAPI(title="SOTA ASR Server", version="2.7.0")
 
 model_name = os.getenv("ASR_MODEL", "voxtral").lower()
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -359,9 +359,11 @@ class SotaASR:
         if self.model_id == "voxtral":
             inputs = self.processor(audio, sampling_rate=SAMPLE_RATE, return_tensors="pt")
             inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
-            # Fix Dtype mismatch: le modèle attend souvent du BFloat16
-            if "input_features" in inputs:
-                inputs["input_features"] = inputs["input_features"].to(torch.bfloat16)
+            # Fix Dtype mismatch: on force le BFloat16 pour tous les inputs flottants
+            for k, v in inputs.items():
+                if torch.is_floating_point(v):
+                    inputs[k] = v.to(torch.bfloat16)
+
             with torch.no_grad():
                 out = self.model.generate(**inputs, max_new_tokens=128)
                 return self.processor.batch_decode(out, skip_special_tokens=True)[0].strip()
