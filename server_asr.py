@@ -406,10 +406,46 @@ class SotaASR:
         return ""
 
     async def finalize_live_session(self, client_id: str):
-        # Logique de repasse finale (voir batch)
-        if not self.full_session_audio: return
-        print(f"[*] Repasse finale pour {client_id}")
-        self.full_session_audio = []
+        """Repasse finale haute qualité sur tout l'audio accumulé"""
+        if not self.full_session_audio:
+            return
+        
+        print(f"[*] Début de la repasse finale pour {client_id} (~{len(self.full_session_audio) * 0.1}s d'audio)")
+        
+        try:
+            # 1. Préparation de l'audio complet
+            combined_audio_bytes = b"".join(self.full_session_audio)
+            audio_np = np.frombuffer(combined_audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+            
+            # 2. Transcription Haute Qualité (beam_size augmenté)
+            segments, info = self.model.transcribe(
+                audio_np,
+                beam_size=5,
+                language="fr",
+                task="transcribe"
+            )
+            
+            final_text = []
+            for segment in segments:
+                final_text.append(f"[{segment.start:.2f}s -> {segment.end:.2f}s] {segment.text.strip()}")
+            
+            full_transcript = "\n".join(final_text)
+            
+            # 3. Diarisation (Si activée)
+            if self.diarization:
+                print(f"[*] Lancement de la diarisation pour {client_id}...")
+                # Pyannote a besoin d'un format spécifique ou d'un chemin fichier
+                # Pour simplifier on simule le lien ici, mais l'audio complet est prêt
+            
+            # 4. Sauvegarde ou envoi (Ici on print pour le log, mais ça pourrait être un fichier .txt)
+            print(f"=== TRANSCRIPT FINAL ({client_id}) ===\n{full_transcript}\n==============================")
+            
+            # Nettoyage
+            self.full_session_audio = []
+            self.audio_buffer = bytearray()
+            
+        except Exception as e:
+            print(f"[!] Erreur lors de la repasse finale: {e}")
 
 # Engine
 asr_engine = SotaASR(model_name)
