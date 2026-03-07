@@ -16,9 +16,11 @@ echo "   🎙️  LANCEUR VOXTRAL-POD AUTOMATIQUE  🎙️"
 echo "===================================================="
 
 # 1. Récupération du code
+# Fix pour les environnements comme Onyxia/VSCode qui râlent sur les permissions
+git config --global --add safe.directory "$PWD"
+
 if [ ! -d ".git" ]; then
     echo "[*] Installation initiale du code depuis GitHub..."
-    # Astuce pour cloner dans un dossier qui contient déjà le script
     git init .
     git remote add origin "$REPO_URL"
     git fetch
