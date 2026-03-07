@@ -29,9 +29,9 @@ git fetch origin main && git reset --hard origin/main || echo "[!] Mode local (�
 # car sur Onyxia c'est indispensable pour Torch/CUDA.
 FORCE_REINSTALL=false
 if [ -d "$VENV_DIR" ]; then
-    # Petit test : est-ce que le venv hérite bien des paquets système ?
-    if ! "./$VENV_DIR/bin/python" -c "import torch" &> /dev/null; then
-        echo "[!] Venv incomplet ou corrompu (Torch non trouvé). Nettoyage..."
+    # Petit test : est-ce que le venv est complet (Torch + pkg_resources pour Python 3.12+) ?
+    if ! "./$VENV_DIR/bin/python" -c "import torch; import pkg_resources" &> /dev/null; then
+        echo "[!] Venv incomplet ou corrompu (Torch ou setuptools manquant). Nettoyage..."
         rm -rf "$VENV_DIR"
         FORCE_REINSTALL=true
     fi
