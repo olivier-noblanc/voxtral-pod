@@ -4,6 +4,10 @@ import asyncio
 import tempfile
 import time
 import torch
+# === PATCH TORCHAUDIO (Compatibilité pyannote/torchaudio 2.x) ===
+import torchaudio
+if not hasattr(torchaudio, "set_audio_backend"):
+    torchaudio.set_audio_backend = lambda x: print(f"[*] Backend audio patché: {x}")
 import json
 import datetime
 import numpy as np
