@@ -11,6 +11,9 @@ if not hasattr(torchaudio, "set_audio_backend"):
 import json
 import datetime
 import numpy as np
+# === PATCH NUMPY 2.0 (Restauration de np.NaN pour pyannote) ===
+if not hasattr(np, "NaN"):
+    np.NaN = np.nan
 import threading
 from fastapi import (
     FastAPI, WebSocket, WebSocketDisconnect,
