@@ -14,12 +14,18 @@ class VADManager:
     Gestionnaire de VAD combinant WebRTC (rapide) et Silero (précis).
     Inspiré de TranscriptionSuite.
     """
-    def __init__(self, silero_sensitivity: float = 0.4, webrtc_sensitivity: int = 3):
-        import webrtcvad
+    def __init__(self, silero_sensitivity: float = 0.4):
+        # WebRTC VAD (Rapide, pour un premier filtrage)
+        self.webrtc_vad = None
+        try:
+            import webrtcvad
+            self.webrtc_vad = webrtcvad.Vad(3) # Niveau d'agression max (3)
+            print("[*] WebRTC VAD chargé.")
+        except (ImportError, ModuleNotFoundError) as e:
+            print(f"[!] Warning: WebRTC VAD non disponible ({e}). Utilisation uniquement de Silero VAD.")
+
+        # Silero VAD (Lent mais ultra précis, pour confirmer)
         from silero_vad import load_silero_vad
-        
-        self.webrtc_vad = webrtcvad.Vad()
-        self.webrtc_vad.set_mode(webrtc_sensitivity)
         
         # Load Silero VAD model
         self.silero_model = load_silero_vad(onnx=True)
@@ -29,28 +35,25 @@ class VADManager:
         self.is_silero_speech = False
         self._lock = threading.Lock()
 
-    def is_speech(self, chunk_pcm: bytes) -> bool:
-        """
-        Vérifie si le chunk contient de la parole en utilisant les deux VAD.
-        La parole est confirmée si les DEUX sont d'accord (ou si Silero confirme après WebRTC).
-        """
-        # 1. WebRTC Check (très rapide)
-        # WebRTC nécessite des frames de 10, 20 ou 30ms. 
-        # Pour 16kHz, 10ms = 160 samples (320 bytes).
-        frame_len = 320 
-        num_frames = len(chunk_pcm) // frame_len
-        webrtc_active = False
-        for i in range(num_frames):
-            frame = chunk_pcm[i*frame_len : (i+1)*frame_len]
-            if self.webrtc_vad.is_speech(frame, SAMPLE_RATE):
-                webrtc_active = True
-                break
+    def is_speech(self, audio_bytes: bytes) -> bool:
+        """Détecte si le segment audio contient de la parole (Double Validation)"""
+        # 1. Premier passage : WebRTC (si dispo)
+        if self.webrtc_vad:
+            is_speech_webrtc = False
+            # WebRTC travaille sur des frames de 30ms (480 samples @ 16kHz)
+            frame_size = 480 * 2
+            for i in range(0, len(audio_bytes), frame_size):
+                frame = audio_bytes[i:i+frame_size]
+                if len(frame) < frame_size: break
+                if self.webrtc_vad.is_speech(frame, SAMPLE_RATE):
+                    is_speech_webrtc = True
+                    break
+            
+            if not is_speech_webrtc:
+                return False
         
-        if not webrtc_active:
-            return False
-
-        # 2. Silero Check (précision)
+        # 2. Deuxième passage : Silero Check (précision)
         with self._lock:
-            audio_float = np.frombuffer(chunk_pcm, dtype=np.int16).astype(np.float32) / INT16_MAX_ABS_VALUE
+            audio_float = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / INT16_MAX_ABS_VALUE
             vad_prob = self.silero_model(torch.from_numpy(audio_float), SAMPLE_RATE).item()
             return vad_prob > (1 - self.silero_sensitivity)
