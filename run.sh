@@ -15,20 +15,23 @@ echo "===================================================="
 echo "   🎙️  LANCEUR VOXTRAL-POD AUTOMATIQUE  🎙️"
 echo "===================================================="
 
-# 1. Récupération du code
+# 1. Récupération du code (Auto-réparation)
 # Fix pour les environnements comme Onyxia/VSCode qui râlent sur les permissions
 git config --global --add safe.directory "$PWD"
 
 if [ ! -d ".git" ]; then
-    echo "[*] Installation initiale du code depuis GitHub..."
+    echo "[*] Initialisation du dépôt Git..."
     git init .
-    git remote add origin "$REPO_URL"
-    git fetch
-    git checkout -f main || (echo "❌ Erreur: Impossible de récupérer le code. Vérifie l'accès au repo." && exit 1)
-else
-    echo "[*] Mise à jour du code..."
-    git pull origin main || echo "[!] Attention: échec de la mise à jour, utilisation de la version locale."
 fi
+
+# On s'assure que le remote 'origin' est bien configuré (au cas où l'étape précédente a été interrompue)
+git remote remove origin 2>/dev/null
+git remote add origin "$REPO_URL"
+
+echo "[*] Synchronisation avec GitHub (Force)..."
+git fetch origin main
+git checkout -f main
+git reset --hard origin/main || (echo "❌ Erreur: Synchronisation impossible. Vérifie l'accès au repo." && exit 1)
 
 # 2. Vérification de Python 3.11+
 PYTHON_CMD="python3"
