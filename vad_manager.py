@@ -15,14 +15,10 @@ class VADManager:
     Inspiré de TranscriptionSuite.
     """
     def __init__(self, silero_sensitivity: float = 0.4):
-        # WebRTC VAD (Rapide, pour un premier filtrage)
-        self.webrtc_vad = None
-        try:
-            import webrtcvad
-            self.webrtc_vad = webrtcvad.Vad(3) # Niveau d'agression max (3)
-            print("[*] WebRTC VAD chargé.")
-        except (ImportError, ModuleNotFoundError) as e:
-            print(f"[!] Warning: WebRTC VAD non disponible ({e}). Utilisation uniquement de Silero VAD.")
+        # WebRTC VAD (Rapide, pour un premier filtrage) - OBLIGATOIRE
+        import webrtcvad
+        self.webrtc_vad = webrtcvad.Vad(3) # Niveau d'agression max (3)
+        print("[*] WebRTC VAD chargé.")
 
         # Silero VAD (Lent mais ultra précis, pour confirmer)
         from silero_vad import load_silero_vad
