@@ -1,4 +1,16 @@
 import os
+# === CACHE HUGGINGFACE (Doit être défini AVANT les autres imports) ===
+_CACHE_DIR = os.path.abspath("hf_cache")
+_HUB_DIR   = os.path.join(_CACHE_DIR, "hub")
+os.makedirs(_HUB_DIR, exist_ok=True)
+for _k, _v in [
+    ("HF_HOME",              _CACHE_DIR),
+    ("HF_HUB_CACHE",         _HUB_DIR),
+    ("TRANSFORMERS_CACHE",   _HUB_DIR),
+    ("HUGGINGFACE_HUB_CACHE",_HUB_DIR),
+]:
+    os.environ[_k] = _v
+
 import uuid
 import asyncio
 import tempfile
@@ -22,17 +34,7 @@ from fastapi import (
 from fastapi.responses import JSONResponse, HTMLResponse, PlainTextResponse
 from vad_manager import VADManager, SAMPLE_RATE
 
-# === CACHE HUGGINGFACE ===
-_CACHE_DIR = os.path.abspath("hf_cache")
-_HUB_DIR   = os.path.join(_CACHE_DIR, "hub")
-os.makedirs(_HUB_DIR, exist_ok=True)
-for _k, _v in [
-    ("HF_HOME",              _CACHE_DIR),
-    ("HF_HUB_CACHE",         _HUB_DIR),
-    ("TRANSFORMERS_CACHE",   _HUB_DIR),
-    ("HUGGINGFACE_HUB_CACHE",_HUB_DIR),
-]:
-    os.environ[_k] = _v
+# === CONFIGURATION TERMINÉE ===
 
 app = FastAPI(title="SOTA ASR Server", version="2.6.0")
 
