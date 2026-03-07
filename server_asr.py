@@ -359,6 +359,9 @@ class SotaASR:
         if self.model_id == "voxtral":
             inputs = self.processor(audio, sampling_rate=SAMPLE_RATE, return_tensors="pt")
             inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
+            # Fix Dtype mismatch: le modèle attend souvent du BFloat16
+            if "input_features" in inputs:
+                inputs["input_features"] = inputs["input_features"].to(torch.bfloat16)
             with torch.no_grad():
                 out = self.model.generate(**inputs, max_new_tokens=128)
                 return self.processor.batch_decode(out, skip_special_tokens=True)[0].strip()
