@@ -311,11 +311,17 @@ class SotaASR:
         print(f"[*] Chargement du modèle '{model_id}'...")
 
         if model_id == "voxtral":
-            from transformers import VoxtralRealtimeForConditionalGeneration, AutoProcessor, BitsAndBytesConfig
+            from transformers import VoxtralRealtimeForConditionalGeneration, AutoProcessor
             repo_id = "mistralai/Voxtral-Mini-4B-Realtime-2602"
             self.processor = AutoProcessor.from_pretrained(repo_id)
-            quant_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.float16, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True)
-            self.model = VoxtralRealtimeForConditionalGeneration.from_pretrained(repo_id, quantization_config=quant_config, device_map="auto", attn_implementation="sdpa")
+            # Optimisation Performance: On évite bitsandbytes (4-bit) qui est trop lent pour du live 
+            # à cause de l'overhead de déquantisation. On charge en BFloat16 natif.
+            self.model = VoxtralRealtimeForConditionalGeneration.from_pretrained(
+                repo_id, 
+                torch_dtype=torch.bfloat16,
+                device_map="auto", 
+                attn_implementation="sdpa"
+            )
         elif model_id == "whisper":
             from faster_whisper import WhisperModel
             self.model = WhisperModel("large-v3", device=self.device, compute_type="float16")
