@@ -339,20 +339,31 @@ class SotaASR:
         self.audio_buffer += audio_bytes
         self.full_session_audio.append(audio_bytes)
 
-        # On check la fin de phrase tous les 750ms d'audio accumulé
-        if len(self.audio_buffer) < 12000 * 2: # ~0.75s
+        # 1. Seuil de buffering réduit pour une réactivité maximale (250ms)
+        if len(self.audio_buffer) < 4000 * 2: # 4000 samples = 250ms @ 16kHz
             return {"status": "buffering"}
 
-        # Si silence détecté par le double VAD
-        if not self.vad.is_speech(bytes(self.audio_buffer)):
-            if len(self.audio_buffer) > 24000: # On attend d'avoir au moins 1.5s
-                async with self.processing_lock:
-                    pcm_data = bytes(self.audio_buffer)
+        # 2. Check silence pour segmentation par phrase
+        is_silence = not self.vad.is_speech(bytes(self.audio_buffer))
+        
+        # 3. Aggressive Streaming: On effectue une transcription même si ce n'est pas un silence
+        # (Sauf si on est déjà en train de processer pour éviter de spammer le GPU)
+        if not self.processing_lock.locked():
+            async with self.processing_lock:
+                pcm_data = bytes(self.audio_buffer)
+                
+                # Si c'est un silence, on vide le buffer (fin de phrase)
+                if is_silence:
                     self.audio_buffer = bytearray()
                     text = await self._run_inference(pcm_data)
-                    return {"text": text}
-        
-        return {"status": "recording"}
+                    return {"text": text, "final": True}
+                else:
+                    # C'est du streaming (résultat partiel)
+                    # On garde le buffer pour la suite
+                    text = await self._run_inference(pcm_data)
+                    return {"text": text, "final": False}
+
+        return {"status": "processing"}
 
     async def _run_inference(self, pcm_data: bytes) -> str:
         audio = np.frombuffer(pcm_data, dtype=np.int16).astype(np.float32) / 32768.0
