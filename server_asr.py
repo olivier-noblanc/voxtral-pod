@@ -314,11 +314,11 @@ class SotaASR:
             from transformers import VoxtralRealtimeForConditionalGeneration, AutoProcessor
             repo_id = "mistralai/Voxtral-Mini-4B-Realtime-2602"
             self.processor = AutoProcessor.from_pretrained(repo_id)
-            # Optimisation Performance: On évite bitsandbytes (4-bit) qui est trop lent pour du live 
-            # à cause de l'overhead de déquantisation. On charge en BFloat16 natif.
+            # Optimisation T4 (Tesla 16GB): On utilise Float16 (mieux supporté que BF16 sur Turing)
+            # On évite bitsandbytes (4-bit) qui ralentit l'inférence.
             self.model = VoxtralRealtimeForConditionalGeneration.from_pretrained(
                 repo_id, 
-                torch_dtype=torch.bfloat16,
+                torch_dtype=torch.float16,
                 device_map="auto", 
                 attn_implementation="sdpa"
             )
@@ -376,10 +376,10 @@ class SotaASR:
         if self.model_id == "voxtral":
             inputs = self.processor(audio, sampling_rate=SAMPLE_RATE, return_tensors="pt")
             inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
-            # Fix Dtype mismatch: on force le BFloat16 pour tous les inputs flottants
+            # Fix Dtype mismatch: on force le Float16 pour tous les inputs flottants (T4 compat)
             for k, v in inputs.items():
                 if torch.is_floating_point(v):
-                    inputs[k] = v.to(torch.bfloat16)
+                    inputs[k] = v.to(torch.float16)
 
             with torch.no_grad():
                 out = self.model.generate(**inputs, max_new_tokens=128)
