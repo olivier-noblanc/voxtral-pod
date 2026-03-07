@@ -10,7 +10,7 @@ VENV_DIR="venv_asr"
 MODEL="${1:-voxtral}"
 
 echo "===================================================="
-echo "   🎙️  LANCEUR VOXTRAL-POD v4.0 (AUTO-REPAIR)  🎙️"
+echo "   🎙️  LANCEUR VOXTRAL-POD v4.1 (AUTO-REPAIR)  🎙️"
 echo "===================================================="
 
 # 1. Récupération & Réparation du code
