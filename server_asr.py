@@ -18,7 +18,7 @@ import time
 import torch
 import warnings
 # Ignore specific math warnings from pyannote on very short segments
-warnings.filterwarnings("ignore", message="std\(\): degrees of freedom is <= 0")
+warnings.filterwarnings("ignore", message=r"std\(\): degrees of freedom is <= 0")
 
 # === GPU PERFORMANCE OPTIMIZATION (Ampere+) ===
 if torch.cuda.is_available():
