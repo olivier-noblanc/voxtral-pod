@@ -39,7 +39,7 @@ class SotaASR:
         # 2. Diarize
         if progress_callback: progress_callback("Diarisation...", 5)
         
-        def diar_hook(step_name, completed, total):
+        def diar_hook(step_name, completed, total=None, **kwargs):
             if progress_callback and total > 0:
                 sub_pct = int((completed / total) * 40)
                 progress_callback(f"Diarisation ({step_name})...", 5 + sub_pct)
