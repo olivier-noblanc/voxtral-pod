@@ -39,8 +39,15 @@ class SotaASR:
         # 2. Diarize
         if progress_callback: progress_callback("Diarisation...", 5)
         
-        def diar_hook(step_name, completed, total=None, **kwargs):
-            if progress_callback and total > 0:
+        def diar_hook(step_name, *args, **kwargs):
+            if not progress_callback:
+                return
+            
+            # Extract completed and total from args or kwargs (Pyannote version-proof)
+            completed = args[0] if len(args) > 0 else kwargs.get('completed', 0)
+            total = args[1] if len(args) > 1 else kwargs.get('total')
+
+            if total and total > 0:
                 sub_pct = int((completed / total) * 40)
                 progress_callback(f"Diarisation ({step_name})...", 5 + sub_pct)
 
