@@ -26,8 +26,9 @@ if torch.cuda.is_available():
 # Ignore specific math warnings from pyannote on very short segments
 warnings.filterwarnings("ignore", message=r"std\(\): degrees of freedom is <= 0")
 # Ignore ReproducibilityWarning since we explicitly enable TF32 for performance on A2
-# Using a broader match to catch version variations
 warnings.filterwarnings("ignore", category=UserWarning, message=".*TensorFloat-32.*")
+# Ignore torchcodec warnings (legacy/missing on some systems)
+warnings.filterwarnings("ignore", message=r".*torchcodec is not installed correctly.*", category=UserWarning)
 import torchaudio
 import json
 import datetime
@@ -817,40 +818,100 @@ class SotaASR:
              print(f"[*] Available attributes: {dir(diarization)}")
              return []
 
-        raw_segments = []
+        segments = []
         for turn, _, speaker in annotation.itertracks(yield_label=True):
-            raw_segments.append({
-                "start": turn.start,
-                "end": turn.end,
-                "speaker": speaker
-            })
+            segments.append((turn.start, turn.end, speaker))
+            
+        print(f"[*] Diarization complete: {len(segments)} raw segments found.")
+        return segments
 
-        if not raw_segments:
-            return []
+    def _assign_speakers_to_words(self, words, diarization_segments):
+        """Reference logic from TranscriptionSuite/speaker_merge.py"""
+        if not words or not diarization_segments:
+            return words
 
-        # --- OPTIMIZATION: Filtering & Merging ---
-        # 1. Filter out micro-segments (< 0.5s) likely to be noise/coughs
-        filtered = [s for s in raw_segments if (s["end"] - s["start"]) >= 0.5]
-        if not filtered: return []
+        # Pre-sort diarization segments by start time
+        diar = sorted(diarization_segments, key=lambda s: s[0])
+        result = []
+        prev_speaker = None
+        prev_end = 0.0
 
-        # 2. Merge adjacent segments from the same speaker
-        # If gap < 1.5s and same speaker, we merge them into one block
-        merged = []
-        if filtered:
-            curr = filtered[0]
-            for i in range(1, len(filtered)):
-                nxt = filtered[i]
-                gap = nxt["start"] - curr["end"]
-                if nxt["speaker"] == curr["speaker"] and gap < 1.5:
-                    # Extend current segment end
-                    curr["end"] = nxt["end"]
-                else:
-                    merged.append((curr["start"], curr["end"], curr["speaker"]))
-                    curr = nxt
-            merged.append((curr["start"], curr["end"], curr["speaker"]))
+        for w in words:
+            w_start = w["start"]
+            w_end = w["end"]
+            w_mid = (w_start + w_end) / 2.0
 
-        print(f"[*] Diarization optimized: {len(raw_segments)} raw -> {len(merged)} merged segments")
-        return merged
+            # Inflate word interval by padding (40ms jitter tolerance)
+            padded_start = w_start - 0.040
+            padded_end = w_end + 0.040
+
+            best_speaker = None
+            best_overlap = 0.0
+            midpoint_speaker = None
+            nearest_speaker = None
+            nearest_distance = None
+
+            for ds, de, dspk in diar:
+                # Pass 1: overlap
+                overlap = max(0.0, min(padded_end, de) - max(padded_start, ds))
+                if overlap > best_overlap:
+                    best_overlap = overlap
+                    best_speaker = dspk
+
+                # Pass 2: midpoint
+                if midpoint_speaker is None and ds <= w_mid <= de:
+                    midpoint_speaker = dspk
+
+                # Pass 3: nearest turn
+                if w_mid < ds: dist = ds - w_mid
+                elif w_mid > de: dist = w_mid - de
+                else: dist = 0.0
+
+                if dist <= 0.120: # 120ms fallback
+                    if nearest_distance is None or dist < nearest_distance:
+                        nearest_distance = dist
+                        nearest_speaker = dspk
+
+            # Fallback chain
+            if best_speaker is not None and best_overlap > 0.0: chosen = best_speaker
+            elif midpoint_speaker is not None: chosen = midpoint_speaker
+            elif nearest_speaker is not None: chosen = nearest_speaker
+            elif prev_speaker is not None and (w_start - prev_end) <= 0.200: chosen = prev_speaker
+            else: chosen = "UNKNOWN"
+
+            w["speaker"] = chosen
+            result.append(w)
+            prev_speaker = chosen
+            prev_end = w_end
+
+        return result
+
+    def _smooth_micro_turns(self, words, max_run_length=1):
+        """Reference logic from TranscriptionSuite/speaker_merge.py"""
+        if len(words) < 3: return words
+
+        # Build runs: (speaker, start_idx, length)
+        runs = []
+        i = 0
+        while i < len(words):
+            spk = words[i].get("speaker", "UNKNOWN")
+            j = i + 1
+            while j < len(words) and words[j].get("speaker", "UNKNOWN") == spk:
+                j += 1
+            runs.append([spk, i, j - i])
+            i = j
+
+        # Identify runs to relabel
+        for r_idx in range(1, len(runs) - 1):
+            spk, start_idx, length = runs[r_idx]
+            if length > max_run_length: continue
+            prev_spk = runs[r_idx - 1][0]
+            next_spk = runs[r_idx + 1][0]
+            if prev_spk == next_spk and prev_spk != spk:
+                for wi in range(start_idx, start_idx + length):
+                    words[wi]["speaker"] = prev_spk
+
+        return words
 
     # ------------------------------------------------------------------
     # Speaker name detection (heuristic on French introductions)
@@ -1092,38 +1153,66 @@ class SotaASR:
             if _is_cancelled(): return
             print(f"[*] Batch [{file_id[:8]}]: Etape 3/4 - Transcription...")
             _update("Etape 3/4 : Transcription en cours...", 45)
+            
+            all_words = []
             if self.model_id == "whisper":
                 segments, info = self.model.transcribe(
-                    audio_np, beam_size=5, language=LANGUAGE, task="transcribe"
+                    audio_np, beam_size=5, language=LANGUAGE, task="transcribe",
+                    word_timestamps=True # Required for precision merge
                 )
-                transcribed_segments = []
                 for s in segments:
                     if _is_cancelled(): return
-                    transcribed_segments.append({"start": s.start, "end": s.end, "text": s.text.strip()})
+                    if hasattr(s, "words") and s.words:
+                        for w in s.words:
+                            all_words.append({"start": w.start, "end": w.end, "word": w.word})
+                    else:
+                        # Fallback if words missing
+                        all_words.append({"start": s.start, "end": s.end, "word": s.text.strip()})
+                    
                     # Whisper progress from 45% to 95%
                     pct = 45 + min(50, int((s.end / info.duration) * 50)) if info.duration > 0 else 45
                     _update("Etape 3/4 : Transcription en cours...", pct)
                     print(f"[*] Transcription batch [{file_id[:8]}] : {pct}% ({s.end:.1f}s / {info.duration:.1f}s)")
-
             else:
                 pcm = (audio_np * 32768.0).astype(np.int16).tobytes()
                 text = self._transcribe_sync(pcm)
-                transcribed_segments = [{"start": 0, "end": duration, "text": text}]
+                all_words = [{"start": 0, "end": duration, "word": text}]
 
-            # Merge diarization with transcription
+            # === REFERENCE MERGE STRATEGY (TranscriptionSuite) ===
+            # 1. Assign speakers to words with 40ms padding and fallback logic
+            words_with_speakers = self._assign_speakers_to_words(all_words, diar_segments)
+            
+            # 2. Smooth micro-turns (isolated single-word flips)
+            words_with_speakers = self._smooth_micro_turns(words_with_speakers)
+
+            # 3. Group words into contiguous speaker segments
             structured_lines = []
             output_lines = []
-            for ts_seg in transcribed_segments:
-                speaker = "Speaker"
-                seg_mid = (ts_seg["start"] + ts_seg["end"]) / 2
-                for ds, de, dspk in diar_segments:
-                    if ds <= seg_mid <= de:
-                        speaker = dspk
-                        break
-                structured_lines.append({"speaker": speaker, "text": ts_seg["text"]})
-                output_lines.append(
-                    f"[{ts_seg['start']:.2f}s -> {ts_seg['end']:.2f}s] [{speaker}] {ts_seg['text']}"
-                )
+            
+            if words_with_speakers:
+                current_speaker = words_with_speakers[0]["speaker"]
+                current_start = words_with_speakers[0]["start"]
+                current_words = [words_with_speakers[0]["word"]]
+                
+                for i in range(1, len(words_with_speakers)):
+                    w = words_with_speakers[i]
+                    # If same speaker, continue segment
+                    if w["speaker"] == current_speaker:
+                        current_words.append(w["word"])
+                    else:
+                        # Flush segment
+                        text = "".join(current_words).strip()
+                        structured_lines.append({"speaker": current_speaker, "text": text})
+                        output_lines.append(f"[{current_start:.2f}s -> {words_with_speakers[i-1]['end']:.2f}s] [{current_speaker}] {text}")
+                        # Start new segment
+                        current_speaker = w["speaker"]
+                        current_start = w["start"]
+                        current_words = [w["word"]]
+                
+                # Final flush
+                text = "".join(current_words).strip()
+                structured_lines.append({"speaker": current_speaker, "text": text})
+                output_lines.append(f"[{current_start:.2f}s -> {words_with_speakers[-1]['end']:.2f}s] [{current_speaker}] {text}")
 
             full_text = "\n".join(output_lines)
 
