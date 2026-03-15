@@ -163,6 +163,7 @@ HTML_UI = """<!DOCTYPE html>
 <script>
 let ws = null, isRecording = false;
 let audioContext = null, processor = null, source = null;
+const CHUNK_SIZE = 4 * 1024 * 1024;
 
 const getClientId = () => {
     let id = localStorage.getItem("sota_client_id");
