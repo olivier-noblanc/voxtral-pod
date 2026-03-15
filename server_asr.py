@@ -803,13 +803,17 @@ class SotaASR:
             {"waveform": waveform, "sample_rate": self.sample_rate},
             hook=hook
         )
-        # Handle Pyannote 4.x DiarizeOutput vs legacy Annotation
-        annotation = diarization
-        if hasattr(diarization, "annotation"):
-            annotation = diarization.annotation
+        
+        # Robust handling of Pyannote 4.x DiarizeOutput vs legacy Annotation
+        # Search for .annotation attribute or check if it's already an Annotation-like object
+        annotation = getattr(diarization, "annotation", diarization)
+        
+        # As a last resort fallback, if it doesn't have itertracks, it's definitely not what we want
+        if not hasattr(annotation, "itertracks"):
+             print(f"[!] Warning: Object {type(annotation)} has no itertracks.")
+             return []
 
         segments = []
-        # pyannote.audio 4.x standard iteration
         for turn, _, speaker in annotation.itertracks(yield_label=True):
             segments.append((turn.start, turn.end, speaker))
         return segments
