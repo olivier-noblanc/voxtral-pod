@@ -63,18 +63,12 @@ fi
 source "$VENV_DIR/bin/activate"
 
 # 3. Dependencies
-echo "[*] Checking dependencies..."
+echo "[*] Checking/Installing dependencies..."
 pip install -U pip setuptools wheel
-
-if [ "$FORCE_REINSTALL" = true ] || ! pip show fastapi &> /dev/null; then
-    echo "[*] Installing from requirements.txt..."
-    if ! pip install -r requirements.txt; then
-        echo "[!] Retrying with webrtcvad from git..."
-        pip install "git+https://github.com/wiseman/py-webrtcvad.git"
-        pip install -r requirements.txt
-    fi
-else
-    echo "[*] Dependencies OK."
+if ! pip install -r requirements.txt; then
+    echo "[!] Retrying with webrtcvad from git..."
+    pip install "git+https://github.com/wiseman/py-webrtcvad.git"
+    pip install -r requirements.txt
 fi
 
 # 4. GPU check
