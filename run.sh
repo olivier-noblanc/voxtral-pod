@@ -37,11 +37,13 @@ if [ ! -d ".git" ]; then
     echo "[*] Init code..."
     git init .
     git remote add origin "$REPO_URL"
+# 1. Sync from Remote Repo
+if [ "$SKIP_GIT_RESET" = "true" ]; then
+    echo "[*] Local modifications preserved (SKIP_GIT_RESET=true)."
+else
+    echo "[*] Syncing from GitHub (force update)..."
+    git fetch origin main && git reset --hard origin/main || echo "[!] Sync failed, local mode enabled."
 fi
-git remote set-url origin "$REPO_URL"
-echo "[*] Syncing from GitHub (force)..."
-# # git fetch origin main && git reset --hard origin/main || echo "[!] Local mode (sync failed)"
-echo "[*] Local modifications preserved (git reset disabled)."
 
 # 2. Virtual environment
 FORCE_REINSTALL=false

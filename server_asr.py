@@ -793,6 +793,7 @@ class SotaASR:
         diarization = self.diarization_pipeline(
             {"waveform": waveform, "sample_rate": self.sample_rate},
             hook=hook
+        )
         # Handle Pyannote 4.x DiarizeOutput vs legacy Annotation
         annotation = diarization
         if hasattr(diarization, "annotation"):
