@@ -101,11 +101,13 @@ MAPPING = {
 try:
     with open("requirements.txt", "r") as f:
         lines = [l.strip() for l in f if l.strip() and not l.strip().startswith("#")]
+        print(f"[*] Found {len(lines)} packages in requirements.txt")
 except FileNotFoundError:
     print("[!] requirements.txt not found.")
     sys.exit(1)
 
 for line in lines:
+    print(f"[*] Checking {line}...")
     base_pkg = line.split(">=")[0].split("==")[0].split("<=")[0].strip()
     import_name = MAPPING.get(base_pkg, base_pkg.split("[")[0].replace("-", "_"))
 
