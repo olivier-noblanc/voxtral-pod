@@ -24,3 +24,4 @@ silero-vad
 boto3
 matplotlib
 vosk
+vosk
