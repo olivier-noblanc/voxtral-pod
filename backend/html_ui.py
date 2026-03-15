@@ -123,6 +123,21 @@ HTML_UI = """<!DOCTYPE html>
         <div id="viewerContent" style="flex:1; overflow-y:auto; background:#111827; color:#E5E7EB; padding:1rem; border-radius:4px; font-family:sans-serif; white-space:pre-wrap;">
         </div>
         <footer>
+            <div id="exportConfig" style="background:#1F2937; padding:1rem; border-radius:8px; margin-bottom:1rem; border:1px solid #374151;">
+                <h6 style="margin-bottom:0.5rem; color:#F59E0B;">⚙️ Configuration de l'export</h6>
+                <div style="display:flex; flex-wrap:wrap; gap:15px; align-items:center; margin-bottom:1rem;">
+                    <label style="margin:0; display:flex; align-items:center; gap:8px; cursor:pointer;">
+                        <input type="checkbox" id="includeTimestamps" checked onchange="updateExportPreview()" style="margin:0;">
+                        <span>Inclure les timestamps</span>
+                    </label>
+                </div>
+                <div id="speakerRenameContainer" style="display:none;">
+                    <p style="margin-bottom:0.5rem; font-size:0.9rem;">Renommer les speakers :</p>
+                    <div id="speakerRenameList" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:10px;">
+                        <!-- Dynamically filled -->
+                    </div>
+                </div>
+            </div>
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div style="display:flex; gap:10px;">
                     <button id="btnSaveS3" onclick="uploadToS3()" style="margin:0; background-color:#F59E0B; border-color:#F59E0B; color:black; padding:8px 16px;">Sauvegarder S3</button>
@@ -356,6 +371,8 @@ async function loadHistory() {
     } catch (e) { list.innerHTML = "Erreur chargement historique."; }
 }
 
+let currentRawText = "";
+
 async function viewFile(name) {
     const dialog = document.getElementById('viewerDialog');
     const title = document.getElementById('viewerTitle');
@@ -363,7 +380,66 @@ async function viewFile(name) {
     title.innerText = name; content.innerText = "Chargement...";
     dialog.showModal();
     const res = await fetch(`/transcription/${name}?client_id=${getClientId()}`);
-    content.innerText = await res.text();
+    currentRawText = await res.text();
+    
+    detectSpeakers(currentRawText);
+    updateExportPreview();
+}
+
+function detectSpeakers(text) {
+    const container = document.getElementById('speakerRenameList');
+    const wrapper = document.getElementById('speakerRenameContainer');
+    container.innerHTML = "";
+    
+    // Pattern: [SPEAKER_00]
+    const speakerRegex = /\[(SPEAKER_\d+)\]/g;
+    const speakers = new Set();
+    let match;
+    while ((match = speakerRegex.exec(text)) !== null) {
+        speakers.add(match[1]);
+    }
+    
+    if (speakers.size > 0) {
+        wrapper.style.display = "block";
+        speakers.forEach(spk => {
+            const div = document.createElement('div');
+            div.style.display = "flex";
+            div.style.alignItems = "center";
+            div.style.gap = "5px";
+            div.innerHTML = `
+                <span style="font-size:0.8rem; color:#9CA3AF; min-width:80px;">${spk} :</span>
+                <input type="text" value="${spk}" data-original="${spk}" oninput="updateExportPreview()" 
+                       style="margin:0; padding:4px 8px; font-size:0.8rem; height:auto;">
+            `;
+            container.appendChild(div);
+        });
+    } else {
+        wrapper.style.display = "none";
+    }
+}
+
+function updateExportPreview() {
+    let text = currentRawText;
+    const includeTimestamps = document.getElementById('includeTimestamps').checked;
+    
+    // Apply speaker renaming
+    const inputs = document.querySelectorAll('#speakerRenameList input');
+    inputs.forEach(input => {
+        const original = input.getAttribute('data-original');
+        const replacement = input.value.trim() || original;
+        // Global replace for [SPEAKER_XX]
+        const escapedOriginal = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp('\\[' + escapedOriginal + '\\]', 'g');
+        text = text.replace(re, `[${replacement}]`);
+    });
+    
+    // Filter timestamps if needed
+    if (!includeTimestamps) {
+        // Pattern: [0.76s -> 1.40s] 
+        text = text.replace(/\[\d+\.?\d*s -> \d+\.?\d*s\]\s*/g, "");
+    }
+    
+    document.getElementById('viewerContent').innerText = text;
 }
 
 function closeViewer() {
