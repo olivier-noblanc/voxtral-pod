@@ -44,19 +44,24 @@ class SotaASR:
                 return
             
             try:
-                # Extract completed and total (robustly, handling potential numpy/torch types)
-                c = args[0] if len(args) > 0 else kwargs.get('completed', 0)
-                t = args[1] if len(args) > 1 else kwargs.get('total')
+                # Extract raw values
+                c_raw = args[0] if len(args) > 0 else kwargs.get('completed', 0)
+                t_raw = args[1] if len(args) > 1 else kwargs.get('total')
                 
-                # Convert to float securely (avoids "only 0-dimensional arrays can be converted to Python scalars")
-                c_val = float(c) if c is not None else 0.0
-                t_val = float(t) if t is not None else 0.0
+                # Ultra-robust scalar extraction (works for numbers, 0-d arrays, and 1-element arrays)
+                def to_scalar(v):
+                    if v is None: return 0.0
+                    if hasattr(v, "item"): return float(v.item())
+                    if isinstance(v, (list, np.ndarray)) and len(v) > 0: return float(v[0])
+                    return float(v)
+
+                c_val = to_scalar(c_raw)
+                t_val = to_scalar(t_raw)
 
                 if t_val > 0:
                     sub_pct = int((c_val / t_val) * 40)
                     progress_callback(f"Diarisation ({step_name})...", 5 + sub_pct)
             except Exception:
-                # In case of weird types from Pyannote, we just skip the progress update instead of crashing
                 pass
 
         diar_segments = self.diarization_engine.diarize(audio_np, hook=diar_hook)
