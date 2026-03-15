@@ -196,13 +196,13 @@ async function startRecording() {
             audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
             const processorCode = `
                 class AudioProcessor extends AudioWorkletProcessor {
-                    constructor() { super(); this.buffer = new Float32Array(4000); this.offset = 0; }
+                    constructor() { super(); this.buffer = new Float32Array(2560); this.offset = 0; }
                     process(inputs) {
                         const input = inputs[0][0];
                         if (!input) return true;
                         for (let i = 0; i < input.length; i++) {
                             this.buffer[this.offset++] = input[i];
-                            if (this.offset >= 4000) { this.port.postMessage(this.buffer); this.offset = 0; }
+                            if (this.offset >= 2560) { this.port.postMessage(this.buffer); this.offset = 0; }
                         }
                         return true;
                     }
@@ -541,8 +541,8 @@ class SotaASR:
         self.min_segment_bytes = int(self.sample_rate * 2 * 0.5)
 
         # Silence threshold: ~1.5s of silence = end of sentence
-        # Frontend sends 4000 samples = 250ms per chunk, so 6 chunks ≈ 1.5s
-        self.silence_chunks_threshold = 6
+        # Frontend sends 2560 samples = 160ms per chunk, so 9 chunks ≈ 1.44s
+        self.silence_chunks_threshold = 9
 
         self.processing_lock = asyncio.Lock()
 

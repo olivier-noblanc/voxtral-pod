@@ -86,10 +86,22 @@ class VADManager:
                     np.frombuffer(chunk_pcm, dtype=np.int16)
                     .astype(np.float32) / INT16_MAX_ABS_VALUE
                 )
-                vad_prob = self.silero_model(
-                    torch.from_numpy(audio_np), SAMPLE_RATE
-                ).item()
-                self.is_silero_speech_active = vad_prob > (1 - self.silero_sensitivity)
+                
+                chunk_size = 512
+                # Get max VAD probability across all 512-sample chunks
+                max_vad_prob = 0.0
+                for i in range(0, len(audio_np), chunk_size):
+                    piece = audio_np[i : i + chunk_size]
+                    if len(piece) < chunk_size:
+                        piece = np.pad(piece, (0, chunk_size - len(piece)))
+                        
+                    prob = self.silero_model(
+                        torch.from_numpy(piece), SAMPLE_RATE
+                    ).item()
+                    if prob > max_vad_prob:
+                        max_vad_prob = prob
+
+                self.is_silero_speech_active = max_vad_prob > (1 - self.silero_sensitivity)
             finally:
                 self._silero_working = False
 
@@ -131,10 +143,22 @@ class VADManager:
                     np.frombuffer(chunk_pcm, dtype=np.int16)
                     .astype(np.float32) / INT16_MAX_ABS_VALUE
                 )
-                vad_prob = self.silero_model(
-                    torch.from_numpy(audio_np), SAMPLE_RATE
-                ).item()
-                result = vad_prob > (1 - self.silero_sensitivity)
+                
+                chunk_size = 512
+                # Get max VAD probability across all 512-sample chunks
+                max_vad_prob = 0.0
+                for i in range(0, len(audio_np), chunk_size):
+                    piece = audio_np[i : i + chunk_size]
+                    if len(piece) < chunk_size:
+                        piece = np.pad(piece, (0, chunk_size - len(piece)))
+                        
+                    prob = self.silero_model(
+                        torch.from_numpy(piece), SAMPLE_RATE
+                    ).item()
+                    if prob > max_vad_prob:
+                        max_vad_prob = prob
+
+                result = max_vad_prob > (1 - self.silero_sensitivity)
                 self.is_silero_speech_active = result
                 return result
             finally:
