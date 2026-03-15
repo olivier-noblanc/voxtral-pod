@@ -657,15 +657,18 @@ class SotaASR:
                 print(f"[*] Diarization: {len(diar_segments)} segments")
 
             # Transcription
-            _update("Transcription en cours...")
+            _update("Transcription en cours... (0%)")
             if self.model_id == "whisper":
-                segments, _ = self.model.transcribe(
+                segments, info = self.model.transcribe(
                     audio_np, beam_size=5, language=LANGUAGE, task="transcribe"
                 )
-                transcribed_segments = [
-                    {"start": s.start, "end": s.end, "text": s.text.strip()}
-                    for s in segments
-                ]
+                transcribed_segments = []
+                for s in segments:
+                    transcribed_segments.append({"start": s.start, "end": s.end, "text": s.text.strip()})
+                    pct = min(100, int((s.end / info.duration) * 100)) if info.duration > 0 else 0
+                    _update(f"Transcription en cours... ({pct}%)")
+                    print(f"[*] Transcription batch [{file_id[:8]}] : {pct}% ({s.end:.1f}s / {info.duration:.1f}s)")
+
             else:
                 pcm = (audio_np * 32768.0).astype(np.int16).tobytes()
                 text = self._transcribe_sync(pcm)
