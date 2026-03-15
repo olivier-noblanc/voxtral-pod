@@ -31,7 +31,7 @@ import re
 from collections import Counter
 from fastapi import (
     FastAPI, WebSocket, WebSocketDisconnect,
-    File, UploadFile, Form, BackgroundTasks
+    File, UploadFile, Form, BackgroundTasks, HTTPException
 )
 from fastapi.responses import JSONResponse, HTMLResponse, PlainTextResponse
 from vad_manager import VADManager, SAMPLE_RATE
@@ -116,6 +116,25 @@ HTML_UI = """<!DOCTYPE html>
         </div>
     </div>
 
+    <details style="margin-top: 2rem; background: #1F2937; padding: 1rem; border-radius: 8px;">
+        <summary style="cursor: pointer; font-weight: bold; color: #F59E0B;">⚙️ Options d'Export Avancées (S3)</summary>
+        <div style="margin-top: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <label>Endpoint URL
+                <input type="text" id="s3Endpoint" placeholder="https://s3.eu-west-1.amazonaws.com" onchange="saveS3Config()">
+            </label>
+            <label>Bucket Name
+                <input type="text" id="s3Bucket" placeholder="mon-bucket" onchange="saveS3Config()">
+            </label>
+            <label>Access Key
+                <input type="password" id="s3AccessKey" placeholder="AKIA..." onchange="saveS3Config()">
+            </label>
+            <label>Secret Key
+                <input type="password" id="s3SecretKey" placeholder="wJalr..." onchange="saveS3Config()">
+            </label>
+        </div>
+        <p><small style="color: #9CA3AF;">Ces informations sont sauvegardées localement dans votre navigateur.</small></p>
+    </details>
+
     <div class="batch-box" style="margin-top:2rem;">
         <h3>📜 Dernières transcriptions</h3>
         <div id="transcriptionList" style="display:flex; flex-direction:column; gap:5px;">
@@ -133,7 +152,10 @@ HTML_UI = """<!DOCTYPE html>
         <div id="viewerContent" style="flex:1; overflow-y:auto; background:#111827; color:#E5E7EB; padding:1rem; border-radius:4px; font-family:sans-serif; white-space:pre-wrap;">
         </div>
         <footer>
-            <button class="secondary" onclick="closeViewer()">Fermer</button>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <button id="btnSaveS3" onclick="uploadToS3()" style="margin:0; background-color:#F59E0B; border-color:#F59E0B; color:black; padding:8px 16px;">Sauvegarder sur S3</button>
+                <button class="secondary" onclick="closeViewer()" style="margin:0; padding:8px 16px;">Fermer</button>
+            </div>
         </footer>
     </article>
 </dialog>
@@ -351,9 +373,66 @@ async function pollStatus(fileId, status) {
     }, 2000);
 }
 
+function saveS3Config() {
+    localStorage.setItem('s3Endpoint', document.getElementById('s3Endpoint').value);
+    localStorage.setItem('s3Bucket', document.getElementById('s3Bucket').value);
+    localStorage.setItem('s3AccessKey', document.getElementById('s3AccessKey').value);
+    localStorage.setItem('s3SecretKey', document.getElementById('s3SecretKey').value);
+}
+
+function loadS3Config() {
+    if(localStorage.getItem('s3Endpoint')) document.getElementById('s3Endpoint').value = localStorage.getItem('s3Endpoint');
+    if(localStorage.getItem('s3Bucket')) document.getElementById('s3Bucket').value = localStorage.getItem('s3Bucket');
+    if(localStorage.getItem('s3AccessKey')) document.getElementById('s3AccessKey').value = localStorage.getItem('s3AccessKey');
+    if(localStorage.getItem('s3SecretKey')) document.getElementById('s3SecretKey').value = localStorage.getItem('s3SecretKey');
+}
+
+async function uploadToS3() {
+    const title = document.getElementById('viewerTitle').innerText;
+    const content = document.getElementById('viewerContent').innerText;
+    const s3Endpoint = document.getElementById('s3Endpoint').value;
+    const s3Bucket = document.getElementById('s3Bucket').value;
+    const s3AccessKey = document.getElementById('s3AccessKey').value;
+    const s3SecretKey = document.getElementById('s3SecretKey').value;
+
+    if (!s3Bucket || !s3AccessKey || !s3SecretKey) {
+        alert("Veuillez configurer les accès S3 dans les 'Options d'Export Avancées' d'abord.");
+        return;
+    }
+
+    const btn = document.getElementById('btnSaveS3');
+    const oldText = btn.innerText;
+    btn.innerText = "Envoi...";
+    btn.disabled = true;
+
+    try {
+        const formData = new FormData();
+        formData.append("filename", title);
+        formData.append("content", content);
+        formData.append("endpoint", s3Endpoint);
+        formData.append("bucket", s3Bucket);
+        formData.append("access_key", s3AccessKey);
+        formData.append("secret_key", s3SecretKey);
+
+        const res = await fetch('/upload_s3', { method: 'POST', body: formData });
+        if (res.ok) {
+            alert("✓ Fichier sauvegardé sur S3 !");
+        } else {
+            const data = await res.json();
+            alert("❌ Erreur lors de l'envoi S3 : " + (data.detail || res.statusText));
+        }
+    } catch (e) {
+        alert("❌ Erreur réseau : " + e.message);
+    } finally {
+        btn.innerText = oldText;
+        btn.disabled = false;
+    }
+}
+
 // Set selected model on page load
 window.onload = () => {
     loadHistory();
+    loadS3Config();
     const sel = document.getElementById('modelSelector');
     for (let o of sel.options) { if (o.value === '{{model_name}}') o.selected = true; }
 };
@@ -1010,6 +1089,34 @@ async def batch_chunk_route(
 @app.get("/status/{file_id}")
 async def status_route(file_id: str):
     return jobs_db.get(file_id, {"status": "not_found"})
+
+
+@app.post("/upload_s3")
+async def upload_s3_route(
+    filename: str = Form(...), content: str = Form(...),
+    endpoint: str = Form(...), bucket: str = Form(...),
+    access_key: str = Form(...), secret_key: str = Form(...)
+):
+    try:
+        import boto3
+        s3_client = boto3.client(
+            's3',
+            endpoint_url=endpoint,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key
+        )
+        s3_client.put_object(
+            Bucket=bucket,
+            Key=filename,
+            Body=content.encode("utf-8"),
+            ContentType='text/plain; charset=utf-8'
+        )
+        return {"status": "ok", "message": "Uploaded successfully to S3"}
+    except Exception as e:
+        import traceback
+        print("[!] S3 Upload Error:")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
