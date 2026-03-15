@@ -40,7 +40,8 @@ if [ ! -d ".git" ]; then
 fi
 git remote set-url origin "$REPO_URL"
 echo "[*] Syncing from GitHub (force)..."
-git fetch origin main && git reset --hard origin/main || echo "[!] Local mode (sync failed)"
+# # git fetch origin main && git reset --hard origin/main || echo "[!] Local mode (sync failed)"
+echo "[*] Local modifications preserved (git reset disabled)."
 
 # 2. Virtual environment
 FORCE_REINSTALL=false
@@ -63,12 +64,12 @@ fi
 source "$VENV_DIR/bin/activate"
 
 # 3. Dependencies
-echo "[*] Checking/Installing dependencies..."
+echo "[*] Checking/Installing dependencies (force update)..."
 pip install -U pip setuptools wheel
-if ! pip install -r requirements.txt; then
+if ! pip install --upgrade -r requirements.txt; then
     echo "[!] Retrying with webrtcvad from git..."
     pip install "git+https://github.com/wiseman/py-webrtcvad.git"
-    pip install -r requirements.txt
+    pip install --upgrade -r requirements.txt
 fi
 
 # 4. GPU check
