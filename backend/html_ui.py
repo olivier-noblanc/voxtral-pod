@@ -124,7 +124,10 @@ HTML_UI = """<!DOCTYPE html>
         </div>
         <footer>
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <button id="btnSaveS3" onclick="uploadToS3()" style="margin:0; background-color:#F59E0B; border-color:#F59E0B; color:black; padding:8px 16px;">Sauvegarder sur S3</button>
+                <div style="display:flex; gap:10px;">
+                    <button id="btnSaveS3" onclick="uploadToS3()" style="margin:0; background-color:#F59E0B; border-color:#F59E0B; color:black; padding:8px 16px;">Sauvegarder S3</button>
+                    <button onclick="copyToClipboard()" style="margin:0; background-color:#10B981; border-color:#10B981; padding:8px 16px;">📋 Copier</button>
+                </div>
                 <button class="secondary" onclick="closeViewer()" style="margin:0; padding:8px 16px;">Fermer</button>
             </div>
         </footer>
@@ -361,6 +364,22 @@ async function viewFile(name) {
     dialog.showModal();
     const res = await fetch(`/transcription/${name}?client_id=${getClientId()}`);
     content.innerText = await res.text();
+}
+
+function closeViewer() {
+    document.getElementById('viewerDialog').close();
+}
+
+function copyToClipboard() {
+    const content = document.getElementById('viewerContent').innerText;
+    navigator.clipboard.writeText(content).then(() => {
+        const btn = event.target;
+        const oldText = btn.innerText;
+        btn.innerText = "✓ Copié !";
+        setTimeout(() => { btn.innerText = oldText; }, 2000);
+    }).catch(err => {
+        alert("Erreur de copie : " + err);
+    });
 }
 
 function formatETA(totalSeconds) {
