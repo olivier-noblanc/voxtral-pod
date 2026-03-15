@@ -83,6 +83,32 @@ HTML_UI = """<!DOCTYPE html>
         }
         #audioBar { width: 0%; height: 100%; background: #10B981; transition: width 0.1s ease; }
         .speaker-label { color: #60A5FA; font-weight: bold; }
+        .sentence-row {
+            margin-bottom: 8px;
+            display: block;
+            border-left: 3px solid transparent;
+            padding-left: 10px;
+            transition: border-color 0.3s;
+        }
+        .sentence-row.finalized {
+            border-left-color: #3b82f6;
+        }
+        .speaker-label {
+            color: #60a5fa;
+            font-weight: 700;
+            font-size: 0.85em;
+            margin-right: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .partial-text {
+            color: #9ca3af;
+            font-style: italic;
+        }
+        .final-text {
+            color: #f9fafb;
+        }
+        .sidebar { background: #1f2937; padding: 20px; border-radius: 8px; height: fit-content; }
     </style>
 </head>
 <body>
@@ -99,8 +125,13 @@ HTML_UI = """<!DOCTYPE html>
 
     <div class="grid">
         <div>
-            <h3>🔴 Live Transcription (VAD + Diarisation)</h3>
-            <button id="recordBtn" onclick="toggleRecording()">Démarrer l'enregistrement</button>
+            <div class="card-header">
+                <h2>Live Transcription</h2>
+                <div style="display:flex; gap:10px;">
+                    <button id="recordBtn" onclick="toggleMicrophone()" style="margin:0;">Démarrer Micro</button>
+                    <button id="systemBtn" onclick="toggleSystemAudio()" class="secondary" style="margin:0;">Capturer Réunion (Teams/Browser)</button>
+                </div>
+            </div>
             <div class="audio-bar-container" id="audioBarCont"><div id="audioBar"></div></div>
             <div class="live-box" id="liveTranscript">En attente de flux audio...</div>
         </div>
@@ -161,8 +192,6 @@ HTML_UI = """<!DOCTYPE html>
 </dialog>
 
 <script>
-let ws = null, isRecording = false;
-let audioContext = null, processor = null, source = null;
 const CHUNK_SIZE = 4 * 1024 * 1024;
 
 const getClientId = () => {
@@ -171,67 +200,94 @@ const getClientId = () => {
     return id;
 };
 
-async function toggleRecording() {
-    if (!isRecording) await startRecording(); else stopRecording();
+const workletCode = `
+    class AudioProcessor extends AudioWorkletProcessor {
+        constructor() { super(); this.buffer = new Float32Array(2560); this.offset = 0; }
+        process(inputs) {
+            const input = inputs[0][0];
+            if (!input) return true;
+            for (let i = 0; i < input.length; i++) {
+                this.buffer[this.offset++] = input[i];
+                if (this.offset >= 2560) { this.port.postMessage(this.buffer); this.offset = 0; }
+            }
+            return true;
+        }
+    }
+    registerProcessor('audio-processor', AudioProcessor);
+`;
+
+let ws, audioContext, source, processor, isRecording = false;
+let audioStream = null;
+let captureType = "mic"; // "mic" or "system"
+
+async function toggleMicrophone() {
+    if (isRecording) { stopRecording(); return; }
+    captureType = "mic";
+    startRecording();
+}
+
+async function toggleSystemAudio() {
+    if (isRecording) { stopRecording(); return; }
+    captureType = "system";
+    startRecording();
 }
 
 async function startRecording() {
-    const btn = document.getElementById('recordBtn');
+    const btnRecord = document.getElementById('recordBtn');
+    const btnSystem = document.getElementById('systemBtn');
     const box = document.getElementById('liveTranscript');
     const barCont = document.getElementById('audioBarCont');
-    const bar = document.getElementById('audioBar');
 
     try {
-        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const clientId = getClientId();
-        ws = new WebSocket(`${protocol}//${location.host}/live?client_id=${clientId}`);
-
-        ws.onopen = async () => {
-            isRecording = true;
-            btn.innerText = "Arrêter l'enregistrement";
-            btn.classList.add('recording');
-            barCont.style.display = 'block';
-            box.innerHTML = "<em>>> Connexion établie. Parlez...</em><br>";
-
-            audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-            const processorCode = `
-                class AudioProcessor extends AudioWorkletProcessor {
-                    constructor() { super(); this.buffer = new Float32Array(2560); this.offset = 0; }
-                    process(inputs) {
-                        const input = inputs[0][0];
-                        if (!input) return true;
-                        for (let i = 0; i < input.length; i++) {
-                            this.buffer[this.offset++] = input[i];
-                            if (this.offset >= 2560) { this.port.postMessage(this.buffer); this.offset = 0; }
-                        }
-                        return true;
-                    }
+        if (captureType === "system") {
+            // navigator.getDisplayMedia for system audio
+            audioStream = await navigator.mediaDevices.getDisplayMedia({
+                video: { displaySurface: "browser" }, // Try to target a tab/window
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false
                 }
-                registerProcessor('audio-processor', AudioProcessor);
-            `;
-            const blob = new Blob([processorCode], { type: 'application/javascript' });
-            const blobUrl = URL.createObjectURL(blob);
-            await audioContext.audioWorklet.addModule(blobUrl);
-            URL.revokeObjectURL(blobUrl);
+            });
+            // Ensure user shared audio!
+            if (audioStream.getAudioTracks().length === 0) {
+                alert("Erreur : Vous devez cocher 'Partager l'audio du système' dans la fenêtre de sélection !");
+                audioStream.getTracks().forEach(t => t.stop());
+                return;
+            }
+        } else {
+            audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
 
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            source = audioContext.createMediaStreamSource(stream);
-            processor = new AudioWorkletNode(audioContext, 'audio-processor');
-            source.connect(processor);
+        isRecording = true;
+        btnRecord.innerText = (captureType === "mic") ? "Arrêter Micro" : "Démarrer Micro";
+        btnSystem.innerText = (captureType === "system") ? "Arrêter Réunion" : "Capturer Réunion (Teams/Browser)";
+        if (captureType === "mic") { btnSystem.disabled = true; btnRecord.classList.add('recording'); }
+        else { btnRecord.disabled = true; btnSystem.classList.add('recording'); }
 
-            processor.port.onmessage = (e) => {
-                const inputData = e.data;
-                let sum = 0;
-                for (let i = 0; i < inputData.length; i++) sum += inputData[i] ** 2;
-                bar.style.width = Math.min(100, Math.sqrt(sum / inputData.length) * 400) + '%';
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    const pcm = new Int16Array(inputData.length);
-                    for (let i = 0; i < inputData.length; i++) pcm[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
-                    ws.send(pcm.buffer);
-                }
-            };
+        barCont.style.display = 'block';
+        box.innerHTML = "<em>[Connexion...]</em>";
+
+        const cid = getClientId();
+        ws = new WebSocket(`ws://${location.host}/live?client_id=${cid}`);
+        ws.binaryType = 'arraybuffer';
+
+        audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        source = audioContext.createMediaStreamSource(audioStream);
+        
+        // Load AudioWorklet
+        await audioContext.audioWorklet.addModule('data:text/javascript;base64,' + btoa(workletCode));
+        processor = new AudioWorkletNode(audioContext, 'audio-processor');
+        
+        processor.port.onmessage = (e) => {
+            if (ws && ws.readyState === WebSocket.OPEN) ws.send(e.data);
+            updateVolumeBar(e.data);
         };
 
+        source.connect(processor);
+        processor.connect(audioContext.destination);
+
+        box.innerHTML = "";
         let lastSpeaker = "";
         let sentenceIdx = 0;
         let partialSpan = null;
@@ -239,53 +295,69 @@ async function startRecording() {
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (data.type === "sentence" && data.text) {
-                const spk = data.speaker || "";
+                const spk = data.speaker || "Speaker";
                 
-                // Remove partial span if it exists
                 if (partialSpan) {
                     partialSpan.remove();
                     partialSpan = null;
                 }
 
                 if (data.final) {
-                    // Final text block
                     const idx = sentenceIdx++;
-                    if (spk && spk !== lastSpeaker) {
+                    
+                    // Container for the whole sentence line
+                    const row = document.createElement("div");
+                    row.className = "sentence-row finalized";
+                    row.setAttribute("data-sidx", idx);
+                    
+                    const spkSpan = document.createElement("span");
+                    spkSpan.className = "speaker-label";
+                    spkSpan.setAttribute("data-sidx", idx);
+                    
+                    if (spk !== lastSpeaker) {
                         lastSpeaker = spk;
-                        box.innerHTML += `<br><span class="speaker-label" data-sidx="${idx}">[${spk}]</span> `;
+                        spkSpan.textContent = `[${spk}] `;
+                    } else {
+                        spkSpan.style.visibility = "hidden"; // Keep space but hide for flow
+                        spkSpan.style.fontSize = "0px";
+                        spkSpan.textContent = `[${spk}] `;
                     }
-                    box.innerHTML += `<span data-sidx="${idx}">${data.text}</span> `;
+                    
+                    const txtSpan = document.createElement("span");
+                    txtSpan.className = "final-text";
+                    txtSpan.setAttribute("data-sidx", idx);
+                    txtSpan.textContent = data.text;
+                    
+                    row.appendChild(spkSpan);
+                    row.appendChild(txtSpan);
+                    box.appendChild(row);
                 } else {
-                    // Partial text block
+                    // Partial container
+                    const row = document.createElement("div");
+                    row.className = "sentence-row partial-row";
+                    
                     partialSpan = document.createElement("span");
                     partialSpan.className = "partial-text";
-                    partialSpan.style.color = "#9ca3af";
-                    partialSpan.style.fontStyle = "italic";
-                    partialSpan.innerText = ` ${data.text}`;
-                    box.appendChild(partialSpan);
+                    partialSpan.innerText = `... ${data.text}`;
+                    
+                    row.appendChild(partialSpan);
+                    box.appendChild(row);
                 }
-                
                 box.scrollTop = box.scrollHeight;
+
             } else if (data.type === "diarization_update" && data.speakers) {
-                // Retroactively update speaker labels
-                const nameMap = data.name_map || {};
+                // Retroactively update speaker labels by index
                 for (const [sidx, spk] of Object.entries(data.speakers)) {
-                    const labels = box.querySelectorAll(`span.speaker-label`);
+                    const idxStr = String(sidx);
+                    const labels = box.querySelectorAll(`.speaker-label[data-sidx="${idxStr}"]`);
                     labels.forEach(el => {
-                        const elIdx = parseInt(el.getAttribute('data-sidx'));
-                        if (elIdx <= parseInt(sidx)) {
-                            const displayName = spk;
-                            el.textContent = `[${displayName}]`;
-                        }
+                        el.textContent = `[${spk}] `;
+                        el.style.visibility = "visible";
+                        el.style.fontSize = "inherit";
                     });
                 }
-                if (Object.keys(nameMap).length > 0) {
-                    const legend = Object.entries(nameMap).map(([k,v]) => `${k}=${v}`).join(', ');
-                    box.innerHTML += `<br><em>[🔍 Speakers identifiés: ${legend}]</em>`;
-                    box.scrollTop = box.scrollHeight;
-                }
             } else if (data.type === "final_done") {
-                box.innerHTML += `<br><em>[✅ Repasse finale terminée — fichier sauvegardé]</em>`;
+                box.innerHTML += `<br><em>[✅ Repasse finale terminée]</em>`;
                 loadHistory();
             }
         };
@@ -297,16 +369,26 @@ async function startRecording() {
 }
 
 function stopRecording() {
-    const btn = document.getElementById('recordBtn');
+    const btnRecord = document.getElementById('recordBtn');
+    const btnSystem = document.getElementById('systemBtn');
     const box = document.getElementById('liveTranscript');
     const barCont = document.getElementById('audioBarCont');
+
     if (ws) { ws.close(); ws = null; }
     if (processor) { processor.disconnect(); processor = null; }
     if (source) { source.disconnect(); source = null; }
     if (audioContext) { audioContext.close(); audioContext = null; }
+    if (audioStream) { audioStream.getTracks().forEach(t => t.stop()); audioStream = null; }
+
     isRecording = false;
-    btn.innerText = "Démarrer l'enregistrement";
-    btn.classList.remove('recording');
+    btnRecord.innerText = "Démarrer Micro";
+    btnRecord.disabled = false;
+    btnRecord.classList.remove('recording');
+
+    btnSystem.innerText = "Capturer Réunion (Teams/Browser)";
+    btnSystem.disabled = false;
+    btnSystem.classList.remove('recording');
+
     barCont.style.display = 'none';
     
     // Clear any lingering partial span
