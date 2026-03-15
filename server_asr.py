@@ -16,6 +16,10 @@ import asyncio
 import tempfile
 import time
 import torch
+# === GPU PERFORMANCE OPTIMIZATION (Ampere+) ===
+if torch.cuda.is_available():
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
 import torchaudio
 import json
 import datetime
