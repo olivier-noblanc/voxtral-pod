@@ -729,8 +729,10 @@ class SotaASR:
         if hf_token:
             try:
                 from pyannote.audio import Pipeline
+                from huggingface_hub import login
+                login(token=hf_token)
                 self.diarization_pipeline = Pipeline.from_pretrained(
-                    "pyannote/speaker-diarization-3.1", use_auth_token=hf_token
+                    "pyannote/speaker-diarization-3.1"
                 )
                 self.diarization_pipeline.to(torch.device(self.device))
                 print("[*] Pyannote Diarization 3.1 loaded OK.")
