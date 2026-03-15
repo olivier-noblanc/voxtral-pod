@@ -234,16 +234,37 @@ async function startRecording() {
 
         let lastSpeaker = "";
         let sentenceIdx = 0;
+        let partialSpan = null;
+
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (data.type === "sentence" && data.text) {
                 const spk = data.speaker || "";
-                const idx = sentenceIdx++;
-                if (spk && spk !== lastSpeaker) {
-                    lastSpeaker = spk;
-                    box.innerHTML += `<br><span class="speaker-label" data-sidx="${idx}">[${spk}]</span> `;
+                
+                // Remove partial span if it exists
+                if (partialSpan) {
+                    partialSpan.remove();
+                    partialSpan = null;
                 }
-                box.innerHTML += `<span data-sidx="${idx}">${data.text}</span> `;
+
+                if (data.final) {
+                    // Final text block
+                    const idx = sentenceIdx++;
+                    if (spk && spk !== lastSpeaker) {
+                        lastSpeaker = spk;
+                        box.innerHTML += `<br><span class="speaker-label" data-sidx="${idx}">[${spk}]</span> `;
+                    }
+                    box.innerHTML += `<span data-sidx="${idx}">${data.text}</span> `;
+                } else {
+                    // Partial text block
+                    partialSpan = document.createElement("span");
+                    partialSpan.className = "partial-text";
+                    partialSpan.style.color = "#9ca3af";
+                    partialSpan.style.fontStyle = "italic";
+                    partialSpan.innerText = ` ${data.text}`;
+                    box.appendChild(partialSpan);
+                }
+                
                 box.scrollTop = box.scrollHeight;
             } else if (data.type === "diarization_update" && data.speakers) {
                 // Retroactively update speaker labels
@@ -287,6 +308,13 @@ function stopRecording() {
     btn.innerText = "Démarrer l'enregistrement";
     btn.classList.remove('recording');
     barCont.style.display = 'none';
+    
+    // Clear any lingering partial span
+    const partials = box.getElementsByClassName('partial-text');
+    while(partials.length > 0){
+        partials[0].parentNode.removeChild(partials[0]);
+    }
+    
     box.innerHTML += "<br><em>[Session arrêtée — repasse finale en cours...]</em>";
 }
 
@@ -965,9 +993,13 @@ class LiveSession:
         self._diar_task = None
 
     async def process_audio_queue(self):
-        """Worker: dequeue chunks, run dual VAD, trigger inference on sentence boundaries."""
+        """Worker: dequeue chunks, run dual VAD, trigger inference on sentence boundaries and partials."""
         print(f"[*] [{self.client_id}] Audio processor started.")
         self.engine.vad.reset_states()
+        
+        # Interval for sending partial transcripts (e.g. 2 seconds)
+        partial_interval_bytes = int(SAMPLE_RATE * 2 * 2.0)
+        last_partial_bytes = 0
 
         while True:
             audio_bytes = await self.audio_queue.get()
@@ -994,9 +1026,29 @@ class LiveSession:
                     print(f"[*] [{self.client_id}] Speech onset detected.")
                     self.is_speaking = True
                     self.sentence_buffer = bytearray(self.pre_speech_buffer)
+                    last_partial_bytes = len(self.sentence_buffer)
                 else:
                     self.sentence_buffer.extend(audio_bytes)
                 self.silence_chunks_count = 0
+                
+                # Check for partial transcription trigger
+                if len(self.sentence_buffer) - last_partial_bytes >= partial_interval_bytes:
+                    last_partial_bytes = len(self.sentence_buffer)
+                    pcm_data = bytes(self.sentence_buffer)
+                    if len(pcm_data) >= self.engine.min_segment_bytes:
+                        async with self.engine.processing_lock:
+                            try:
+                                text = await asyncio.to_thread(self.engine._transcribe_sync, pcm_data)
+                                if text:
+                                    speaker = self._resolve_speaker(self._sentence_index)
+                                    await self.websocket.send_json({
+                                        "type": "sentence",
+                                        "text": f"{text} ...",
+                                        "speaker": speaker,
+                                        "final": False
+                                    })
+                            except Exception as e:
+                                print(f"[!] [{self.client_id}] Partial Inference error: {e}")
 
             else:
                 if self.is_speaking:
@@ -1004,17 +1056,18 @@ class LiveSession:
                     self.silence_chunks_count += 1
 
                     if self.silence_chunks_count >= self.engine.silence_chunks_threshold:
-                        print(f"[*] [{self.client_id}] End of sentence. Transcribing...")
+                        print(f"[*] [{self.client_id}] End of sentence. Final Transcribing...")
                         self.is_speaking = False
                         self.silence_chunks_count = 0
 
                         pcm_data = bytes(self.sentence_buffer)
                         self.sentence_buffer = bytearray()
+                        last_partial_bytes = 0
 
                         if len(pcm_data) < self.engine.min_segment_bytes:
                             continue
 
-                        # Inference (no per-sentence diarization — that's done in batch)
+                        # Final Inference 
                         async with self.engine.processing_lock:
                             try:
                                 text = await asyncio.to_thread(self.engine._transcribe_sync, pcm_data)
