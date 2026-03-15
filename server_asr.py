@@ -806,12 +806,15 @@ class SotaASR:
         )
         
         # Robust handling of Pyannote 4.x DiarizeOutput vs legacy Annotation
-        # Search for .annotation attribute or check if it's already an Annotation-like object
-        annotation = getattr(diarization, "annotation", diarization)
+        # Pyannote 4.x uses 'speaker_diarization' attribute in DiarizeOutput
+        annotation = getattr(diarization, "speaker_diarization", 
+                            getattr(diarization, "annotation", diarization))
         
         # As a last resort fallback, if it doesn't have itertracks, it's definitely not what we want
         if not hasattr(annotation, "itertracks"):
              print(f"[!] Warning: Object {type(annotation)} has no itertracks.")
+             # Detailed debug for next time if it fails
+             print(f"[*] Available attributes: {dir(diarization)}")
              return []
 
         segments = []
