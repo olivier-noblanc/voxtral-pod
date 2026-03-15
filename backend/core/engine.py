@@ -43,15 +43,21 @@ class SotaASR:
             if not progress_callback:
                 return
             
-            # Extract completed and total (robustly)
-            completed = args[0] if len(args) > 0 else kwargs.get('completed', 0)
-            if completed is None: completed = 0
-            
-            total = args[1] if len(args) > 1 else kwargs.get('total')
+            try:
+                # Extract completed and total (robustly, handling potential numpy/torch types)
+                c = args[0] if len(args) > 0 else kwargs.get('completed', 0)
+                t = args[1] if len(args) > 1 else kwargs.get('total')
+                
+                # Convert to float securely (avoids "only 0-dimensional arrays can be converted to Python scalars")
+                c_val = float(c) if c is not None else 0.0
+                t_val = float(t) if t is not None else 0.0
 
-            if completed is not None and total and total > 0:
-                sub_pct = int((completed / total) * 40)
-                progress_callback(f"Diarisation ({step_name})...", 5 + sub_pct)
+                if t_val > 0:
+                    sub_pct = int((c_val / t_val) * 40)
+                    progress_callback(f"Diarisation ({step_name})...", 5 + sub_pct)
+            except Exception:
+                # In case of weird types from Pyannote, we just skip the progress update instead of crashing
+                pass
 
         diar_segments = self.diarization_engine.diarize(audio_np, hook=diar_hook)
 
