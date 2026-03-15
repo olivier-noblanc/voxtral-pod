@@ -281,8 +281,13 @@ async function startRecording() {
         processor = new AudioWorkletNode(audioContext, 'audio-processor');
         
         processor.port.onmessage = (e) => {
-            if (ws && ws.readyState === WebSocket.OPEN) ws.send(e.data);
-            updateVolumeBar(e.data);
+            const inputData = e.data;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const pcm = new Int16Array(inputData.length);
+                for (let i = 0; i < inputData.length; i++) pcm[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
+                ws.send(pcm.buffer);
+            }
+            updateVolumeBar(inputData);
         };
 
         source.connect(processor);
@@ -367,6 +372,47 @@ async function startRecording() {
         ws.onclose = () => { if (isRecording) stopRecording(); };
 
     } catch (err) { alert("Erreur micro : " + err.message); }
+}
+
+function stopRecording() {
+    const btnRecord = document.getElementById('recordBtn');
+    const btnSystem = document.getElementById('systemBtn');
+    const box = document.getElementById('liveTranscript');
+    const barCont = document.getElementById('audioBarCont');
+
+    if (ws) { ws.close(); ws = null; }
+    if (processor) { processor.disconnect(); processor = null; }
+    if (source) { source.disconnect(); source = null; }
+    if (audioContext) { audioContext.close(); audioContext = null; }
+    if (audioStream) { audioStream.getTracks().forEach(t => t.stop()); audioStream = null; }
+
+    isRecording = false;
+    btnRecord.innerText = "Démarrer Micro";
+    btnRecord.disabled = false;
+    btnRecord.classList.remove('recording');
+
+    btnSystem.innerText = "Capturer Réunion (Teams/Browser)";
+    btnSystem.disabled = false;
+    btnSystem.classList.remove('recording');
+
+    barCont.style.display = 'none';
+    
+    // Clear any lingering partial span
+    const partials = box.getElementsByClassName('partial-text');
+    while(partials.length > 0){
+        partials[0].parentNode.removeChild(partials[0]);
+    }
+    
+    box.innerHTML += "<br><em>[Session arrêtée — repasse finale en cours...]</em>";
+}
+
+function updateVolumeBar(inputData) {
+    const bar = document.getElementById('audioBar');
+    if (!bar) return;
+    let sum = 0;
+    for (let i = 0; i < inputData.length; i++) sum += inputData[i] ** 2;
+    const rms = Math.sqrt(sum / inputData.length);
+    bar.style.width = Math.min(100, rms * 400) + '%';
 }
 
 function stopRecording() {
