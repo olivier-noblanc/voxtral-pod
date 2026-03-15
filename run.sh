@@ -80,12 +80,14 @@ source "$VENV_DIR/bin/activate"
 echo "$CURRENT_HASH" > "$REQ_HASH_FILE"
 
 # 3. Dependencies
+echo "[*] Debug: dependencies in requirements.txt:"
+tail -n 5 requirements.txt
 echo "[*] Checking/Installing dependencies (force update)..."
-pip install -U pip setuptools wheel
-if ! pip install --upgrade -r requirements.txt; then
+"$VENV_DIR/bin/python" -m pip install -U pip setuptools wheel
+if ! "$VENV_DIR/bin/python" -m pip install --upgrade -r requirements.txt; then
     echo "[!] Retrying with webrtcvad from git..."
-    pip install "git+https://github.com/wiseman/py-webrtcvad.git"
-    pip install --upgrade -r requirements.txt
+    "$VENV_DIR/bin/python" -m pip install "git+https://github.com/wiseman/py-webrtcvad.git"
+    "$VENV_DIR/bin/python" -m pip install --upgrade -r requirements.txt
 fi
 
 # 4. GPU check
