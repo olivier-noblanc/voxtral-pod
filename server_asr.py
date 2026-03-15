@@ -109,7 +109,7 @@ HTML_UI = """<!DOCTYPE html>
             <h3>📁 Transcription Batch</h3>
             <p><small>Chunks 4 MB + Diarisation Pyannote</small></p>
             <input type="file" id="audioFile" accept="audio/*">
-            <button onclick="uploadFile()" id="uploadBtn">Envoyer &amp; Transcrire</button>
+            <button onclick="handleBatchAction()" id="uploadBtn">Envoyer &amp; Transcrire</button>
             <progress id="uploadProgress" value="0" max="100" style="display:none;"></progress>
             <div id="batchStatus" style="margin-top:1rem;font-weight:bold;color:#F59E0B;"></div>
             <div id="batchResult" class="live-box" style="display:none;margin-top:1rem;"></div>
@@ -322,14 +322,44 @@ async function viewFile(name) {
     content.innerText = await res.text();
 }
 
-function closeViewer() { document.getElementById('viewerDialog').close(); }
+function formatETA(totalSeconds) {
+    if (totalSeconds < 60) return `${totalSeconds}s`;
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
+    let parts = [];
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    if (seconds > 0 && hours === 0) parts.push(`${seconds}s`);
+    return parts.join(' ');
+}
 
-const CHUNK_SIZE = 4 * 1024 * 1024;
+async function handleBatchAction() {
+    const btn = document.getElementById('uploadBtn');
+    const activeFileId = localStorage.getItem('active_batch_file_id');
+    
+    if (btn.innerText === "Annuler" && activeFileId) {
+        if(confirm("Annuler la transcription en cours ?")) {
+            await fetch(`/cancel/${activeFileId}`, { method: 'POST' });
+            btn.innerText = "Annulation...";
+            btn.disabled = true;
+        }
+    } else {
+        uploadFile();
+    }
+}
+
 async function uploadFile() {
     const fileInput = document.getElementById('audioFile');
     if (!fileInput.files.length) return alert("Sélectionner un fichier.");
+    const uploadBtn = document.getElementById('uploadBtn');
     const file = fileInput.files[0];
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    
+    uploadBtn.innerText = "Upload...";
+    uploadBtn.disabled = true;
+    fileInput.disabled = true;
     const fileId = crypto.randomUUID();
     const clientId = getClientId();
     const status = document.getElementById('batchStatus');
@@ -344,33 +374,65 @@ async function uploadFile() {
         formData.append("total_chunks", String(totalChunks));
         formData.append("file", file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE), file.name);
         const res = await fetch('/batch_chunk', { method: 'POST', body: formData });
-        if (!res.ok) { status.innerText = `❌ Erreur chunk ${i+1}`; return; }
+        if (!res.ok) { 
+            status.innerText = `❌ Erreur chunk ${i+1}`; 
+            uploadBtn.innerText = "Envoyer & Transcrire";
+            uploadBtn.disabled = false;
+            fileInput.disabled = false;
+            return; 
+        }
         progress.value = ((i + 1) / totalChunks) * 100;
     }
+    
+    uploadBtn.innerText = "Annuler";
+    uploadBtn.disabled = false;
+    uploadBtn.classList.add('secondary'); // Optional: make it look like a cancel button
+    
     status.innerText = "Transcription en cours...";
     localStorage.setItem('active_batch_file_id', fileId);
     pollStatus(fileId, status);
 }
 
 async function pollStatus(fileId, status) {
+    const uploadBtn = document.getElementById('uploadBtn');
+    const fileInput = document.getElementById('audioFile');
+    
     const interval = setInterval(async () => {
         try {
             const res = await fetch(`/status/${fileId}`);
             const data = await res.json();
-            if (data.status === "done") {
+            
+            const resetUI = () => {
                 clearInterval(interval);
                 localStorage.removeItem('active_batch_file_id');
+                uploadBtn.innerText = "Envoyer & Transcrire";
+                uploadBtn.disabled = false;
+                uploadBtn.classList.remove('secondary');
+                fileInput.disabled = false;
+            };
+
+            if (data.status === "done") {
+                resetUI();
                 status.innerText = "✅ Terminé.";
                 const box = document.getElementById('batchResult');
                 box.style.display = 'block';
                 box.innerText = JSON.stringify(data.result, null, 2);
                 loadHistory();
+            } else if (data.status === "cancelled") {
+                resetUI();
+                status.innerText = "⚠️ Annulé par l'utilisateur.";
             } else if (data.status === "error") {
-                clearInterval(interval);
-                localStorage.removeItem('active_batch_file_id');
+                resetUI();
                 status.innerText = "❌ Erreur: " + data.error;
             } else if (data.status && data.status.startsWith("processing:")) {
-                status.innerText = "⏳ " + data.status.replace("processing:", "");
+                let text = "⏳ " + data.status.replace("processing:", "");
+                if (data.progress > 0) {
+                    text += ` (${data.progress}%)`;
+                    if (data.eta > 0) {
+                        text += ` - Temps restant: ~${formatETA(data.eta)}`;
+                    }
+                }
+                status.innerText = text;
             }
         } catch (e) {}
     }, 2000);
@@ -442,6 +504,11 @@ window.onload = () => {
     // Resume active batch polling if any
     const activeFileId = localStorage.getItem('active_batch_file_id');
     if (activeFileId) {
+        const btn = document.getElementById('uploadBtn');
+        btn.innerText = "Annuler";
+        btn.classList.add('secondary');
+        document.getElementById('audioFile').disabled = true;
+        
         const statusBox = document.getElementById('batchStatus');
         statusBox.innerText = "Reprise de la transcription...";
         pollStatus(activeFileId, statusBox);
@@ -719,13 +786,31 @@ class SotaASR:
     def _gpu_job_sync(self, audio_path: str, file_id: str, client_id: str):
         """Complete batch job: decode, diarize, transcribe."""
         import subprocess
+        import time
 
-        def _update(msg):
+        job_start_time = time.time()
+
+        def _update(msg, progress=0):
             if file_id in jobs_db:
-                jobs_db[file_id]["status"] = f"processing:{msg}"
+                # Store progress and calculate ETA if progress > 0
+                eta = 0
+                if progress > 0:
+                    elapsed = time.time() - job_start_time
+                    total_estimated = elapsed / (progress / 100.0)
+                    eta = int(total_estimated - elapsed)
+                
+                jobs_db[file_id].update({
+                    "status": f"processing:{msg}",
+                    "progress": progress,
+                    "eta": eta
+                })
+
+        def _is_cancelled():
+            return jobs_db.get(file_id, {}).get("status") == "cancelled"
 
         try:
-            _update("Décodage audio (ffmpeg)...")
+            if _is_cancelled(): return
+            _update("Décodage audio (ffmpeg)...", 0)
             # Decode to 16kHz mono float32 via ffmpeg
             result = subprocess.run(
                 ["ffmpeg", "-i", audio_path, "-f", "f32le", "-acodec", "pcm_f32le",
@@ -742,21 +827,25 @@ class SotaASR:
             # Diarization
             diar_segments = []
             if self.diarization_pipeline:
-                _update("Diarisation en cours...")
+                if _is_cancelled(): return
+                _update("Diarisation en cours...", 5)
                 diar_segments = self._diarize_sync(audio_np)
                 print(f"[*] Diarization: {len(diar_segments)} segments")
 
             # Transcription
-            _update("Transcription en cours... (0%)")
+            if _is_cancelled(): return
+            _update("Transcription en cours...", 10)
             if self.model_id == "whisper":
                 segments, info = self.model.transcribe(
                     audio_np, beam_size=5, language=LANGUAGE, task="transcribe"
                 )
                 transcribed_segments = []
                 for s in segments:
+                    if _is_cancelled(): return
                     transcribed_segments.append({"start": s.start, "end": s.end, "text": s.text.strip()})
-                    pct = min(100, int((s.end / info.duration) * 100)) if info.duration > 0 else 0
-                    _update(f"Transcription en cours... ({pct}%)")
+                    # Whisper progress roughly from 10% to 90%
+                    pct = 10 + min(80, int((s.end / info.duration) * 80)) if info.duration > 0 else 10
+                    _update("Transcription en cours...", pct)
                     print(f"[*] Transcription batch [{file_id[:8]}] : {pct}% ({s.end:.1f}s / {info.duration:.1f}s)")
 
             else:
@@ -782,6 +871,8 @@ class SotaASR:
             full_text = "\n".join(output_lines)
 
             # Detect and apply speaker names
+            if _is_cancelled(): return
+            _update("Formatage final...", 95)
             name_map = self._detect_speaker_names(diar_segments, structured_lines)
             if name_map:
                 full_text = self._apply_name_map(full_text, name_map)
@@ -789,6 +880,7 @@ class SotaASR:
                 full_text = f"[Speakers: {legend}]\n\n{full_text}"
 
             # Save
+            if _is_cancelled(): return
             out_dir = os.path.join("transcriptions_terminees", client_id)
             os.makedirs(out_dir, exist_ok=True)
             ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -807,8 +899,10 @@ class SotaASR:
                     "language": LANGUAGE
                 }, f, indent=2, ensure_ascii=False)
 
-            jobs_db[file_id] = {
+            jobs_db[file_id].update({
                 "status": "done",
+                "progress": 100,
+                "eta": 0,
                 "result": {"text": full_text, "file": f"batch_{ts}.txt", "duration": duration}
             }
             print(f"[*] Batch done: {txt_path}")
@@ -1099,7 +1193,13 @@ async def batch_chunk_route(
 
 @app.get("/status/{file_id}")
 async def status_route(file_id: str):
-    return jobs_db.get(file_id, {"status": "not_found"})
+    return jobs_db.get(file_id, {"status": "not_found", "progress": 0, "eta": 0})
+
+@app.post("/cancel/{file_id}")
+async def cancel_job_route(file_id: str):
+    if file_id in jobs_db:
+        jobs_db[file_id]["status"] = "cancelled"
+    return {"status": "ok"}
 
 
 @app.post("/upload_s3")
