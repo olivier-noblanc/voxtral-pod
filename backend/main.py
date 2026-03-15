@@ -1,0 +1,140 @@
+import os
+import uuid
+import asyncio
+import datetime
+import torch
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Form, BackgroundTasks, HTTPException
+from fastapi.responses import HTMLResponse, PlainTextResponse
+from backend.config import setup_gpu, setup_warnings, TRANSCRIPTIONS_DIR, TEMP_DIR
+from backend.html_ui import HTML_UI
+from backend.core.engine import SotaASR
+from backend.core.live import LiveSession
+
+app = FastAPI(title="SOTA ASR Server", version="4.0.0")
+
+# Global state
+model_name = os.getenv("ASR_MODEL", "whisper").lower()
+asr_engine = SotaASR(model_id=model_name, hf_token=os.environ.get("HF_TOKEN"))
+jobs_db = {}
+
+@app.on_event("startup")
+async def startup_event():
+    setup_gpu()
+    setup_warnings()
+    asr_engine.load()
+
+@app.get("/")
+def home():
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    return HTMLResponse(content=HTML_UI.replace("{{model_name}}", model_name).replace("{{device}}", device))
+
+@app.websocket("/live")
+async def live_endpoint(websocket: WebSocket, background_tasks: BackgroundTasks, client_id: str = "anonymous"):
+    await websocket.accept()
+    session = LiveSession(asr_engine, websocket, client_id)
+    processor_task = asyncio.create_task(session.process_audio_queue())
+
+    try:
+        while True:
+            data = await websocket.receive_bytes()
+            await session.audio_queue.put(data)
+    except WebSocketDisconnect:
+        print(f"[*] [{client_id}] Live client disconnected.")
+    finally:
+        await session.audio_queue.put(None)
+        await processor_task
+        if session.full_session_audio:
+            # Final pass can be added here if needed, reused from run_batch_job logic
+            pass
+
+@app.get("/transcriptions")
+async def list_trans(client_id: str):
+    p = os.path.join(TRANSCRIPTIONS_DIR, client_id)
+    if not os.path.exists(p): return []
+    return sorted([f for f in os.listdir(p) if f.endswith(".txt")], reverse=True)
+
+@app.get("/transcription/{filename}")
+async def get_trans(filename: str, client_id: str):
+    p = os.path.join(TRANSCRIPTIONS_DIR, client_id, filename)
+    if not os.path.exists(p): raise HTTPException(status_code=404, detail="Fichier introuvable.")
+    with open(p, "r", encoding="utf-8") as f:
+        return PlainTextResponse(f.read())
+
+@app.post("/change_model")
+async def change_model_route(model: str):
+    global asr_engine, model_name
+    model_name = model
+    asr_engine = SotaASR(model_id=model, hf_token=os.environ.get("HF_TOKEN"))
+    asr_engine.load()
+    return {"status": "ok"}
+
+@app.post("/batch_chunk")
+async def batch_chunk_route(
+    background_tasks: BackgroundTasks,
+    file_id: str = Form(...), client_id: str = Form("anonymous"),
+    chunk_index: int = Form(...), total_chunks: int = Form(...),
+    file: UploadFile = File(...)
+):
+    upload_dir = os.path.join(TEMP_DIR, file_id)
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    chunk_path = os.path.join(upload_dir, f"chunk_{chunk_index:04d}")
+    with open(chunk_path, "wb") as f:
+        f.write(await file.read())
+
+    if chunk_index == total_chunks - 1:
+        # Reassemble
+        jobs_db[file_id] = {"status": "processing:Réassemblage...", "progress": 0}
+        assembled_path = os.path.join(upload_dir, "audio_full")
+        with open(assembled_path, "wb") as out_f:
+            for i in range(total_chunks):
+                cp = os.path.join(upload_dir, f"chunk_{i:04d}")
+                with open(cp, "rb") as in_f: out_f.write(in_f.read())
+                os.remove(cp)
+        
+        # Launch background job
+        background_tasks.add_task(run_batch_job, assembled_path, file_id, client_id)
+
+    return {"status": "ok"}
+
+async def run_batch_job(path, file_id, client_id):
+    try:
+        def update_progress(status, pct):
+            jobs_db[file_id] = {"status": f"processing:{status}", "progress": pct}
+
+        transcript = await asr_engine.process_file(path, progress_callback=update_progress)
+        
+        # Save
+        out_dir = os.path.join(TRANSCRIPTIONS_DIR, client_id)
+        os.makedirs(out_dir, exist_ok=True)
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        txt_path = os.path.join(out_dir, f"batch_{ts}.txt")
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(transcript)
+        
+        jobs_db[file_id] = {"status": "done", "result": transcript[:500] + "..."}
+    except Exception as e:
+        print(f"[!] Batch error: {e}")
+        jobs_db[file_id] = {"status": "error", "error": str(e)}
+
+@app.get("/status/{file_id}")
+async def status_route(file_id: str):
+    return jobs_db.get(file_id, {"status": "not_found"})
+
+@app.post("/upload_s3")
+async def upload_s3_route(
+    filename: str = Form(...), content: str = Form(...),
+    endpoint: str = Form(...), bucket: str = Form(...),
+    access_key: str = Form(...), secret_key: str = Form(...)
+):
+    try:
+        import boto3
+        s3 = boto3.client('s3', endpoint_url=endpoint, aws_access_key_id=access_key, aws_secret_access_key=secret_key)
+        s3.put_object(Bucket=bucket, Key=filename, Body=content.encode("utf-8"), ContentType='text/plain; charset=utf-8')
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
