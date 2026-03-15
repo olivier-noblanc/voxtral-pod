@@ -1009,7 +1009,7 @@ class SotaASR:
             if _is_cancelled(): return
             print(f"[*] Batch [{file_id[:8]}]: Etape 2/4 - Diarisation...")
             
-            def _diar_hook(step_name, completed, total=None):
+            def _diar_hook(step_name, completed, total=None, **kwargs):
                 if _is_cancelled(): return
                 # Map diarization (Etape 2) to 5-10% range
                 if total:
