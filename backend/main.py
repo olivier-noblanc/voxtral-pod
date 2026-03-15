@@ -75,6 +75,9 @@ async def batch_chunk_route(
     chunk_index: int = Form(...), total_chunks: int = Form(...),
     file: UploadFile = File(...)
 ):
+    if chunk_index == 0:
+        jobs_db[file_id] = {"status": "uploading", "progress": 0}
+    
     upload_dir = os.path.join(TEMP_DIR, file_id)
     os.makedirs(upload_dir, exist_ok=True)
     
@@ -90,11 +93,17 @@ async def batch_chunk_route(
             for i in range(total_chunks):
                 cp = os.path.join(upload_dir, f"chunk_{i:04d}")
                 with open(cp, "rb") as in_f: out_f.write(in_f.read())
-                os.remove(cp)
+                if os.path.exists(cp): os.remove(cp)
         
         # Launch background job
         background_tasks.add_task(run_batch_job, assembled_path, file_id, client_id)
 
+    return {"status": "ok"}
+
+@app.post("/cancel/{file_id}")
+async def cancel_route(file_id: str):
+    if file_id in jobs_db:
+        jobs_db[file_id] = {"status": "cancelled"}
     return {"status": "ok"}
 
 async def run_batch_job(path, file_id, client_id):
