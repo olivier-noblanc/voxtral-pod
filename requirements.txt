@@ -10,7 +10,7 @@ bitsandbytes
 faster-whisper
 pandas
 setuptools
-pyannote.audio==3.1.1
+pyannote.audio>=4.0.1
 lightning>=2.4
 transformers>=4.45.0
 mistral-common[audio]>=1.9.0

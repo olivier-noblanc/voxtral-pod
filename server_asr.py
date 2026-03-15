@@ -16,14 +16,7 @@ import asyncio
 import tempfile
 import time
 import torch
-# === PATCH TORCHAUDIO (pyannote/torchaudio 2.x compat) ===
 import torchaudio
-if not hasattr(torchaudio, "set_audio_backend"):
-    torchaudio.set_audio_backend = lambda x: print(f"[*] Audio set_backend patched: {x}")
-if not hasattr(torchaudio, "get_audio_backend"):
-    torchaudio.get_audio_backend = lambda: "soundfile"
-if not hasattr(torchaudio, "list_audio_backends"):
-    torchaudio.list_audio_backends = lambda: ["soundfile"]
 import json
 import datetime
 import numpy as np
@@ -732,19 +725,9 @@ class SotaASR:
         hf_token = os.environ.get("HF_TOKEN")
         if hf_token:
             try:
-                import huggingface_hub
-                # Monkeypatch to fix compatibility between old pyannote and new huggingface_hub
-                _orig_hf_hub_download = huggingface_hub.hf_hub_download
-                def _patched_hf_hub_download(*args, **kwargs):
-                    if 'use_auth_token' in kwargs:
-                        kwargs['token'] = kwargs.pop('use_auth_token')
-                    return _orig_hf_hub_download(*args, **kwargs)
-                huggingface_hub.hf_hub_download = _patched_hf_hub_download
-
                 from pyannote.audio import Pipeline
-                huggingface_hub.login(token=hf_token)
                 self.diarization_pipeline = Pipeline.from_pretrained(
-                    "pyannote/speaker-diarization-3.1"
+                    "pyannote/speaker-diarization-3.1", token=hf_token
                 )
                 self.diarization_pipeline.to(torch.device(self.device))
                 print("[*] Pyannote Diarization 3.1 loaded OK.")
