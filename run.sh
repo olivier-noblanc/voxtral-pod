@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # ==============================================================================
 # Voxtral Pod Launcher v3.0 (TranscriptionSuite-compatible)
