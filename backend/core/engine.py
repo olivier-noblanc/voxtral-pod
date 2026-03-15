@@ -33,7 +33,7 @@ class SotaASR:
 
         # 1. Decode
         if progress_callback: progress_callback("Décodage audio...", 2)
-        audio_np = decode_audio(audio_path)
+        audio_np = await asyncio.to_thread(decode_audio, audio_path)
         duration = len(audio_np) / 16000
 
         # 2. Diarize
@@ -64,13 +64,13 @@ class SotaASR:
             except Exception:
                 pass
 
-        diar_segments = self.diarization_engine.diarize(audio_np, hook=diar_hook)
+        diar_segments = await asyncio.to_thread(self.diarization_engine.diarize, audio_np, hook=diar_hook)
 
         # 3. Transcribe
         if progress_callback: progress_callback("Transcription en cours...", 45)
         
         # Note: TranscriptionEngine returns words directly now
-        words, _ = self.transcription_engine.transcribe(audio_np)
+        words, _ = await asyncio.to_thread(self.transcription_engine.transcribe, audio_np)
         if progress_callback: progress_callback("Transcription terminée", 95)
 
         # 4. Merge (TranscriptionSuite Reference)
