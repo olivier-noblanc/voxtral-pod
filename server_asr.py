@@ -904,7 +904,7 @@ class SotaASR:
                 "progress": 100,
                 "eta": 0,
                 "result": {"text": full_text, "file": f"batch_{ts}.txt", "duration": duration}
-            }
+            })
             print(f"[*] Batch done: {txt_path}")
 
         except Exception as e:
