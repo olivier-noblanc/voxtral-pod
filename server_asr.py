@@ -793,9 +793,14 @@ class SotaASR:
         diarization = self.diarization_pipeline(
             {"waveform": waveform, "sample_rate": self.sample_rate},
             hook=hook
-        )
+        # Handle Pyannote 4.x DiarizeOutput vs legacy Annotation
+        annotation = diarization
+        if hasattr(diarization, "annotation"):
+            annotation = diarization.annotation
+
         segments = []
-        for turn, _, speaker in diarization.itertracks(yield_label=True):
+        # pyannote.audio 4.x standard iteration
+        for turn, _, speaker in annotation.itertracks(yield_label=True):
             segments.append((turn.start, turn.end, speaker))
         return segments
 
