@@ -814,7 +814,12 @@ class SotaASR:
 
         try:
             if _is_cancelled(): return
-            _update("Décodage audio (ffmpeg)...", 0)
+            
+            if not self.diarization_pipeline:
+                raise RuntimeError("Diarisation impossible : HF_TOKEN manquant ou chargement Pyannote échoué. Veuillez vérifier vos clés API.")
+                
+            print(f"[*] Batch [{file_id[:8]}]: Etape 1/4 - Décodage audio...")
+            _update("Etape 1/4 : Décodage audio (ffmpeg)...", 2)
             # Decode to 16kHz mono float32 via ffmpeg
             result = subprocess.run(
                 ["ffmpeg", "-i", audio_path, "-f", "f32le", "-acodec", "pcm_f32le",
@@ -829,16 +834,16 @@ class SotaASR:
             print(f"[*] Batch: {duration:.1f}s decoded")
 
             # Diarization
-            diar_segments = []
-            if self.diarization_pipeline:
-                if _is_cancelled(): return
-                _update("Diarisation en cours...", 5)
-                diar_segments = self._diarize_sync(audio_np)
-                print(f"[*] Diarization: {len(diar_segments)} segments")
+            if _is_cancelled(): return
+            print(f"[*] Batch [{file_id[:8]}]: Etape 2/4 - Diarisation...")
+            _update("Etape 2/4 : Diarisation en cours...", 5)
+            diar_segments = self._diarize_sync(audio_np)
+            print(f"[*] Diarization: {len(diar_segments)} segments")
 
             # Transcription
             if _is_cancelled(): return
-            _update("Transcription en cours...", 10)
+            print(f"[*] Batch [{file_id[:8]}]: Etape 3/4 - Transcription...")
+            _update("Etape 3/4 : Transcription en cours...", 10)
             if self.model_id == "whisper":
                 segments, info = self.model.transcribe(
                     audio_np, beam_size=5, language=LANGUAGE, task="transcribe"
@@ -849,7 +854,7 @@ class SotaASR:
                     transcribed_segments.append({"start": s.start, "end": s.end, "text": s.text.strip()})
                     # Whisper progress roughly from 10% to 90%
                     pct = 10 + min(80, int((s.end / info.duration) * 80)) if info.duration > 0 else 10
-                    _update("Transcription en cours...", pct)
+                    _update("Etape 3/4 : Transcription en cours...", pct)
                     print(f"[*] Transcription batch [{file_id[:8]}] : {pct}% ({s.end:.1f}s / {info.duration:.1f}s)")
 
             else:
@@ -876,7 +881,8 @@ class SotaASR:
 
             # Detect and apply speaker names
             if _is_cancelled(): return
-            _update("Formatage final...", 95)
+            print(f"[*] Batch [{file_id[:8]}]: Etape 4/4 - Formatage final...")
+            _update("Etape 4/4 : Formatage final...", 95)
             name_map = self._detect_speaker_names(diar_segments, structured_lines)
             if name_map:
                 full_text = self._apply_name_map(full_text, name_map)
@@ -1180,7 +1186,11 @@ async def batch_chunk_route(
 
     if chunk_index == total_chunks - 1:
         # Reassemble chunks into a single file
-        jobs_db[file_id] = {"status": "processing:Réassemblage..."}
+        jobs_db[file_id] = {
+            "status": "processing:Réassemblage...",
+            "progress": 0,
+            "eta": 0
+        }
         assembled_path = os.path.join(tmp_dir, f"full_{file.filename or 'audio.bin'}")
         with open(assembled_path, "wb") as out_f:
             for i in range(total_chunks):
