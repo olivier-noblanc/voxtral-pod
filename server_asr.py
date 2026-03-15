@@ -724,6 +724,7 @@ class SotaASR:
 
         # Diarization (Pyannote)
         self.diarization_pipeline = None
+        self.diarization_error = None
         hf_token = os.environ.get("HF_TOKEN")
         if hf_token:
             try:
@@ -734,9 +735,11 @@ class SotaASR:
                 self.diarization_pipeline.to(torch.device(self.device))
                 print("[*] Pyannote Diarization 3.1 loaded OK.")
             except Exception as e:
-                print(f"[!] Diarization load failed: {e}")
+                self.diarization_error = f"Échec du chargement de Pyannote : {e}"
+                print(f"[!] {self.diarization_error}")
         else:
-            print("[!] HF_TOKEN missing — diarization disabled.")
+            self.diarization_error = "HF_TOKEN manquant dans les variables d'environnement."
+            print(f"[!] Diarisation désactivée : {self.diarization_error}")
 
     # ------------------------------------------------------------------
     # Whisper inference (synchronous, run in thread)
@@ -973,7 +976,7 @@ class SotaASR:
             if _is_cancelled(): return
             
             if not self.diarization_pipeline:
-                raise RuntimeError("Diarisation impossible : HF_TOKEN manquant ou chargement Pyannote échoué. Veuillez vérifier vos clés API.")
+                raise RuntimeError(f"Diarisation impossible : {self.diarization_error or 'Erreur inconnue'}. Veuillez vérifier vos clés API.")
                 
             print(f"[*] Batch [{file_id[:8]}]: Etape 1/4 - Décodage audio...")
             _update("Etape 1/4 : Décodage audio (ffmpeg)...", 2)
