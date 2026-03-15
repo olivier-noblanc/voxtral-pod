@@ -37,6 +37,9 @@ if [ ! -d ".git" ]; then
     echo "[*] Init code..."
     git init .
     git remote add origin "$REPO_URL"
+fi
+git remote set-url origin "$REPO_URL"
+
 # 1. Sync from Remote Repo
 if [ "$SKIP_GIT_RESET" = "true" ]; then
     echo "[*] Local modifications preserved (SKIP_GIT_RESET=true)."
