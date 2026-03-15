@@ -424,6 +424,9 @@ async function pollStatus(fileId, status) {
             } else if (data.status === "error") {
                 resetUI();
                 status.innerText = "❌ Erreur: " + data.error;
+            } else if (data.status === "not_found") {
+                resetUI();
+                status.innerText = "⚠️ Le fichier a expiré ou le serveur a été redémarré.";
             } else if (data.status && data.status.startsWith("processing:")) {
                 let text = "⏳ " + data.status.replace("processing:", "");
                 if (data.progress > 0) {
