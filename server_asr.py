@@ -22,11 +22,11 @@ if torch.cuda.is_available():
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
 
-import warnings
 # Ignore specific math warnings from pyannote on very short segments
 warnings.filterwarnings("ignore", message=r"std\(\): degrees of freedom is <= 0")
 # Ignore ReproducibilityWarning since we explicitly enable TF32 for performance on A2
-warnings.filterwarnings("ignore", message=r"TensorFloat-32 \(TF32\) has been disabled")
+# Using a broader match to catch version variations
+warnings.filterwarnings("ignore", category=UserWarning, message=".*TensorFloat-32.*")
 import torchaudio
 import json
 import datetime
@@ -1038,9 +1038,9 @@ class SotaASR:
                     completed = _to_float(raw_completed)
                     total = _to_float(raw_total)
                     
-                    # Map diarization (Etape 2) to 5-10% range
+                    # Map diarization (Etape 2) to 5-45% range (Diarization is heavy)
                     if total > 0:
-                        sub_pct = int((completed / total) * 5)
+                        sub_pct = int((completed / total) * 40)
                         _update(f"Etape 2/4 : Diarisation ({step_name})...", 5 + sub_pct)
                     else:
                         _update(f"Etape 2/4 : Diarisation ({step_name})...", 5)
@@ -1053,7 +1053,7 @@ class SotaASR:
             # Transcription
             if _is_cancelled(): return
             print(f"[*] Batch [{file_id[:8]}]: Etape 3/4 - Transcription...")
-            _update("Etape 3/4 : Transcription en cours...", 10)
+            _update("Etape 3/4 : Transcription en cours...", 45)
             if self.model_id == "whisper":
                 segments, info = self.model.transcribe(
                     audio_np, beam_size=5, language=LANGUAGE, task="transcribe"
@@ -1062,8 +1062,8 @@ class SotaASR:
                 for s in segments:
                     if _is_cancelled(): return
                     transcribed_segments.append({"start": s.start, "end": s.end, "text": s.text.strip()})
-                    # Whisper progress roughly from 10% to 90%
-                    pct = 10 + min(80, int((s.end / info.duration) * 80)) if info.duration > 0 else 10
+                    # Whisper progress from 45% to 95%
+                    pct = 45 + min(50, int((s.end / info.duration) * 50)) if info.duration > 0 else 45
                     _update("Etape 3/4 : Transcription en cours...", pct)
                     print(f"[*] Transcription batch [{file_id[:8]}] : {pct}% ({s.end:.1f}s / {info.duration:.1f}s)")
 
