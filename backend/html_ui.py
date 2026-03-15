@@ -130,7 +130,7 @@ HTML_UI = r"""<!DOCTYPE html>
                 <div style="display:flex; flex-wrap:wrap; gap:20px; align-items:center; margin-bottom:1rem; padding-bottom:1rem; border-bottom:1px solid #374151;">
                     <label style="margin:0; display:flex; align-items:center; gap:10px; cursor:pointer; font-weight:bold;">
                         <input type="checkbox" id="includeTimestamps" checked onchange="updateExportPreview()" style="margin:0; width:18px; height:18px;">
-                        <span>Inclure les timestamps</span>
+                        <span>Afficher les repères temporels (début/fin)</span>
                     </label>
                 </div>
                 <div id="speakerRenameContainer" style="display:none;">
