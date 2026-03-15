@@ -107,9 +107,20 @@ async def cancel_route(file_id: str):
     return {"status": "ok"}
 
 async def run_batch_job(path, file_id, client_id):
+    start_time = datetime.datetime.now()
     try:
         def update_progress(status, pct):
-            jobs_db[file_id] = {"status": f"processing:{status}", "progress": pct}
+            elapsed = (datetime.datetime.now() - start_time).total_seconds()
+            eta = 0
+            if pct > 5 and pct < 100:
+                # Simple linear estimation: (elapsed / pct) * (100 - pct)
+                eta = int((elapsed / pct) * (100 - pct))
+            
+            jobs_db[file_id] = {
+                "status": f"processing:{status}", 
+                "progress": pct,
+                "eta": eta
+            }
 
         transcript = await asr_engine.process_file(path, progress_callback=update_progress)
         

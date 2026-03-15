@@ -48,7 +48,6 @@ class SotaASR:
                 c_raw = args[0] if len(args) > 0 else kwargs.get('completed', 0)
                 t_raw = args[1] if len(args) > 1 else kwargs.get('total')
                 
-                # Ultra-robust scalar extraction (works for numbers, 0-d arrays, and 1-element arrays)
                 def to_scalar(v):
                     if v is None: return 0.0
                     if hasattr(v, "item"): return float(v.item())
@@ -58,9 +57,17 @@ class SotaASR:
                 c_val = to_scalar(c_raw)
                 t_val = to_scalar(t_raw)
 
+                # Map Pyannote steps to human readable stages
+                display_step = step_name
+                if "segmentation" in step_name.lower(): display_step = "Détéction voix"
+                elif "embedding" in step_name.lower(): display_step = "Identification speakers"
+                
                 if t_val > 0:
+                    # Diarization is about 40% of the total process (5-45%)
                     sub_pct = int((c_val / t_val) * 40)
-                    progress_callback(f"Diarisation ({step_name})...", 5 + sub_pct)
+                    progress_callback(f"Diarisation : {display_step}", 5 + sub_pct)
+                else:
+                    progress_callback(f"Diarisation : {display_step}...", 5)
             except Exception:
                 pass
 
@@ -70,7 +77,7 @@ class SotaASR:
         if progress_callback: progress_callback("Transcription en cours...", 45)
         
         # Note: TranscriptionEngine returns words directly now
-        words, _ = await asyncio.to_thread(self.transcription_engine.transcribe, audio_np)
+        words, _ = await asyncio.to_thread(self.transcription_engine.transcribe, audio_np, progress_callback=progress_callback)
         if progress_callback: progress_callback("Transcription terminée", 95)
 
         # 4. Merge (TranscriptionSuite Reference)
