@@ -348,6 +348,7 @@ async function uploadFile() {
         progress.value = ((i + 1) / totalChunks) * 100;
     }
     status.innerText = "Transcription en cours...";
+    localStorage.setItem('active_batch_file_id', fileId);
     pollStatus(fileId, status);
 }
 
@@ -358,6 +359,7 @@ async function pollStatus(fileId, status) {
             const data = await res.json();
             if (data.status === "done") {
                 clearInterval(interval);
+                localStorage.removeItem('active_batch_file_id');
                 status.innerText = "✅ Terminé.";
                 const box = document.getElementById('batchResult');
                 box.style.display = 'block';
@@ -365,6 +367,7 @@ async function pollStatus(fileId, status) {
                 loadHistory();
             } else if (data.status === "error") {
                 clearInterval(interval);
+                localStorage.removeItem('active_batch_file_id');
                 status.innerText = "❌ Erreur: " + data.error;
             } else if (data.status && data.status.startsWith("processing:")) {
                 status.innerText = "⏳ " + data.status.replace("processing:", "");
@@ -435,6 +438,14 @@ window.onload = () => {
     loadS3Config();
     const sel = document.getElementById('modelSelector');
     for (let o of sel.options) { if (o.value === '{{model_name}}') o.selected = true; }
+    
+    // Resume active batch polling if any
+    const activeFileId = localStorage.getItem('active_batch_file_id');
+    if (activeFileId) {
+        const statusBox = document.getElementById('batchStatus');
+        statusBox.innerText = "Reprise de la transcription...";
+        pollStatus(activeFileId, statusBox);
+    }
 };
 </script>
 </body>
