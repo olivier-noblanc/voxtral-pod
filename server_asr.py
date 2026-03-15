@@ -16,6 +16,10 @@ import asyncio
 import tempfile
 import time
 import torch
+import warnings
+# Ignore specific math warnings from pyannote on very short segments
+warnings.filterwarnings("ignore", message="std\(\): degrees of freedom is <= 0")
+
 # === GPU PERFORMANCE OPTIMIZATION (Ampere+) ===
 if torch.cuda.is_available():
     torch.backends.cuda.matmul.allow_tf32 = True
@@ -781,13 +785,14 @@ class SotaASR:
     # ------------------------------------------------------------------
     # Diarization (synchronous, run in thread)
     # ------------------------------------------------------------------
-    def _diarize_sync(self, audio_float32: np.ndarray) -> list:
+    def _diarize_sync(self, audio_float32: np.ndarray, hook=None) -> list:
         """Run pyannote diarization, returns list of (start, end, speaker)."""
         if self.diarization_pipeline is None:
             return []
         waveform = torch.from_numpy(audio_float32[None, :])
         diarization = self.diarization_pipeline(
-            {"waveform": waveform, "sample_rate": self.sample_rate}
+            {"waveform": waveform, "sample_rate": self.sample_rate},
+            hook=hook
         )
         segments = []
         for turn, _, speaker in diarization.itertracks(yield_label=True):
@@ -997,8 +1002,17 @@ class SotaASR:
             # Diarization
             if _is_cancelled(): return
             print(f"[*] Batch [{file_id[:8]}]: Etape 2/4 - Diarisation...")
-            _update("Etape 2/4 : Diarisation en cours...", 5)
-            diar_segments = self._diarize_sync(audio_np)
+            
+            def _diar_hook(step_name, completed, total=None):
+                if _is_cancelled(): return
+                # Map diarization (Etape 2) to 5-10% range
+                if total:
+                    sub_pct = int((completed / total) * 5)
+                    _update(f"Etape 2/4 : Diarisation ({step_name})...", 5 + sub_pct)
+                else:
+                    _update(f"Etape 2/4 : Diarisation ({step_name})...", 5)
+
+            diar_segments = self._diarize_sync(audio_np, hook=_diar_hook)
             print(f"[*] Diarization: {len(diar_segments)} segments")
 
             # Transcription
