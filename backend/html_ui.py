@@ -1,4 +1,4 @@
-HTML_UI = """<!DOCTYPE html>
+HTML_UI = r"""<!DOCTYPE html>
 <html lang="fr" data-theme="dark">
 <head>
     <meta charset="UTF-8">
