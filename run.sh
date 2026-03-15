@@ -46,14 +46,14 @@ echo "[*] Local modifications preserved (git reset disabled)."
 # 2. Virtual environment
 FORCE_REINSTALL=false
 
-# Check if requirements.txt has changed since last install to prevent pollution
+# Check if requirements.txt has changed
 REQ_HASH_FILE="$VENV_DIR/req_hash.txt"
 CURRENT_HASH=$(md5sum requirements.txt | cut -d' ' -f1)
 
 if [ -d "$VENV_DIR" ]; then
     if [ ! -f "$REQ_HASH_FILE" ] || [ "$(cat "$REQ_HASH_FILE")" != "$CURRENT_HASH" ]; then
-        echo "[!] Requirements changed or unverified. Cleaning venv to prevent pollution..."
-        rm -rf "$VENV_DIR"
+        echo "[*] Requirements changed. Checking for updates..."
+        # We don't delete, pip will handle incremental updates
         FORCE_REINSTALL=true
     elif ! "$VENV_DIR/bin/python" -c "import torch; import webrtcvad; import faster_whisper" &> /dev/null; then
         echo "[!] Venv incomplete or broken. Recreating..."
