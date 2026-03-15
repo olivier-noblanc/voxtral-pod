@@ -19,7 +19,6 @@ librosa
 soundfile
 ffmpeg-python
 scipy
-# webrtcvad-wheels works on Python 3.12+
 webrtcvad-wheels>=2.0.14
 silero-vad
 boto3
