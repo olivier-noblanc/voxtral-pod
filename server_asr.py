@@ -789,6 +789,12 @@ class SotaASR:
         """Run pyannote diarization, returns list of (start, end, speaker)."""
         if self.diarization_pipeline is None:
             return []
+            
+        # Ensure TF32 is enabled right before the call (Pyannote 4.x requirement for A2/Ampere)
+        if torch.cuda.is_available():
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+            
         waveform = torch.from_numpy(audio_float32[None, :])
         diarization = self.diarization_pipeline(
             {"waveform": waveform, "sample_rate": self.sample_rate},
@@ -1009,8 +1015,13 @@ class SotaASR:
             if _is_cancelled(): return
             print(f"[*] Batch [{file_id[:8]}]: Etape 2/4 - Diarisation...")
             
-            def _diar_hook(step_name, completed, total=None, **kwargs):
+            def _diar_hook(*args, **kwargs):
                 if _is_cancelled(): return
+                # Flexible extraction for Pyannote 3.x/4.x compatibility
+                step_name = args[0] if len(args) > 0 else kwargs.get("step_name", "diarization")
+                completed = args[1] if len(args) > 1 else kwargs.get("completed", 0)
+                total = args[2] if len(args) > 2 else kwargs.get("total", None)
+                
                 # Map diarization (Etape 2) to 5-10% range
                 if total:
                     sub_pct = int((completed / total) * 5)
