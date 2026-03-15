@@ -18,7 +18,7 @@ class DiarizationEngine:
         print(f"[*] Loading Pyannote pipeline: {self.model_id}")
         self.pipeline = Pipeline.from_pretrained(
             self.model_id, 
-            use_auth_token=self.hf_token
+            token=self.hf_token
         )
         
         if torch.cuda.is_available():
