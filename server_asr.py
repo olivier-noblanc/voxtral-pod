@@ -817,10 +817,40 @@ class SotaASR:
              print(f"[*] Available attributes: {dir(diarization)}")
              return []
 
-        segments = []
+        raw_segments = []
         for turn, _, speaker in annotation.itertracks(yield_label=True):
-            segments.append((turn.start, turn.end, speaker))
-        return segments
+            raw_segments.append({
+                "start": turn.start,
+                "end": turn.end,
+                "speaker": speaker
+            })
+
+        if not raw_segments:
+            return []
+
+        # --- OPTIMIZATION: Filtering & Merging ---
+        # 1. Filter out micro-segments (< 0.5s) likely to be noise/coughs
+        filtered = [s for s in raw_segments if (s["end"] - s["start"]) >= 0.5]
+        if not filtered: return []
+
+        # 2. Merge adjacent segments from the same speaker
+        # If gap < 1.5s and same speaker, we merge them into one block
+        merged = []
+        if filtered:
+            curr = filtered[0]
+            for i in range(1, len(filtered)):
+                nxt = filtered[i]
+                gap = nxt["start"] - curr["end"]
+                if nxt["speaker"] == curr["speaker"] and gap < 1.5:
+                    # Extend current segment end
+                    curr["end"] = nxt["end"]
+                else:
+                    merged.append((curr["start"], curr["end"], curr["speaker"]))
+                    curr = nxt
+            merged.append((curr["start"], curr["end"], curr["speaker"]))
+
+        print(f"[*] Diarization optimized: {len(raw_segments)} raw -> {len(merged)} merged segments")
+        return merged
 
     # ------------------------------------------------------------------
     # Speaker name detection (heuristic on French introductions)
