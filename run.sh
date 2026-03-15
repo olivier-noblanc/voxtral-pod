@@ -41,8 +41,8 @@ fi
 git remote set-url origin "$REPO_URL"
 
 # 1. Sync from Remote Repo
-if [ "$SKIP_GIT_RESET" = "true" ] || [ -d "backend" ]; then
-    echo "[*] Local modifications preserved (SKIP_GIT_RESET=true or backend/ detected)."
+if [ "$SKIP_GIT_RESET" = "true" ]; then
+    echo "[*] Local modifications preserved (SKIP_GIT_RESET=true)."
 else
     echo "[*] Syncing from GitHub (force update)..."
     git fetch origin main && git reset --hard origin/main || echo "[!] Sync failed, local mode enabled."
@@ -80,14 +80,13 @@ source "$VENV_DIR/bin/activate"
 echo "$CURRENT_HASH" > "$REQ_HASH_FILE"
 
 # 3. Dependencies
-echo "[*] Initializing robust dependency check (one-by-one)..."
+echo "[*] Starting robust dependency check..."
 
 "$VENV_DIR/bin/python" - <<EOF
 import subprocess
 import sys
 import os
 
-# Mapping between PyPI package names and their Python import names
 MAPPING = {
     "uvicorn[standard]": "uvicorn",
     "python-multipart": "multipart",
@@ -98,31 +97,31 @@ MAPPING = {
     "silero-vad": "silero_vad"
 }
 
-try:
-    with open("requirements.txt", "r") as f:
-        lines = [l.strip() for l in f if l.strip() and not l.strip().startswith("#")]
-        print(f"[*] Found {len(lines)} packages in requirements.txt")
-except FileNotFoundError:
-    print("[!] requirements.txt not found.")
+req_file = "requirements.txt"
+if not os.path.exists(req_file):
+    print(f"[!] {req_file} not found.")
     sys.exit(1)
 
+with open(req_file, "r") as f:
+    lines = [l.strip() for l in f if l.strip() and not l.strip().startswith("#")]
+
+print(f"[*] Found {len(lines)} dependencies to check.")
+
 for line in lines:
-    print(f"[*] Checking {line}...")
     base_pkg = line.split(">=")[0].split("==")[0].split("<=")[0].strip()
     import_name = MAPPING.get(base_pkg, base_pkg.split("[")[0].replace("-", "_"))
+    
+    # Debug: print what we are doing
+    sys.stdout.write(f"  [WAIT] {base_pkg}... ")
+    sys.stdout.flush()
 
     try:
         root_module = import_name.split(".")[0]
         __import__(root_module)
-        # Special case for pyannote.audio
-        if base_pkg == "pyannote.audio": __import__("pyannote.audio")
-        print(f"  [OK]  {base_pkg}")
+        print("\r  [OK]  " + base_pkg + " " * 10)
     except ImportError:
-        print(f"  [FIX] {base_pkg} (missing or broken). Installing...")
-        try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", line])
-        except Exception as e:
-            print(f"  [ERR] Failed to install {base_pkg}: {e}")
+        print("\r  [FIX] " + base_pkg + " (missing). Installing...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", line])
 
 EOF
 
