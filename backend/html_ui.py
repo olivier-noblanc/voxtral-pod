@@ -115,25 +115,27 @@ HTML_UI = r"""<!DOCTYPE html>
 </main>
 
 <dialog id="viewerDialog">
-    <article style="max-width:800px; width:90%; height:80vh; display:flex; flex-direction:column;">
-        <header>
+    <article style="width: 95vw; max-width: 1600px; height: 95vh; display: flex; flex-direction: column; margin: 2.5vh auto; padding: 0;">
+        <header style="padding: 1rem 1.5rem; margin-bottom: 0;">
             <a href="#close" aria-label="Close" class="close" onclick="closeViewer()"></a>
-            <h4 id="viewerTitle">Transcription</h4>
+            <h4 id="viewerTitle" style="margin:0;">Transcription</h4>
         </header>
-        <div id="viewerContent" style="flex:1; overflow-y:auto; background:#111827; color:#E5E7EB; padding:1rem; border-radius:4px; font-family:sans-serif; white-space:pre-wrap;">
+        <div id="viewerContent" style="flex:1; min-height:300px; overflow-y:auto; background:#111827; color:#E5E7EB; padding:1rem; border-radius:4px; font-family:sans-serif; white-space:pre-wrap; font-size: 0.95rem; border: 1px solid #374151;">
         </div>
-        <footer>
-            <div id="exportConfig" style="background:#1F2937; padding:1rem; border-radius:8px; margin-bottom:1rem; border:1px solid #374151;">
-                <h6 style="margin-bottom:0.5rem; color:#F59E0B;">⚙️ Configuration de l'export</h6>
-                <div style="display:flex; flex-wrap:wrap; gap:15px; align-items:center; margin-bottom:1rem;">
-                    <label style="margin:0; display:flex; align-items:center; gap:8px; cursor:pointer;">
-                        <input type="checkbox" id="includeTimestamps" checked onchange="updateExportPreview()" style="margin:0;">
+        <footer style="padding: 1rem 1.5rem; margin-top: 0;">
+            <div id="exportConfig" style="background:#1F2937; padding:1rem; border-radius:8px; margin-bottom:1rem; border:1px solid #374151; font-size: 0.9rem;">
+                <h6 style="margin-bottom:0.75rem; color:#F59E0B; display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:1.2rem;">⚙️</span> Configuration de l'export
+                </h6>
+                <div style="display:flex; flex-wrap:wrap; gap:20px; align-items:center; margin-bottom:1rem; padding-bottom:1rem; border-bottom:1px solid #374151;">
+                    <label style="margin:0; display:flex; align-items:center; gap:10px; cursor:pointer; font-weight:bold;">
+                        <input type="checkbox" id="includeTimestamps" checked onchange="updateExportPreview()" style="margin:0; width:18px; height:18px;">
                         <span>Inclure les timestamps</span>
                     </label>
                 </div>
                 <div id="speakerRenameContainer" style="display:none;">
-                    <p style="margin-bottom:0.5rem; font-size:0.9rem;">Renommer les speakers :</p>
-                    <div id="speakerRenameList" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:10px;">
+                    <p style="margin-bottom:0.75rem; font-weight:bold; color:#9CA3AF;">Renommer les speakers détectés :</p>
+                    <div id="speakerRenameList" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:12px; max-height:180px; overflow-y:auto; padding-right:10px;">
                         <!-- Dynamically filled -->
                     </div>
                 </div>
@@ -403,13 +405,18 @@ function detectSpeakers(text) {
         wrapper.style.display = "block";
         speakers.forEach(spk => {
             const div = document.createElement('div');
-            div.style.display = "flex";
+            div.style.display = "grid";
+            div.style.gridTemplateColumns = "100px 1fr";
             div.style.alignItems = "center";
-            div.style.gap = "5px";
+            div.style.gap = "8px";
+            div.style.background = "#111827";
+            div.style.padding = "6px 10px";
+            div.style.borderRadius = "6px";
+            div.style.border = "1px solid #374151";
             div.innerHTML = `
-                <span style="font-size:0.8rem; color:#9CA3AF; min-width:80px;">${spk} :</span>
+                <span style="font-size:0.8rem; color:#F59E0B; font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${spk}">${spk}</span>
                 <input type="text" value="${spk}" data-original="${spk}" oninput="updateExportPreview()" 
-                       style="margin:0; padding:4px 8px; font-size:0.8rem; height:auto;">
+                       style="margin:0; padding:4px 8px; font-size:0.85rem; height:auto; background:#1F2937; border:1px solid #4B5563; color:white;">
             `;
             container.appendChild(div);
         });
