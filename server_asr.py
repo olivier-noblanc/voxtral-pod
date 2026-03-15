@@ -983,8 +983,11 @@ class LiveSession:
             if len(self.pre_speech_buffer) > self.engine.pre_recording_size:
                 self.pre_speech_buffer = self.pre_speech_buffer[-self.engine.pre_recording_size:]
 
-            # Dual VAD check
-            has_speech = self.engine.vad.is_speech(audio_bytes)
+            # Dual VAD check: strict onset, aggressive offset
+            if self.is_speaking:
+                has_speech = self.engine.vad.check_deactivation(audio_bytes)
+            else:
+                has_speech = self.engine.vad.is_speech(audio_bytes)
 
             if has_speech:
                 if not self.is_speaking:

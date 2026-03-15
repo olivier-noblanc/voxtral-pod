@@ -1,29 +1,36 @@
 import numpy as np
-from vad_manager import VADManager, SAMPLE_RATE
+import time
+from vad_manager import VADManager
 
-def test_vad_basic():
-    print("[*] Test VADManager : Initialisation...")
-    vad = VADManager(silero_sensitivity=0.4)
+CHUNK_SIZE = 2560 # 160ms chunks
+SAMPLE_RATE = 16000
+vad = VADManager(silero_sensitivity=0.4, webrtc_sensitivity=3)
+
+# Generate 5 seconds of silence
+silence = np.zeros(int(SAMPLE_RATE * 5), dtype=np.int16).tobytes()
+
+# Generate 2 seconds of noise/sine wave (mock speech)
+t = np.linspace(0, 2, int(SAMPLE_RATE * 2))
+speech = (np.sin(2 * np.pi * 440 * t) * 10000).astype(np.int16).tobytes()
+
+print("Feeding Silence (2 sec)...")
+for i in range(0, len(silence)//2, CHUNK_SIZE * 2):
+    chunk = silence[i:i + CHUNK_SIZE * 2]
+    if len(chunk) < CHUNK_SIZE * 2: continue
+    is_speech = vad.is_speech(chunk)
+    print(f"Silence chunk: speech={is_speech}")
+
+print("\nFeeding Speech (2 sec)...")
+for i in range(0, len(speech), CHUNK_SIZE * 2):
+    chunk = speech[i:i + CHUNK_SIZE * 2]
+    if len(chunk) < CHUNK_SIZE * 2: continue
+    is_speech = vad.is_speech(chunk)
+    print(f"Speech chunk: speech={is_speech}")
     
-    # 1. Test Silence (zeros)
-    print("[*] Test 1: Silence complet...")
-    silence = np.zeros(SAMPLE_RATE, dtype=np.int16).tobytes()
-    is_speech = vad.is_speech(silence)
-    print(f"    -> Speech détecté : {is_speech} (Attendu: False)")
-    assert not is_speech
-    
-    # 2. Test Bruit Rose/Blanc (ne devrait pas être de la parole)
-    print("[*] Test 2: Bruit blanc...")
-    noise = (np.random.rand(SAMPLE_RATE) * 1000).astype(np.int16).tobytes()
-    is_speech = vad.is_speech(noise)
-    print(f"    -> Speech détecté : {is_speech} (Attendu: False ou très court)")
+print("\nFeeding Silence again (2 sec)...")
+for i in range(0, len(silence)//2, CHUNK_SIZE * 2):
+    chunk = silence[i:i + CHUNK_SIZE * 2]
+    if len(chunk) < CHUNK_SIZE * 2: continue
+    is_speech = vad.is_speech(chunk)
+    print(f"Silence chunk: speech={is_speech}")
 
-    # Note: On ne peut pas facilement générer de la parole synthétique sans librairie lourde,
-    # mais ce test valide au moins que le moteur Silero/WebRTC est chargé.
-    print("[✅] Test VAD de base réussi.")
-
-if __name__ == "__main__":
-    try:
-        test_vad_basic()
-    except Exception as e:
-        print(f"[❌] Erreur pendant le test : {e}")

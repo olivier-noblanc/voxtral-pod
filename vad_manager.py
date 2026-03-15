@@ -59,17 +59,24 @@ class VADManager:
     # ------------------------------------------------------------------
     # Stage 1 — WebRTC (fast, works on 10/20/30ms frames)
     # ------------------------------------------------------------------
-    def _check_webrtc(self, chunk_pcm: bytes) -> bool:
-        """Quick WebRTC check.  Returns True if ANY frame contains speech."""
-        # WebRTC needs 10ms frames at 16kHz = 160 samples = 320 bytes
+    def _check_webrtc(self, chunk_pcm: bytes, all_frames_must_be_true: bool = False) -> bool:
+        """Quick WebRTC check. Returns True if frame(s) contain speech."""
         frame_len = 320
         num_frames = len(chunk_pcm) // frame_len
+        speech_frames = 0
 
         for i in range(num_frames):
             frame = chunk_pcm[i * frame_len : (i + 1) * frame_len]
             if self.webrtc_vad.is_speech(frame, SAMPLE_RATE):
-                self.is_webrtc_speech_active = True
-                return True
+                speech_frames += 1
+                if not all_frames_must_be_true:
+                    self.is_webrtc_speech_active = True
+                    return True
+
+        if all_frames_must_be_true:
+            speech_detected = speech_frames == num_frames
+            self.is_webrtc_speech_active = speech_detected
+            return speech_detected
 
         self.is_webrtc_speech_active = False
         return False
@@ -132,8 +139,8 @@ class VADManager:
 
     # Legacy synchronous API (kept for simple use cases / tests)
     def is_speech(self, chunk_pcm: bytes) -> bool:
-        """Synchronous dual-gate check (blocks on Silero)."""
-        if not self._check_webrtc(chunk_pcm):
+        """Synchronous dual-gate check (blocks on Silero). Used to detect speech onset."""
+        if not self._check_webrtc(chunk_pcm, all_frames_must_be_true=False):
             return False
         # Full Silero check synchronously
         with self._lock:
@@ -163,3 +170,12 @@ class VADManager:
                 return result
             finally:
                 self._silero_working = False
+
+    def check_deactivation(self, chunk_pcm: bytes) -> bool:
+        """Strict check for end of speech to aggressively cut off silence.
+        Matches TranscriptionSuite behavior where ANY silence frame causes WebRTC to drop."""
+        # Use strict WebRTC matching
+        if not self._check_webrtc(chunk_pcm, all_frames_must_be_true=True):
+            return False
+            
+        return self.is_speech(chunk_pcm)
