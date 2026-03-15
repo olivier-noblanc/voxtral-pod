@@ -105,4 +105,6 @@ class LiveSession:
                     "final": final
                 })
         except Exception as e:
+            # We catch all exceptions here to prevent the live session worker from crashing
+            # but we log it for debugging.
             print(f"[!] [{self.client_id}] Live Inference error: {e}")
