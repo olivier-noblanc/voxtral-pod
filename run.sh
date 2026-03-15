@@ -80,15 +80,49 @@ source "$VENV_DIR/bin/activate"
 echo "$CURRENT_HASH" > "$REQ_HASH_FILE"
 
 # 3. Dependencies
-echo "[*] Debug: dependencies in requirements.txt:"
-tail -n 5 requirements.txt
-echo "[*] Checking/Installing dependencies (force update)..."
-"$VENV_DIR/bin/python" -m pip install -U pip setuptools wheel
-if ! "$VENV_DIR/bin/python" -m pip install --upgrade -r requirements.txt; then
-    echo "[!] Retrying with webrtcvad from git..."
-    "$VENV_DIR/bin/python" -m pip install "git+https://github.com/wiseman/py-webrtcvad.git"
-    "$VENV_DIR/bin/python" -m pip install --upgrade -r requirements.txt
-fi
+echo "[*] Initializing robust dependency check (one-by-one)..."
+
+"$VENV_DIR/bin/python" - <<EOF
+import subprocess
+import sys
+import os
+
+# Mapping between PyPI package names and their Python import names
+MAPPING = {
+    "uvicorn[standard]": "uvicorn",
+    "python-multipart": "multipart",
+    "faster-whisper": "faster_whisper",
+    "mistral-common[audio]": "mistral_common",
+    "ffmpeg-python": "ffmpeg",
+    "webrtcvad-wheels": "webrtcvad",
+    "silero-vad": "silero_vad"
+}
+
+try:
+    with open("requirements.txt", "r") as f:
+        lines = [l.strip() for l in f if l.strip() and not l.strip().startswith("#")]
+except FileNotFoundError:
+    print("[!] requirements.txt not found.")
+    sys.exit(1)
+
+for line in lines:
+    base_pkg = line.split(">=")[0].split("==")[0].split("<=")[0].strip()
+    import_name = MAPPING.get(base_pkg, base_pkg.split("[")[0].replace("-", "_"))
+
+    try:
+        root_module = import_name.split(".")[0]
+        __import__(root_module)
+        # Special case for pyannote.audio
+        if base_pkg == "pyannote.audio": __import__("pyannote.audio")
+        print(f"  [OK]  {base_pkg}")
+    except ImportError:
+        print(f"  [FIX] {base_pkg} (missing or broken). Installing...")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", line])
+        except Exception as e:
+            print(f"  [ERR] Failed to install {base_pkg}: {e}")
+
+EOF
 
 # 4. GPU check
 if command -v nvidia-smi &> /dev/null; then
