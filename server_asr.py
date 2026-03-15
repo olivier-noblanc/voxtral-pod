@@ -26,7 +26,7 @@ import warnings
 # Ignore specific math warnings from pyannote on very short segments
 warnings.filterwarnings("ignore", message=r"std\(\): degrees of freedom is <= 0")
 # Ignore ReproducibilityWarning since we explicitly enable TF32 for performance on A2
-warnings.filterwarnings("ignore", message="TensorFloat-32 \(TF32\) has been disabled")
+warnings.filterwarnings("ignore", message=r"TensorFloat-32 \(TF32\) has been disabled")
 import torchaudio
 import json
 import datetime
@@ -1020,22 +1020,32 @@ class SotaASR:
             
             def _diar_hook(*args, **kwargs):
                 if _is_cancelled(): return
-                # Flexible extraction for Pyannote 3.x/4.x compatibility
-                # Pyannote can sometimes pass None for completed/total
-                step_name = args[0] if len(args) > 0 else kwargs.get("step_name", "diarization")
-                
-                raw_completed = args[1] if len(args) > 1 else kwargs.get("completed", 0)
-                completed = raw_completed if raw_completed is not None else 0
-                
-                raw_total = args[2] if len(args) > 2 else kwargs.get("total", None)
-                total = raw_total if raw_total is not None else 0
-                
-                # Map diarization (Etape 2) to 5-10% range
-                if total > 0:
-                    sub_pct = int((completed / total) * 5)
-                    _update(f"Etape 2/4 : Diarisation ({step_name})...", 5 + sub_pct)
-                else:
-                    _update(f"Etape 2/4 : Diarisation ({step_name})...", 5)
+                try:
+                    # Flexible extraction for Pyannote 3.x/4.x compatibility
+                    step_name = args[0] if len(args) > 0 else kwargs.get("step_name", "diarization")
+                    
+                    raw_completed = args[1] if len(args) > 1 else kwargs.get("completed", 0)
+                    raw_total = args[2] if len(args) > 2 else kwargs.get("total", 0)
+                    
+                    def _to_float(v):
+                        if v is None: return 0.0
+                        if hasattr(v, "item"):
+                            try: return float(v.item())
+                            except: pass
+                        try: return float(v)
+                        except: return 0.0
+
+                    completed = _to_float(raw_completed)
+                    total = _to_float(raw_total)
+                    
+                    # Map diarization (Etape 2) to 5-10% range
+                    if total > 0:
+                        sub_pct = int((completed / total) * 5)
+                        _update(f"Etape 2/4 : Diarisation ({step_name})...", 5 + sub_pct)
+                    else:
+                        _update(f"Etape 2/4 : Diarisation ({step_name})...", 5)
+                except Exception:
+                    pass # Never crash for a background progress update
 
             diar_segments = self._diarize_sync(audio_np, hook=_diar_hook)
             print(f"[*] Diarization: {len(diar_segments)} segments")
