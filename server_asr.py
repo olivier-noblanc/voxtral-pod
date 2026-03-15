@@ -27,6 +27,8 @@ import numpy as np
 if not hasattr(np, "NaN"):
     np.NaN = np.nan
 import threading
+import re
+from collections import Counter
 from fastapi import (
     FastAPI, WebSocket, WebSocketDisconnect,
     File, UploadFile, Form, BackgroundTasks
@@ -208,16 +210,36 @@ async function startRecording() {
         };
 
         let lastSpeaker = "";
+        let sentenceIdx = 0;
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (data.type === "sentence" && data.text) {
                 const spk = data.speaker || "";
+                const idx = sentenceIdx++;
                 if (spk && spk !== lastSpeaker) {
                     lastSpeaker = spk;
-                    box.innerHTML += `<br><span class="speaker-label">[${spk}]</span> `;
+                    box.innerHTML += `<br><span class="speaker-label" data-sidx="${idx}">[${spk}]</span> `;
                 }
-                box.innerHTML += data.text + ' ';
+                box.innerHTML += `<span data-sidx="${idx}">${data.text}</span> `;
                 box.scrollTop = box.scrollHeight;
+            } else if (data.type === "diarization_update" && data.speakers) {
+                // Retroactively update speaker labels
+                const nameMap = data.name_map || {};
+                for (const [sidx, spk] of Object.entries(data.speakers)) {
+                    const labels = box.querySelectorAll(`span.speaker-label`);
+                    labels.forEach(el => {
+                        const elIdx = parseInt(el.getAttribute('data-sidx'));
+                        if (elIdx <= parseInt(sidx)) {
+                            const displayName = spk;
+                            el.textContent = `[${displayName}]`;
+                        }
+                    });
+                }
+                if (Object.keys(nameMap).length > 0) {
+                    const legend = Object.entries(nameMap).map(([k,v]) => `${k}=${v}`).join(', ');
+                    box.innerHTML += `<br><em>[🔍 Speakers identifiés: ${legend}]</em>`;
+                    box.scrollTop = box.scrollHeight;
+                }
             } else if (data.type === "final_done") {
                 box.innerHTML += `<br><em>[✅ Repasse finale terminée — fichier sauvegardé]</em>`;
                 loadHistory();
@@ -451,10 +473,73 @@ class SotaASR:
         return segments
 
     # ------------------------------------------------------------------
-    # Final pass: high-quality transcription + diarization
+    # Speaker name detection (heuristic on French introductions)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _detect_speaker_names(diar_segments: list, transcribed_lines: list) -> dict:
+        """
+        Scan transcribed lines for French introduction patterns and map
+        anonymous speaker labels (SPEAKER_00) to real names.
+
+        Returns: dict mapping e.g. {"SPEAKER_00": "Pierre", "SPEAKER_01": "Marie"}
+        """
+        # Patterns that capture a name after a French introduction phrase
+        patterns = [
+            # "Bonjour, je suis Pierre" / "je m'appelle Marie"
+            r"(?:je\s+(?:suis|m['’]appelle))\s+([A-Z\u00C0-\u00FF][a-z\u00E0-\u00FF]+)",
+            # "Moi c'est Jean" / "moi, c'est Sophie"
+            r"(?:moi[,]?\s+c['’]est)\s+([A-Z\u00C0-\u00FF][a-z\u00E0-\u00FF]+)",
+            # "Pierre à l'appareil" / "Ici Marie"
+            r"(?:ici)\s+([A-Z\u00C0-\u00FF][a-z\u00E0-\u00FF]+)",
+            # "Mon nom est Pierre"
+            r"(?:mon\s+nom\s+est)\s+([A-Z\u00C0-\u00FF][a-z\u00E0-\u00FF]+)",
+            # "C'est Pierre" (at start of sentence)
+            r"^(?:c['’]est)\s+([A-Z\u00C0-\u00FF][a-z\u00E0-\u00FF]+)",
+        ]
+
+        name_map = {}
+        # Only scan the first few lines per speaker (introductions happen early)
+        speaker_line_count = Counter()
+        MAX_LINES_TO_SCAN = 5
+
+        for line_info in transcribed_lines:
+            speaker = line_info.get("speaker", "")
+            text = line_info.get("text", "")
+            if not speaker or not text:
+                continue
+            if speaker in name_map:
+                continue  # Already identified
+
+            speaker_line_count[speaker] += 1
+            if speaker_line_count[speaker] > MAX_LINES_TO_SCAN:
+                continue
+
+            for pattern in patterns:
+                match = re.search(pattern, text, re.IGNORECASE)
+                if match:
+                    candidate = match.group(1).strip()
+                    # Basic sanity: name should be 2-20 chars, not a common word
+                    common_words = {"bonjour", "merci", "alors", "donc", "voilà",
+                                    "bien", "tout", "très", "comment", "encore"}
+                    if 2 <= len(candidate) <= 20 and candidate.lower() not in common_words:
+                        name_map[speaker] = candidate
+                        print(f"[*] Speaker identified: {speaker} -> {candidate}")
+                        break
+
+        return name_map
+
+    @staticmethod
+    def _apply_name_map(text: str, name_map: dict) -> str:
+        """Replace anonymous speaker labels with detected names."""
+        for anon, real_name in name_map.items():
+            text = text.replace(f"[{anon}]", f"[{real_name}]")
+        return text
+
+    # ------------------------------------------------------------------
+    # Final pass: high-quality transcription + diarization + name detect
     # ------------------------------------------------------------------
     def _run_final_pass_sync(self, combined_audio_bytes: bytes) -> str:
-        """Full quality pass: diarize + transcribe segment by segment."""
+        """Full quality pass: diarize + transcribe segment by segment + detect names."""
         audio_np = np.frombuffer(combined_audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
         duration = len(audio_np) / self.sample_rate
         print(f"[*] Final pass: {duration:.1f}s of audio")
@@ -476,13 +561,14 @@ class SotaASR:
                 return self._transcribe_sync(combined_audio_bytes)
 
         # 2. Transcribe each diarization segment
-        lines = []
+        structured_lines = []  # For name detection
+        output_lines = []
         for start, end, speaker in diar_segments:
             s_idx = int(start * self.sample_rate)
             e_idx = int(end * self.sample_rate)
             segment_audio = audio_np[s_idx:e_idx]
             if len(segment_audio) < self.sample_rate * 0.3:
-                continue  # Skip tiny segments
+                continue
 
             if self.model_id == "whisper":
                 segs, _ = self.model.transcribe(
@@ -494,9 +580,19 @@ class SotaASR:
                 text = self._transcribe_sync(pcm)
 
             if text:
-                lines.append(f"[{start:.2f}s -> {end:.2f}s] [{speaker}] {text}")
+                structured_lines.append({"speaker": speaker, "text": text})
+                output_lines.append(f"[{start:.2f}s -> {end:.2f}s] [{speaker}] {text}")
 
-        return "\n".join(lines)
+        # 3. Detect speaker names and apply
+        name_map = self._detect_speaker_names(diar_segments, structured_lines)
+        result = "\n".join(output_lines)
+        if name_map:
+            result = self._apply_name_map(result, name_map)
+            # Add a legend at the top
+            legend = " | ".join(f"{anon} = {name}" for anon, name in name_map.items())
+            result = f"[Speakers: {legend}]\n\n{result}"
+
+        return result
 
     async def finalize_live_session(self, client_id: str, full_session_audio: list, websocket: WebSocket = None):
         """Final high-quality pass on the full live session audio."""
@@ -576,6 +672,7 @@ class SotaASR:
                 transcribed_segments = [{"start": 0, "end": duration, "text": text}]
 
             # Merge diarization with transcription
+            structured_lines = []
             output_lines = []
             for ts_seg in transcribed_segments:
                 speaker = "Speaker"
@@ -584,11 +681,19 @@ class SotaASR:
                     if ds <= seg_mid <= de:
                         speaker = dspk
                         break
+                structured_lines.append({"speaker": speaker, "text": ts_seg["text"]})
                 output_lines.append(
                     f"[{ts_seg['start']:.2f}s -> {ts_seg['end']:.2f}s] [{speaker}] {ts_seg['text']}"
                 )
 
             full_text = "\n".join(output_lines)
+
+            # Detect and apply speaker names
+            name_map = self._detect_speaker_names(diar_segments, structured_lines)
+            if name_map:
+                full_text = self._apply_name_map(full_text, name_map)
+                legend = " | ".join(f"{a} = {n}" for a, n in name_map.items())
+                full_text = f"[Speakers: {legend}]\n\n{full_text}"
 
             # Save
             out_dir = os.path.join("transcriptions_terminees", client_id)
@@ -630,8 +735,13 @@ class SotaASR:
 # =====================================================================
 # LIVE SESSION (one per WebSocket connection)
 # =====================================================================
+
+# Diarization batch interval (seconds of audio accumulated before running Pyannote)
+DIAR_BATCH_INTERVAL_SEC = 300  # 5 minutes
+
+
 class LiveSession:
-    """Isolated per-connection live transcription session with VAD and diarization."""
+    """Isolated per-connection live transcription with VAD + periodic batch diarization."""
 
     def __init__(self, engine: SotaASR, websocket: WebSocket, client_id: str):
         self.engine = engine
@@ -646,6 +756,17 @@ class LiveSession:
         self.is_speaking = False
         self.silence_chunks_count = 0
 
+        # Sentence index tracking for speaker assignment
+        self._sentence_index = 0
+        self._sentences = []  # list of {"idx": int, "text": str, "byte_offset": int}
+        self._total_bytes_received = 0
+
+        # Periodic diarization state
+        self._last_diar_bytes = 0  # bytes offset of last diarization run
+        self._speaker_map = {}     # {sentence_idx: speaker_label}
+        self._name_map = {}        # {"SPEAKER_00": "Pierre"}
+        self._diar_task = None
+
     async def process_audio_queue(self):
         """Worker: dequeue chunks, run dual VAD, trigger inference on sentence boundaries."""
         print(f"[*] [{self.client_id}] Audio processor started.")
@@ -658,6 +779,7 @@ class LiveSession:
 
             # Store ALL audio for the final diarization pass
             self.full_session_audio.append(audio_bytes)
+            self._total_bytes_received += len(audio_bytes)
 
             # Update circular pre-record buffer (1s padding)
             self.pre_speech_buffer.extend(audio_bytes)
@@ -671,7 +793,6 @@ class LiveSession:
                 if not self.is_speaking:
                     print(f"[*] [{self.client_id}] Speech onset detected.")
                     self.is_speaking = True
-                    # Start sentence with pre-record padding
                     self.sentence_buffer = bytearray(self.pre_speech_buffer)
                 else:
                     self.sentence_buffer.extend(audio_bytes)
@@ -683,25 +804,31 @@ class LiveSession:
                     self.silence_chunks_count += 1
 
                     if self.silence_chunks_count >= self.engine.silence_chunks_threshold:
-                        print(f"[*] [{self.client_id}] End of sentence ({self.silence_chunks_count} silent chunks). Transcribing...")
+                        print(f"[*] [{self.client_id}] End of sentence. Transcribing...")
                         self.is_speaking = False
                         self.silence_chunks_count = 0
 
                         pcm_data = bytes(self.sentence_buffer)
                         self.sentence_buffer = bytearray()
 
-                        # Skip micro-segments
                         if len(pcm_data) < self.engine.min_segment_bytes:
-                            print(f"[*] [{self.client_id}] Segment too short ({len(pcm_data)}B), skipping.")
                             continue
 
-                        # Inference in separate thread (never block the event loop)
+                        # Inference (no per-sentence diarization — that's done in batch)
                         async with self.engine.processing_lock:
                             try:
                                 text = await asyncio.to_thread(self.engine._transcribe_sync, pcm_data)
                                 if text:
-                                    # Quick speaker estimation via diarization on this segment
-                                    speaker = await self._get_speaker_for_segment(pcm_data)
+                                    idx = self._sentence_index
+                                    self._sentence_index += 1
+                                    self._sentences.append({
+                                        "idx": idx,
+                                        "text": text,
+                                        "byte_offset": self._total_bytes_received
+                                    })
+
+                                    # Use speaker from last diarization batch if available
+                                    speaker = self._resolve_speaker(idx)
                                     await self.websocket.send_json({
                                         "type": "sentence",
                                         "text": text,
@@ -711,25 +838,65 @@ class LiveSession:
                             except Exception as e:
                                 print(f"[!] [{self.client_id}] Inference error: {e}")
 
-    async def _get_speaker_for_segment(self, pcm_data: bytes) -> str:
-        """Quick diarization on a single sentence segment."""
-        if self.engine.diarization_pipeline is None:
-            return ""
+            # Check if we should trigger a batch diarization (every 5 min of audio)
+            audio_since_last_diar = self._total_bytes_received - self._last_diar_bytes
+            threshold_bytes = int(DIAR_BATCH_INTERVAL_SEC * SAMPLE_RATE * 2)  # 16-bit = 2 bytes/sample
+            if (audio_since_last_diar >= threshold_bytes
+                    and self.engine.diarization_pipeline is not None
+                    and (self._diar_task is None or self._diar_task.done())):
+                self._diar_task = asyncio.create_task(self._run_batch_diarization())
+
+    async def _run_batch_diarization(self):
+        """Run Pyannote diarization on ALL accumulated audio so far (background)."""
         try:
-            audio_np = np.frombuffer(pcm_data, dtype=np.int16).astype(np.float32) / 32768.0
-            if len(audio_np) < self.engine.sample_rate * 0.5:
-                return ""
-            segments = await asyncio.to_thread(self.engine._diarize_sync, audio_np)
-            if segments:
-                # Return the dominant speaker in this segment
-                from collections import Counter
-                speaker_durations = Counter()
-                for start, end, spk in segments:
-                    speaker_durations[spk] += end - start
-                return speaker_durations.most_common(1)[0][0]
+            combined = b"".join(self.full_session_audio)
+            self._last_diar_bytes = len(combined)
+            audio_np = np.frombuffer(combined, dtype=np.int16).astype(np.float32) / 32768.0
+            duration = len(audio_np) / SAMPLE_RATE
+            print(f"[*] [{self.client_id}] Batch diarization on {duration:.0f}s of audio...")
+
+            diar_segments = await asyncio.to_thread(self.engine._diarize_sync, audio_np)
+            if not diar_segments:
+                return
+
+            # Map each sentence to its speaker based on byte_offset -> time
+            bytes_per_second = SAMPLE_RATE * 2
+            for sent in self._sentences:
+                sent_time = sent["byte_offset"] / bytes_per_second
+                for ds, de, dspk in diar_segments:
+                    if ds <= sent_time <= de:
+                        self._speaker_map[sent["idx"]] = dspk
+                        break
+
+            # Try to detect speaker names from transcribed sentences
+            structured = [{"speaker": self._speaker_map.get(s["idx"], ""), "text": s["text"]}
+                          for s in self._sentences]
+            self._name_map = SotaASR._detect_speaker_names(diar_segments, structured)
+
+            n_speakers = len(set(s[1] for s in [seg for seg in diar_segments]))
+            names_found = len(self._name_map)
+            print(f"[*] [{self.client_id}] Batch diarization done: {n_speakers} speakers, {names_found} names identified.")
+
+            # Send a diarization update to the frontend
+            try:
+                await self.websocket.send_json({
+                    "type": "diarization_update",
+                    "speakers": {k: self._name_map.get(v, v)
+                                 for k, v in self._speaker_map.items()},
+                    "name_map": self._name_map
+                })
+            except Exception:
+                pass
+
         except Exception as e:
-            print(f"[!] Live diarization error: {e}")
-        return ""
+            print(f"[!] [{self.client_id}] Batch diarization error: {e}")
+
+    def _resolve_speaker(self, sentence_idx: int) -> str:
+        """Get the best speaker label for a sentence (from last batch diarization)."""
+        raw = self._speaker_map.get(sentence_idx, "")
+        if raw and raw in self._name_map:
+            return self._name_map[raw]
+        return raw
 
 
 # =====================================================================
