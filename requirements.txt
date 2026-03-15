@@ -18,6 +18,7 @@ soxr
 librosa
 soundfile
 ffmpeg-python
-# Utilisation de la version "wheels" qui est corrigée pour Python 3.12+
+scipy
+# webrtcvad-wheels works on Python 3.12+
 webrtcvad-wheels>=2.0.14
 silero-vad

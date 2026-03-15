@@ -1,64 +1,141 @@
-import os
 import torch
 import warnings
 import numpy as np
 import threading
 from typing import Optional, Union
 
+# Suppress pkg_resources deprecation warning from webrtcvad
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", category=UserWarning, module="pkg_resources")
+    import webrtcvad
+
+from silero_vad import load_silero_vad
+
 # Mathematical constant for 16-bit audio normalization
 INT16_MAX_ABS_VALUE = 32768.0
 SAMPLE_RATE = 16000
 
+
 class VADManager:
     """
-    Gestionnaire de VAD combinant WebRTC (rapide) et Silero (précis).
-    Inspiré de TranscriptionSuite.
-    """
-    def __init__(self, silero_sensitivity: float = 0.4):
-        # WebRTC VAD (Rapide, pour un premier filtrage) - OBLIGATOIRE
-        import webrtcvad
-        self.webrtc_vad = webrtcvad.Vad(3) # Niveau d'agression max (3)
-        print("[*] WebRTC VAD chargé.")
+    Combined Silero + WebRTC Voice Activity Detector.
 
-        # Silero VAD (Lent mais ultra précis, pour confirmer)
-        from silero_vad import load_silero_vad
-        
-        # Load Silero VAD model
-        self.silero_model = load_silero_vad(onnx=True)
+    Two-stage approach inspired by TranscriptionSuite:
+    1. WebRTC VAD performs fast initial screening (any single frame triggers)
+    2. Silero VAD confirms with higher accuracy (runs in background thread)
+
+    Voice is considered active only when BOTH detectors agree.
+    """
+
+    def __init__(
+        self,
+        silero_sensitivity: float = 0.4,
+        webrtc_sensitivity: int = 3,
+        silero_use_onnx: bool = True,
+    ):
+        # --- WebRTC VAD (fast gate) ---
+        self.webrtc_vad = webrtcvad.Vad()
+        self.webrtc_vad.set_mode(webrtc_sensitivity)
+        print(f"[*] WebRTC VAD initialized (sensitivity={webrtc_sensitivity})")
+
+        # --- Silero VAD (accurate confirmation) ---
+        self.silero_model = load_silero_vad(onnx=silero_use_onnx)
         self.silero_sensitivity = silero_sensitivity
-        
-        self.is_webrtc_speech = False
-        self.is_silero_speech = False
+        print(f"[*] Silero VAD initialized (sensitivity={silero_sensitivity}, onnx={silero_use_onnx})")
+
+        # State tracking (read by the caller between calls)
+        self.is_webrtc_speech_active = False
+        self.is_silero_speech_active = False
+        self._silero_working = False
         self._lock = threading.Lock()
 
-    def is_speech(self, audio_bytes: bytes) -> bool:
-        """Détecte si le segment audio contient de la parole (Double Validation)"""
-        # 1. Premier passage : WebRTC (si dispo)
-        if self.webrtc_vad:
-            is_speech_webrtc = False
-            # WebRTC travaille sur des frames de 30ms (480 samples @ 16kHz)
-            frame_size = 480 * 2
-            for i in range(0, len(audio_bytes), frame_size):
-                frame = audio_bytes[i:i+frame_size]
-                if len(frame) < frame_size: break
-                if self.webrtc_vad.is_speech(frame, SAMPLE_RATE):
-                    is_speech_webrtc = True
-                    break
-            
-            if not is_speech_webrtc:
-                return False
-        
-        # 2. Deuxième passage : Silero Check (précision)
+    def reset_states(self) -> None:
+        """Reset all VAD states between sessions."""
+        self.is_webrtc_speech_active = False
+        self.is_silero_speech_active = False
+        if hasattr(self.silero_model, "reset_states"):
+            self.silero_model.reset_states()
+
+    # ------------------------------------------------------------------
+    # Stage 1 — WebRTC (fast, works on 10/20/30ms frames)
+    # ------------------------------------------------------------------
+    def _check_webrtc(self, chunk_pcm: bytes) -> bool:
+        """Quick WebRTC check.  Returns True if ANY frame contains speech."""
+        # WebRTC needs 10ms frames at 16kHz = 160 samples = 320 bytes
+        frame_len = 320
+        num_frames = len(chunk_pcm) // frame_len
+
+        for i in range(num_frames):
+            frame = chunk_pcm[i * frame_len : (i + 1) * frame_len]
+            if self.webrtc_vad.is_speech(frame, SAMPLE_RATE):
+                self.is_webrtc_speech_active = True
+                return True
+
+        self.is_webrtc_speech_active = False
+        return False
+
+    # ------------------------------------------------------------------
+    # Stage 2 — Silero (accurate, runs in background thread)
+    # ------------------------------------------------------------------
+    def _check_silero(self, chunk_pcm: bytes) -> None:
+        """Run Silero VAD on the full chunk (called from background thread)."""
         with self._lock:
-            # Silero VAD v5+ n'accepte QUE des chunks de 512 samples (32ms) à 16kHz
-            # Si on a plus, on prend les 512 derniers pour la détection "live"
-            audio_np = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / INT16_MAX_ABS_VALUE
-            
-            if len(audio_np) > 512:
-                audio_np = audio_np[-512:]
-            elif len(audio_np) < 512:
-                # Trop court pour Silero, on complète avec du silence (padding)
-                audio_np = np.pad(audio_np, (0, 512 - len(audio_np)))
-                
-            vad_prob = self.silero_model(torch.from_numpy(audio_np), SAMPLE_RATE).item()
-            return vad_prob > (1 - self.silero_sensitivity)
+            self._silero_working = True
+            try:
+                audio_np = (
+                    np.frombuffer(chunk_pcm, dtype=np.int16)
+                    .astype(np.float32) / INT16_MAX_ABS_VALUE
+                )
+                vad_prob = self.silero_model(
+                    torch.from_numpy(audio_np), SAMPLE_RATE
+                ).item()
+                self.is_silero_speech_active = vad_prob > (1 - self.silero_sensitivity)
+            finally:
+                self._silero_working = False
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+    def check_voice_activity(self, chunk_pcm: bytes) -> None:
+        """
+        Perform dual-gate voice check (non-blocking).
+
+        Call this for every incoming chunk, then read `is_voice_active()`
+        to get the combined result.
+        """
+        # Fast gate
+        self._check_webrtc(chunk_pcm)
+
+        # If WebRTC says speech, launch Silero in background (if not already running)
+        if self.is_webrtc_speech_active and not self._silero_working:
+            threading.Thread(
+                target=self._check_silero,
+                args=(chunk_pcm,),
+                daemon=True,
+            ).start()
+
+    def is_voice_active(self) -> bool:
+        """True only when BOTH WebRTC and Silero agree there is speech."""
+        return self.is_webrtc_speech_active and self.is_silero_speech_active
+
+    # Legacy synchronous API (kept for simple use cases / tests)
+    def is_speech(self, chunk_pcm: bytes) -> bool:
+        """Synchronous dual-gate check (blocks on Silero)."""
+        if not self._check_webrtc(chunk_pcm):
+            return False
+        # Full Silero check synchronously
+        with self._lock:
+            self._silero_working = True
+            try:
+                audio_np = (
+                    np.frombuffer(chunk_pcm, dtype=np.int16)
+                    .astype(np.float32) / INT16_MAX_ABS_VALUE
+                )
+                vad_prob = self.silero_model(
+                    torch.from_numpy(audio_np), SAMPLE_RATE
+                ).item()
+                result = vad_prob > (1 - self.silero_sensitivity)
+                self.is_silero_speech_active = result
+                return result
+            finally:
+                self._silero_working = False
