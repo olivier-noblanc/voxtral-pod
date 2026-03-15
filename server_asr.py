@@ -16,6 +16,7 @@ import asyncio
 import tempfile
 import time
 import torch
+import warnings
 # === GPU PERFORMANCE OPTIMIZATION (Ampere+) ===
 # Set globally at startup
 if torch.cuda.is_available():
