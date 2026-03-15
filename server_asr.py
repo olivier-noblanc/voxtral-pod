@@ -728,9 +728,17 @@ class SotaASR:
         hf_token = os.environ.get("HF_TOKEN")
         if hf_token:
             try:
+                import huggingface_hub
+                # Monkeypatch to fix compatibility between old pyannote and new huggingface_hub
+                _orig_hf_hub_download = huggingface_hub.hf_hub_download
+                def _patched_hf_hub_download(*args, **kwargs):
+                    if 'use_auth_token' in kwargs:
+                        kwargs['token'] = kwargs.pop('use_auth_token')
+                    return _orig_hf_hub_download(*args, **kwargs)
+                huggingface_hub.hf_hub_download = _patched_hf_hub_download
+
                 from pyannote.audio import Pipeline
-                from huggingface_hub import login
-                login(token=hf_token)
+                huggingface_hub.login(token=hf_token)
                 self.diarization_pipeline = Pipeline.from_pretrained(
                     "pyannote/speaker-diarization-3.1"
                 )
