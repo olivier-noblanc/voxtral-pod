@@ -268,8 +268,9 @@ async function startRecording() {
         barCont.style.display = 'block';
         box.innerHTML = "<em>[Connexion...]</em>";
 
+        const protocol = location.protocol === "https:" ? "wss:" : "ws:";
         const cid = getClientId();
-        ws = new WebSocket(`ws://${location.host}/live?client_id=${cid}`);
+        ws = new WebSocket(`${protocol}//${location.host}/live?client_id=${cid}`);
         ws.binaryType = 'arraybuffer';
 
         audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
