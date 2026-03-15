@@ -22,6 +22,8 @@ if not hasattr(torchaudio, "set_audio_backend"):
     torchaudio.set_audio_backend = lambda x: print(f"[*] Audio set_backend patched: {x}")
 if not hasattr(torchaudio, "get_audio_backend"):
     torchaudio.get_audio_backend = lambda: "soundfile"
+if not hasattr(torchaudio, "list_audio_backends"):
+    torchaudio.list_audio_backends = lambda: ["soundfile"]
 import json
 import datetime
 import numpy as np
