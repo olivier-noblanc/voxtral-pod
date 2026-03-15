@@ -19,7 +19,9 @@ import torch
 # === PATCH TORCHAUDIO (pyannote/torchaudio 2.x compat) ===
 import torchaudio
 if not hasattr(torchaudio, "set_audio_backend"):
-    torchaudio.set_audio_backend = lambda x: print(f"[*] Audio backend patched: {x}")
+    torchaudio.set_audio_backend = lambda x: print(f"[*] Audio set_backend patched: {x}")
+if not hasattr(torchaudio, "get_audio_backend"):
+    torchaudio.get_audio_backend = lambda: "soundfile"
 import json
 import datetime
 import numpy as np
