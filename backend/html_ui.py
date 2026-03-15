@@ -115,27 +115,27 @@ HTML_UI = r"""<!DOCTYPE html>
 </main>
 
 <dialog id="viewerDialog">
-    <article style="width: 95vw; max-width: 1600px; height: 95vh; display: flex; flex-direction: column; margin: 2.5vh auto; padding: 0;">
-        <header style="padding: 1rem 1.5rem; margin-bottom: 0;">
+    <article style="width: 98vw; max-width: 1800px; height: 98vh; display: flex; flex-direction: column; margin: 1vh auto; padding: 0; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);">
+        <header style="padding: 0.75rem 1.25rem; margin-bottom: 0; border-bottom: 1px solid #374151;">
             <a href="#close" aria-label="Close" class="close" onclick="closeViewer()"></a>
-            <h4 id="viewerTitle" style="margin:0;">Transcription</h4>
+            <h4 id="viewerTitle" style="margin:0; font-size: 1.1rem;">Transcription</h4>
         </header>
-        <div id="viewerContent" style="flex:1; min-height:300px; overflow-y:auto; background:#111827; color:#E5E7EB; padding:1rem; border-radius:4px; font-family:sans-serif; white-space:pre-wrap; font-size: 0.95rem; border: 1px solid #374151;">
+        <div id="viewerContent" style="flex:1; min-height:200px; overflow-y:auto; background:#111827; color:#E5E7EB; padding:1.25rem; border-radius:0; font-family:sans-serif; white-space:pre-wrap; font-size: 0.85rem; line-height: 1.5; border-bottom: 1px solid #374151;">
         </div>
-        <footer style="padding: 1rem 1.5rem; margin-top: 0;">
-            <div id="exportConfig" style="background:#1F2937; padding:1rem; border-radius:8px; margin-bottom:1rem; border:1px solid #374151; font-size: 0.9rem;">
-                <h6 style="margin-bottom:0.75rem; color:#F59E0B; display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:1.2rem;">⚙️</span> Configuration de l'export
+        <footer style="padding: 1rem 1.25rem; margin-top: 0; background: #111827;">
+            <div id="exportConfig" style="background:#1F2937; padding:0.85rem; border-radius:8px; margin-bottom:1rem; border:1px solid #374151; font-size: 0.85rem;">
+                <h6 style="margin-bottom:0.6rem; color:#F59E0B; display:flex; align-items:center; gap:8px; font-size: 0.9rem;">
+                    <span style="font-size:1.1rem;">⚙️</span> Configuration de l'export
                 </h6>
-                <div style="display:flex; flex-wrap:wrap; gap:20px; align-items:center; margin-bottom:1rem; padding-bottom:1rem; border-bottom:1px solid #374151;">
-                    <label style="margin:0; display:flex; align-items:center; gap:10px; cursor:pointer; font-weight:bold;">
-                        <input type="checkbox" id="includeTimestamps" checked onchange="updateExportPreview()" style="margin:0; width:18px; height:18px;">
+                <div style="display:flex; flex-wrap:wrap; gap:15px; align-items:center; margin-bottom:0.75rem; padding-bottom:0.75rem; border-bottom:1px solid #374151;">
+                    <label style="margin:0; display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:bold;">
+                        <input type="checkbox" id="includeTimestamps" checked onchange="updateExportPreview()" style="margin:0; width:16px; height:16px;">
                         <span>Afficher les repères temporels (début/fin)</span>
                     </label>
                 </div>
                 <div id="speakerRenameContainer" style="display:none;">
-                    <p style="margin-bottom:0.75rem; font-weight:bold; color:#9CA3AF;">Renommer les speakers détectés :</p>
-                    <div id="speakerRenameList" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:12px; max-height:180px; overflow-y:auto; padding-right:10px;">
+                    <p style="margin-bottom:0.6rem; font-weight:bold; color:#9CA3AF; font-size: 0.8rem;">Renommer les speakers détectés :</p>
+                    <div id="speakerRenameList" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap:10px; max-height:120px; overflow-y:auto; padding-right:8px;">
                         <!-- Dynamically filled -->
                     </div>
                 </div>
