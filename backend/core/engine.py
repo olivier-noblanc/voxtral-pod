@@ -43,11 +43,13 @@ class SotaASR:
             if not progress_callback:
                 return
             
-            # Extract completed and total from args or kwargs (Pyannote version-proof)
+            # Extract completed and total (robustly)
             completed = args[0] if len(args) > 0 else kwargs.get('completed', 0)
+            if completed is None: completed = 0
+            
             total = args[1] if len(args) > 1 else kwargs.get('total')
 
-            if total and total > 0:
+            if completed is not None and total and total > 0:
                 sub_pct = int((completed / total) * 40)
                 progress_callback(f"Diarisation ({step_name})...", 5 + sub_pct)
 
