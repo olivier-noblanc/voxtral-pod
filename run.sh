@@ -41,8 +41,8 @@ fi
 git remote set-url origin "$REPO_URL"
 
 # 1. Sync from Remote Repo
-if [ "$SKIP_GIT_RESET" = "true" ]; then
-    echo "[*] Local modifications preserved (SKIP_GIT_RESET=true)."
+if [ "$SKIP_GIT_RESET" = "true" ] || [ -d "backend" ]; then
+    echo "[*] Local modifications preserved (SKIP_GIT_RESET=true or backend/ detected)."
 else
     echo "[*] Syncing from GitHub (force update)..."
     git fetch origin main && git reset --hard origin/main || echo "[!] Sync failed, local mode enabled."
