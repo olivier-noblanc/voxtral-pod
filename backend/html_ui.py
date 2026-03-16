@@ -1,24 +1,20 @@
 HTML_UI = r"""<!DOCTYPE html>
-<html lang="fr" data-theme="dark">
+<html lang="fr" data-fr-scheme="dark">
 <head>
     <meta charset="UTF-8">
-    <title>SOTA ASR — Live Transcription FR</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Voxtral Pod — SOTA ASR</title>
+    <link rel="stylesheet" href="/static/dsfr.min.css">
     <style>
-        body { padding: 2rem; max-width: 960px; margin: 0 auto; }
+        :root { --fr-border-default-grey: #3a3a3a; }
         .live-box {
-            height: 260px; overflow-y: auto;
-            background: #111928; padding: 1rem;
-            border-radius: 8px; font-family: monospace; color: #10B981;
+            height: 400px; overflow-y: auto;
+            background: #161616; padding: 1.5rem;
+            border-radius: 4px; font-family: monospace; color: #10B981;
+            border: 1px solid var(--fr-border-default-grey);
         }
-        .batch-box { background: #1F2937; padding: 1.5rem; border-radius: 8px; margin-top: 1rem; }
-        #recordBtn.recording {
-            background-color: #EF4444; border-color: #EF4444;
-            animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
         .audio-bar-container {
-            width: 100%; height: 8px; background: #374151;
+            width: 100%; height: 8px; background: #3a3a3a;
             border-radius: 4px; margin: 1rem 0; overflow: hidden; display: none;
         }
         #audioBar { width: 0%; height: 100%; background: #10B981; transition: width 0.1s ease; }
@@ -30,572 +26,304 @@ HTML_UI = r"""<!DOCTYPE html>
             padding-left: 10px;
             transition: border-color 0.3s;
         }
-        .sentence-row.finalized {
-            border-left-color: #3b82f6;
+        .sentence-row.finalized { border-left-color: #3b82f6; }
+        .partial-text { color: #9ca3af; font-style: italic; }
+        .final-text { color: #f9fafb; }
+        #recordBtn.recording {
+            background-color: #fcebe8 !important;
+            color: #e1000f !important;
+            box-shadow: inset 0 0 0 1px #e1000f !important;
+            animation: pulse-red 1.5s infinite;
         }
-        .speaker-label {
-            color: #60a5fa;
-            font-weight: 700;
-            font-size: 0.85em;
-            margin-right: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        .partial-text {
-            color: #9ca3af;
-            font-style: italic;
-        }
-        .final-text {
-            color: #f9fafb;
-        }
-        .sidebar { background: #1f2937; padding: 20px; border-radius: 8px; height: fit-content; }
+        @keyframes pulse-red { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .fr-header__service-tagline { color: var(--text-mention-grey); }
     </style>
 </head>
 <body>
-<main class="container">
-    <h2>🎙️ SOTA ASR — <span id="currentModelDisplay" style="color:#3B82F6">{{model_name}}</span></h2>
-    <div style="display:flex; gap:10px; align-items:center; margin-bottom:1rem;">
-        <span>Modèle :</span>
-        <select id="modelSelector" style="width:220px; margin-bottom:0;" onchange="changeModel()">
-            <option value="whisper">Faster-Whisper Large-v3 (Recommended)</option>
-            <option value="voxtral">Voxtral Mini 4B (Experimental)</option>
-        </select>
-    </div>
-    <p>GPU: <strong>{{device}}</strong> | Langue: <strong>FR</strong> | <span style="color:#10B981">💾 Auto-save → <code>transcriptions_terminees/</code></span></p>
-
-    <div class="grid">
-        <div>
-            <div class="card-header">
-                <h2>Live Transcription</h2>
-                <div style="display:flex; gap:10px;">
-                    <button id="recordBtn" onclick="toggleMicrophone()" style="margin:0;">Démarrer Micro</button>
-                    <button id="systemBtn" onclick="toggleSystemAudio()" class="secondary" style="margin:0;">Capturer Réunion (Teams/Browser)</button>
-                </div>
-            </div>
-            <div class="audio-bar-container" id="audioBarCont"><div id="audioBar"></div></div>
-            <div class="live-box" id="liveTranscript">En attente de flux audio...</div>
-        </div>
-
-        <div class="batch-box">
-            <h3>📁 Transcription Batch</h3>
-            <p><small>Chunks 4 MB + Diarisation Pyannote</small></p>
-            <input type="file" id="audioFile" accept="audio/*">
-            <button onclick="handleBatchAction()" id="uploadBtn">Envoyer &amp; Transcrire</button>
-            <progress id="uploadProgress" value="0" max="100" style="display:none;"></progress>
-            <div id="batchStatus" style="margin-top:1rem;font-weight:bold;color:#F59E0B;"></div>
-            <div id="batchResult" class="live-box" style="display:none;margin-top:1rem;"></div>
-        </div>
-    </div>
-
-    <details style="margin-top: 2rem; background: #1F2937; padding: 1rem; border-radius: 8px;">
-        <summary style="cursor: pointer; font-weight: bold; color: #F59E0B;">⚙️ Options d'Export Avancées (S3)</summary>
-        <div style="margin-top: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-            <label>Endpoint URL
-                <input type="text" id="s3Endpoint" placeholder="https://s3.eu-west-1.amazonaws.com" onchange="saveS3Config()">
-            </label>
-            <label>Bucket Name
-                <input type="text" id="s3Bucket" placeholder="mon-bucket" onchange="saveS3Config()">
-            </label>
-            <label>Access Key
-                <input type="password" id="s3AccessKey" placeholder="AKIA..." onchange="saveS3Config()">
-            </label>
-            <label>Secret Key
-                <input type="password" id="s3SecretKey" placeholder="wJalr..." onchange="saveS3Config()">
-            </label>
-        </div>
-        <p><small style="color: #9CA3AF;">Ces informations sont sauvegardées localement dans votre navigateur.</small></p>
-    </details>
-
-    <div class="batch-box" style="margin-top:2rem;">
-        <h3>📜 Dernières transcriptions</h3>
-        <div id="transcriptionList" style="display:flex; flex-direction:column; gap:5px;">
-            Chargement de l'historique...
-        </div>
-    </div>
-</main>
-
-<dialog id="viewerDialog">
-    <article style="width: 98vw; max-width: 1800px; height: 98vh; display: flex; flex-direction: column; margin: 1vh auto; padding: 0; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);">
-        <header style="padding: 0.75rem 1.25rem; margin-bottom: 0; border-bottom: 1px solid #374151;">
-            <a href="#close" aria-label="Close" class="close" onclick="closeViewer()"></a>
-            <h4 id="viewerTitle" style="margin:0; font-size: 1.1rem;">Transcription</h4>
-        </header>
-        <div id="viewerContent" style="flex:1; min-height:200px; overflow-y:auto; background:#111827; color:#E5E7EB; padding:1.25rem; border-radius:0; font-family:sans-serif; white-space:pre-wrap; font-size: 0.85rem; line-height: 1.5; border-bottom: 1px solid #374151;">
-        </div>
-        <footer style="padding: 1rem 1.25rem; margin-top: 0; background: #111827;">
-            <div id="exportConfig" style="background:#1F2937; padding:0.85rem; border-radius:8px; margin-bottom:1rem; border:1px solid #374151; font-size: 0.85rem;">
-                <h6 style="margin-bottom:0.6rem; color:#F59E0B; display:flex; align-items:center; gap:8px; font-size: 0.9rem;">
-                    <span style="font-size:1.1rem;">⚙️</span> Configuration de l'export
-                </h6>
-                <div style="display:flex; flex-wrap:wrap; gap:15px; align-items:center; margin-bottom:0.75rem; padding-bottom:0.75rem; border-bottom:1px solid #374151;">
-                    <label style="margin:0; display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:bold;">
-                        <input type="checkbox" id="includeTimestamps" checked onchange="updateExportPreview()" style="margin:0; width:16px; height:16px;">
-                        <span>Afficher les repères temporels (début/fin)</span>
-                    </label>
-                </div>
-                <div id="speakerRenameContainer" style="display:none;">
-                    <p style="margin-bottom:0.6rem; font-weight:bold; color:#9CA3AF; font-size: 0.8rem;">Renommer les speakers détectés :</p>
-                    <div id="speakerRenameList" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap:10px; max-height:120px; overflow-y:auto; padding-right:8px;">
-                        <!-- Dynamically filled -->
+    <header role="banner" class="fr-header">
+        <div class="fr-header__body">
+            <div class="fr-container">
+                <div class="fr-header__body-row">
+                    <div class="fr-header__brand">
+                        <div class="fr-header__brand-top">
+                            <div class="fr-header__logo">
+                                <p class="fr-logo">République<br>Française</p>
+                            </div>
+                        </div>
+                        <div class="fr-header__service">
+                            <a href="/" title="Accueil - Voxtral Pod">
+                                <p class="fr-header__service-title">Voxtral Pod</p>
+                            </a>
+                            <p class="fr-header__service-tagline">Service de Transcription Automatique</p>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="display:flex; gap:10px;">
-                    <button id="btnSaveS3" onclick="uploadToS3()" style="margin:0; background-color:#F59E0B; border-color:#F59E0B; color:black; padding:8px 16px;">Sauvegarder S3</button>
-                    <button onclick="copyToClipboard()" style="margin:0; background-color:#10B981; border-color:#10B981; padding:8px 16px;">📋 Copier</button>
+        </div>
+    </header>
+
+    <main role="main" id="content">
+        <div class="fr-container fr-py-4w">
+            <div class="fr-grid-row fr-grid-row--gutters">
+                <div class="fr-col-12">
+                    <h1 class="fr-h1">🎙️ Console de Transcription</h1>
+                    <div class="fr-highlight fr-mb-3w">
+                        <p class="fr-text--sm">
+                            GPU: <span class="fr-badge fr-badge--info fr-badge--no-icon">{{device}}</span> | 
+                            Modèle: <span class="fr-badge fr-badge--success fr-badge--no-icon" id="currentModelDisplay">{{model_name}}</span>
+                        </p>
+                    </div>
+                    
+                    <div class="fr-select-group">
+                        <label class="fr-label" for="modelSelector">Modèle ASR</label>
+                        <select class="fr-select" id="modelSelector" onchange="changeModel()">
+                            <option value="whisper">Faster-Whisper Large-v3</option>
+                            <option value="voxtral">Voxtral Mini 4B</option>
+                        </select>
+                    </div>
                 </div>
-                <button class="secondary" onclick="closeViewer()" style="margin:0; padding:8px 16px;">Fermer</button>
+
+                <div class="fr-col-12 fr-col-md-7">
+                    <section class="fr-pt-2w">
+                        <h2 class="fr-h4">Direct</h2>
+                        <div class="fr-btns-group fr-btns-group--inline-md fr-btns-group--sm fr-my-2w">
+                            <button id="recordBtn" class="fr-btn" onclick="toggleMicrophone()">🎤 Micro</button>
+                            <button id="systemBtn" class="fr-btn fr-btn--secondary" onclick="toggleSystemAudio()">💻 Système</button>
+                        </div>
+                        <div class="audio-bar-container" id="audioBarCont"><div id="audioBar"></div></div>
+                        <div class="live-box" id="liveTranscript">En attente de flux audio...</div>
+                    </section>
+                </div>
+
+                <div class="fr-col-12 fr-col-md-5">
+                    <section class="fr-pt-2w">
+                        <h2 class="fr-h4">Fichiers (Batch)</h2>
+                        <div class="fr-upload-group">
+                            <input class="fr-upload" type="file" id="audioFile" accept="audio/*,video/*">
+                        </div>
+                        <button onclick="handleBatchAction()" id="uploadBtn" class="fr-btn fr-mt-2w">Transcrire</button>
+                        <div id="batchStatus" class="fr-text--bold fr-mt-1w"></div>
+                        <div class="fr-progress-bar fr-mt-1w" id="uploadProgressContainer" style="display:none;" role="progressbar">
+                            <div class="fr-progress-bar__bar"><div class="fr-progress-bar__fill" id="uploadProgressFill" style="width: 0%"></div></div>
+                        </div>
+                        <div id="batchResult" class="live-box fr-mt-2w" style="display:none; height: 151px;"></div>
+                    </section>
+                </div>
+
+                <div class="fr-col-12 fr-mt-4w">
+                    <h3 class="fr-h6">⚙️ Configuration S3 (Optionnel)</h3>
+                    <div class="fr-grid-row fr-grid-row--gutters">
+                        <div class="fr-col-12 fr-col-md-6">
+                            <input class="fr-input" type="text" id="s3Endpoint" placeholder="Endpoint" onchange="saveS3Config()">
+                        </div>
+                        <div class="fr-col-12 fr-col-md-6">
+                            <input class="fr-input" type="text" id="s3Bucket" placeholder="Bucket" onchange="saveS3Config()">
+                        </div>
+                        <div class="fr-col-12 fr-col-md-6">
+                            <input class="fr-input" type="password" id="s3AccessKey" placeholder="Access Key" onchange="saveS3Config()">
+                        </div>
+                        <div class="fr-col-12 fr-col-md-6">
+                            <input class="fr-input" type="password" id="s3SecretKey" placeholder="Secret Key" onchange="saveS3Config()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="fr-col-12 fr-mt-4w">
+                    <h2 class="fr-h4">📜 Historique</h2>
+                    <div id="transcriptionList" class="fr-grid-row fr-grid-row--gutters fr-mt-2w">Chargement...</div>
+                </div>
             </div>
-        </footer>
-    </article>
-</dialog>
+        </div>
+    </main>
 
-<script>
-const CHUNK_SIZE = 4 * 1024 * 1024;
-
-const getClientId = () => {
-    let id = localStorage.getItem("sota_client_id");
-    if (!id) { id = "user_" + crypto.randomUUID().slice(0, 8); localStorage.setItem("sota_client_id", id); }
-    return id;
-};
-
-const workletCode = `
-    class AudioProcessor extends AudioWorkletProcessor {
-        constructor() { super(); this.buffer = new Float32Array(2560); this.offset = 0; }
-        process(inputs) {
-            const input = inputs[0][0];
-            if (!input) return true;
-            for (let i = 0; i < input.length; i++) {
-                this.buffer[this.offset++] = input[i];
-                if (this.offset >= 2560) { this.port.postMessage(this.buffer); this.offset = 0; }
-            }
-            return true;
-        }
-    }
-    registerProcessor('audio-processor', AudioProcessor);
-`;
-
-let ws, audioContext, source, processor, isRecording = false;
-let audioStream = null;
-let captureType = "mic"; // "mic" or "system"
-
-async function toggleMicrophone() {
-    if (isRecording) { stopRecording(); return; }
-    captureType = "mic";
-    startRecording();
-}
-
-async function toggleSystemAudio() {
-    if (isRecording) { stopRecording(); return; }
-    captureType = "system";
-    startRecording();
-}
-
-async function startRecording() {
-    const btnRecord = document.getElementById('recordBtn');
-    const btnSystem = document.getElementById('systemBtn');
-    const box = document.getElementById('liveTranscript');
-    const barCont = document.getElementById('audioBarCont');
-
-    try {
-        if (captureType === "system") {
-            audioStream = await navigator.mediaDevices.getDisplayMedia({
-                video: { displaySurface: "browser" },
-                audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false
-                }
-            });
-            if (audioStream.getAudioTracks().length === 0) {
-                alert("Erreur : Vous devez cocher 'Partager l'audio du système' dans la fenêtre de sélection !");
-                audioStream.getTracks().forEach(t => t.stop());
-                return;
-            }
-        } else {
-            audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        }
-
-        isRecording = true;
-        btnRecord.innerText = (captureType === "mic") ? "Arrêter Micro" : "Démarrer Micro";
-        btnSystem.innerText = (captureType === "system") ? "Arrêter Réunion" : "Capturer Réunion (Teams/Browser)";
-        if (captureType === "mic") { btnSystem.disabled = true; btnRecord.classList.add('recording'); }
-        else { btnRecord.disabled = true; btnSystem.classList.add('recording'); }
-
-        barCont.style.display = 'block';
-        box.innerHTML = "<em>[Connexion...]</em>";
-
-        const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-        const cid = getClientId();
-        ws = new WebSocket(`${protocol}//${location.host}/live?client_id=${cid}`);
-        ws.binaryType = 'arraybuffer';
-
-        audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-        source = audioContext.createMediaStreamSource(audioStream);
-        
-        await audioContext.audioWorklet.addModule('data:text/javascript;base64,' + btoa(workletCode));
-        processor = new AudioWorkletNode(audioContext, 'audio-processor');
-        
-        processor.port.onmessage = (e) => {
-            const inputData = e.data;
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                const pcm = new Int16Array(inputData.length);
-                for (let i = 0; i < inputData.length; i++) pcm[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
-                ws.send(pcm.buffer);
-            }
-            updateVolumeBar(inputData);
-        };
-
-        source.connect(processor);
-        processor.connect(audioContext.destination);
-
-        box.innerHTML = "";
-        let lastSpeaker = "";
-        let sentenceIdx = 0;
-        let partialSpan = null;
-
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data.type === "sentence" && data.text) {
-                const spk = data.speaker || "Speaker";
-                if (partialSpan) { partialSpan.remove(); partialSpan = null; }
-
-                if (data.final) {
-                    const idx = sentenceIdx++;
-                    const row = document.createElement("div");
-                    row.className = "sentence-row finalized";
-                    row.setAttribute("data-sidx", idx);
-                    
-                    const spkSpan = document.createElement("span");
-                    spkSpan.className = "speaker-label";
-                    spkSpan.setAttribute("data-sidx", idx);
-                    
-                    if (spk !== lastSpeaker) {
-                        lastSpeaker = spk;
-                        spkSpan.textContent = `[${spk}] `;
-                    } else {
-                        spkSpan.style.visibility = "hidden";
-                        spkSpan.style.fontSize = "0px";
-                        spkSpan.textContent = `[${spk}] `;
-                    }
-                    
-                    const txtSpan = document.createElement("span");
-                    txtSpan.className = "final-text";
-                    txtSpan.setAttribute("data-sidx", idx);
-                    txtSpan.textContent = data.text;
-                    
-                    row.appendChild(spkSpan);
-                    row.appendChild(txtSpan);
-                    box.appendChild(row);
-                } else {
-                    const row = document.createElement("div");
-                    row.className = "sentence-row partial-row";
-                    partialSpan = document.createElement("span");
-                    partialSpan.className = "partial-text";
-                    partialSpan.innerText = `... ${data.text}`;
-                    row.appendChild(partialSpan);
-                    box.appendChild(row);
-                }
-                box.scrollTop = box.scrollHeight;
-
-            } else if (data.type === "diarization_update" && data.speakers) {
-                for (const [sidx, spk] of Object.entries(data.speakers)) {
-                    const labels = box.querySelectorAll(`.speaker-label[data-sidx="${String(sidx)}"]`);
-                    labels.forEach(el => {
-                        el.textContent = `[${spk}] `;
-                        el.style.visibility = "visible"; el.style.fontSize = "inherit";
-                    });
-                }
-            } else if (data.type === "final_done") {
-                box.innerHTML += `<br><em>[✅ Repasse finale terminée]</em>`;
-                loadHistory();
-            }
-        };
-
-        ws.onerror = () => stopRecording();
-        ws.onclose = () => { if (isRecording) stopRecording(); };
-
-    } catch (err) { alert("Erreur micro : " + err.message); }
-}
-
-function stopRecording() {
-    const btnRecord = document.getElementById('recordBtn');
-    const btnSystem = document.getElementById('systemBtn');
-    const box = document.getElementById('liveTranscript');
-    const barCont = document.getElementById('audioBarCont');
-
-    if (ws) { ws.close(); ws = null; }
-    if (processor) { processor.disconnect(); processor = null; }
-    if (source) { source.disconnect(); source = null; }
-    if (audioContext) { audioContext.close(); audioContext = null; }
-    if (audioStream) { audioStream.getTracks().forEach(t => t.stop()); audioStream = null; }
-
-    isRecording = false;
-    btnRecord.innerText = "Démarrer Micro"; btnRecord.disabled = false; btnRecord.classList.remove('recording');
-    btnSystem.innerText = "Capturer Réunion (Teams/Browser)"; btnSystem.disabled = false; btnSystem.classList.remove('recording');
-    barCont.style.display = 'none';
-    
-    const partials = box.getElementsByClassName('partial-text');
-    while(partials.length > 0) partials[0].parentNode.removeChild(partials[0]);
-    
-    box.innerHTML += "<br><em>[Session arrêtée — repasse finale en cours...]</em>";
-}
-
-function updateVolumeBar(inputData) {
-    const bar = document.getElementById('audioBar');
-    if (!bar) return;
-    let sum = 0;
-    for (let i = 0; i < inputData.length; i++) sum += inputData[i] ** 2;
-    const rms = Math.sqrt(sum / inputData.length);
-    bar.style.width = Math.min(100, rms * 400) + '%';
-}
-
-async function changeModel() {
-    const newModel = document.getElementById('modelSelector').value;
-    const res = await fetch(`/change_model?model=${newModel}`, { method: 'POST' });
-    if (res.ok) location.reload();
-}
-
-async function loadHistory() {
-    const list = document.getElementById('transcriptionList');
-    const cid = getClientId();
-    try {
-        const res = await fetch(`/transcriptions?client_id=${cid}`);
-        const files = await res.json();
-        if (!files.length) { list.innerHTML = "<p><small>Aucune transcription.</small></p>"; return; }
-        list.innerHTML = files.map(f => `
-            <div style="display:flex; justify-content:space-between; align-items:center; background:#374151; padding:8px 12px; border-radius:6px;">
-                <span>${f}</span>
-                <button class="outline" style="padding:4px 12px; margin:0;" onclick="viewFile('${f}')">Voir</button>
+    <footer class="fr-footer fr-mt-4w" role="contentinfo">
+        <div class="fr-container">
+            <div class="fr-footer__body">
+                <div class="fr-footer__brand">
+                    <p class="fr-logo">République<br>Française</p>
+                    <p class="fr-footer__brand-title">Voxtral Pod</p>
+                </div>
+                <div class="fr-footer__content">
+                    <p class="fr-footer__content-desc">Solution souveraine de transcription ASR.</p>
+                </div>
             </div>
-        `).join('');
-    } catch (e) { list.innerHTML = "Erreur chargement historique."; }
-}
+        </div>
+    </footer>
 
-let currentRawText = "";
+    <dialog id="viewerDialog" class="fr-modal" role="dialog" aria-labelledby="v-title">
+        <div class="fr-container">
+            <div class="fr-grid-row fr-grid-row--center">
+                <div class="fr-col-12 fr-col-md-10">
+                    <div class="fr-modal__body">
+                        <div class="fr-modal__header">
+                            <button class="fr-link--close fr-link" onclick="closeViewer()">Fermer</button>
+                        </div>
+                        <div class="fr-modal__content">
+                            <h1 id="v-title" class="fr-modal__title">Transcription</h1>
+                            <div id="viewerContent" style="white-space: pre-wrap; background: #161616; color: #eee; padding: 1rem; height: 50vh; overflow-y: auto; border: 1px solid #3a3a3a;"></div>
+                            <div class="fr-mt-2w fr-p-2w" style="background: #2a2a2a; border-radius: 4px;">
+                                <div class="fr-checkbox-group">
+                                    <input type="checkbox" id="includeTimestamps" checked onchange="updateExportPreview()">
+                                    <label class="fr-label" for="includeTimestamps">Repères temporels</label>
+                                </div>
+                                <div id="speakerRenameContainer" class="fr-mt-2w" style="display:none;">
+                                    <div id="speakerRenameList" class="fr-grid-row fr-grid-row--gutters"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="fr-modal__footer">
+                            <ul class="fr-btns-group fr-btns-group--inline-reverse">
+                                <li><button class="fr-btn" onclick="copyToClipboard()">📋 Copier</button></li>
+                                <li><button id="btnSaveS3" class="fr-btn fr-btn--secondary" onclick="uploadToS3()">☁️ S3</button></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </dialog>
 
-async function viewFile(name) {
-    const dialog = document.getElementById('viewerDialog');
-    const title = document.getElementById('viewerTitle');
-    const content = document.getElementById('viewerContent');
-    title.innerText = name; content.innerText = "Chargement...";
-    dialog.showModal();
-    const res = await fetch(`/transcription/${name}?client_id=${getClientId()}`);
-    currentRawText = await res.text();
-    
-    detectSpeakers(currentRawText);
-    updateExportPreview();
-}
-
-function detectSpeakers(text) {
-    const container = document.getElementById('speakerRenameList');
-    const wrapper = document.getElementById('speakerRenameContainer');
-    container.innerHTML = "";
-    
-    // Pattern: [SPEAKER_00]
-    const speakerRegex = /\[(SPEAKER_\d+)\]/g;
-    const speakers = new Set();
-    let match;
-    while ((match = speakerRegex.exec(text)) !== null) {
-        speakers.add(match[1]);
-    }
-    
-    if (speakers.size > 0) {
-        wrapper.style.display = "block";
-        speakers.forEach(spk => {
-            const div = document.createElement('div');
-            div.style.display = "grid";
-            div.style.gridTemplateColumns = "100px 1fr";
-            div.style.alignItems = "center";
-            div.style.gap = "8px";
-            div.style.background = "#111827";
-            div.style.padding = "6px 10px";
-            div.style.borderRadius = "6px";
-            div.style.border = "1px solid #374151";
-            div.innerHTML = `
-                <span style="font-size:0.8rem; color:#F59E0B; font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${spk}">${spk}</span>
-                <input type="text" value="${spk}" data-original="${spk}" oninput="updateExportPreview()" 
-                       style="margin:0; padding:4px 8px; font-size:0.85rem; height:auto; background:#1F2937; border:1px solid #4B5563; color:white;">
-            `;
-            container.appendChild(div);
-        });
-    } else {
-        wrapper.style.display = "none";
-    }
-}
-
-function updateExportPreview() {
-    let text = currentRawText;
-    const includeTimestamps = document.getElementById('includeTimestamps').checked;
-    
-    // Apply speaker renaming
-    const inputs = document.querySelectorAll('#speakerRenameList input');
-    inputs.forEach(input => {
-        const original = input.getAttribute('data-original');
-        const replacement = input.value.trim() || original;
-        // Global replace for [SPEAKER_XX]
-        const escapedOriginal = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const re = new RegExp('\\[' + escapedOriginal + '\\]', 'g');
-        text = text.replace(re, `[${replacement}]`);
-    });
-    
-    // Filter timestamps if needed
-    if (!includeTimestamps) {
-        // Pattern: [0.76s -> 1.40s] 
-        text = text.replace(/\[\d+\.?\d*s -> \d+\.?\d*s\]\s*/g, "");
-    }
-    
-    document.getElementById('viewerContent').innerText = text;
-}
-
-function closeViewer() {
-    document.getElementById('viewerDialog').close();
-}
-
-function copyToClipboard() {
-    const content = document.getElementById('viewerContent').innerText;
-    navigator.clipboard.writeText(content).then(() => {
-        const btn = event.target;
-        const oldText = btn.innerText;
-        btn.innerText = "✓ Copié !";
-        setTimeout(() => { btn.innerText = oldText; }, 2000);
-    }).catch(err => {
-        alert("Erreur de copie : " + err);
-    });
-}
-
-function formatETA(totalSeconds) {
-    if (totalSeconds < 60) return `${totalSeconds}s`;
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    let parts = [];
-    if (hours > 0) parts.push(`${hours}h`);
-    if (minutes > 0) parts.push(`${minutes}m`);
-    if (seconds > 0 && hours === 0) parts.push(`${seconds}s`);
-    return parts.join(' ');
-}
-
-async function handleBatchAction() {
-    const btn = document.getElementById('uploadBtn');
-    const activeFileId = localStorage.getItem('active_batch_file_id');
-    if (btn.innerText === "Annuler" && activeFileId) {
-        if(confirm("Annuler la transcription en cours ?")) {
-            await fetch(`/cancel/${activeFileId}`, { method: 'POST' });
-            btn.innerText = "Annulation..."; btn.disabled = true;
+    <script>
+    const CHUNK_SIZE = 4 * 1024 * 1024;
+    const getClientId = () => {
+        let id = localStorage.getItem("sota_client_id");
+        if (!id) { id = "user_" + crypto.randomUUID().slice(0, 8); localStorage.setItem("sota_client_id", id); }
+        return id;
+    };
+    const workletCode = `
+        class AudioProcessor extends AudioWorkletProcessor {
+            constructor() { super(); this.buffer = new Float32Array(2560); this.offset = 0; }
+            process(inputs) {
+                const input = inputs[0][0];
+                if (!input) return true;
+                for (let i = 0; i < input.length; i++) {
+                    this.buffer[this.offset++] = input[i];
+                    if (this.offset >= 2560) { this.port.postMessage(this.buffer); this.offset = 0; }
+                }
+                return true;
+            }
         }
-    } else { uploadFile(); }
-}
+        registerProcessor('audio-processor', AudioProcessor);
+    `;
+    let ws, audioContext, source, processor, isRecording = false;
+    let audioStream = null;
+    let captureType = "mic";
 
-async function uploadFile() {
-    const fileInput = document.getElementById('audioFile');
-    if (!fileInput.files.length) return alert("Sélectionner un fichier.");
-    const uploadBtn = document.getElementById('uploadBtn');
-    const file = fileInput.files[0];
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    
-    uploadBtn.innerText = "Upload..."; uploadBtn.disabled = true; fileInput.disabled = true;
-    const fileId = crypto.randomUUID();
-    const clientId = getClientId();
-    const status = document.getElementById('batchStatus');
-    const progress = document.getElementById('uploadProgress');
-    progress.style.display = 'block'; progress.value = 0; status.innerText = "Upload...";
-    
-    for (let i = 0; i < totalChunks; i++) {
-        const formData = new FormData();
-        formData.append("file_id", fileId); formData.append("client_id", clientId);
-        formData.append("chunk_index", String(i)); formData.append("total_chunks", String(totalChunks));
-        formData.append("file", file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE), file.name);
-        const res = await fetch('/batch_chunk', { method: 'POST', body: formData });
-        if (!res.ok) { 
-            status.innerText = `❌ Erreur chunk ${i+1}`; uploadBtn.innerText = "Envoyer & Transcrire";
-            uploadBtn.disabled = false; fileInput.disabled = false; return; 
-        }
-        progress.value = ((i + 1) / totalChunks) * 100;
-    }
-    
-    uploadBtn.innerText = "Annuler"; uploadBtn.disabled = false; uploadBtn.classList.add('secondary');
-    status.innerText = "Transcription en cours...";
-    localStorage.setItem('active_batch_file_id', fileId);
-    pollStatus(fileId, status);
-}
+    async function toggleMicrophone() { if (isRecording) { stopRecording(); } else { captureType = "mic"; startRecording(); } }
+    async function toggleSystemAudio() { if (isRecording) { stopRecording(); } else { captureType = "system"; startRecording(); } }
 
-async function pollStatus(fileId, status) {
-    const uploadBtn = document.getElementById('uploadBtn');
-    const fileInput = document.getElementById('audioFile');
-    const interval = setInterval(async () => {
+    async function startRecording() {
+        const btnRecord = document.getElementById('recordBtn');
+        const btnSystem = document.getElementById('systemBtn');
+        const box = document.getElementById('liveTranscript');
+        const barCont = document.getElementById('audioBarCont');
         try {
-            const res = await fetch(`/status/${fileId}`);
-            const data = await res.json();
-            const resetUI = () => {
-                clearInterval(interval); localStorage.removeItem('active_batch_file_id');
-                uploadBtn.innerText = "Envoyer & Transcrire"; uploadBtn.disabled = false;
-                uploadBtn.classList.remove('secondary'); fileInput.disabled = false;
-            };
-            if (data.status === "done") { resetUI(); status.innerText = "✅ Terminé."; loadHistory();
-            } else if (data.status === "cancelled") { resetUI(); status.innerText = "⚠️ Annulé.";
-            } else if (data.status === "error") { resetUI(); status.innerText = "❌ Erreur: " + data.error;
-            } else if (data.status === "not_found") { resetUI(); status.innerText = "⚠️ Expiré.";
-            } else if (data.status && data.status.startsWith("processing:")) {
-                let text = "⏳ " + data.status.replace("processing:", "");
-                if (data.progress > 0) {
-                    text += ` (${data.progress}%)`;
-                    if (data.eta > 0) text += ` - Temps restant: ~${formatETA(data.eta)}`;
+            if (captureType === "system") {
+                audioStream = await navigator.mediaDevices.getDisplayMedia({ video:true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+            } else { audioStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+            isRecording = true;
+            btnRecord.innerText = (captureType === "mic") ? "🔴 Arrêter" : "🎤 Micro";
+            btnSystem.innerText = (captureType === "system") ? "🔴 Arrêter" : "💻 Système";
+            if (captureType === "mic") { btnSystem.disabled = true; btnRecord.classList.add('recording'); }
+            else { btnRecord.disabled = true; btnSystem.classList.add('recording'); }
+            barCont.style.display = 'block';
+            ws = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/live?client_id=${getClientId()}`);
+            ws.binaryType = 'arraybuffer';
+            audioContext = new AudioContext({ sampleRate: 16000 });
+            source = audioContext.createMediaStreamSource(audioStream);
+            await audioContext.audioWorklet.addModule('data:text/javascript;base64,' + btoa(workletCode));
+            processor = new AudioWorkletNode(audioContext, 'audio-processor');
+            processor.port.onmessage = (e) => {
+                if (ws && ws.readyState === 1) {
+                    const pcm = new Int16Array(e.data.length);
+                    for (let i = 0; i < e.data.length; i++) pcm[i] = Math.max(-1, Math.min(1, e.data[i])) * 0x7FFF;
+                    ws.send(pcm.buffer);
                 }
-                status.innerText = text;
-            }
-        } catch (e) {}
-    }, 2000);
-}
-
-function saveS3Config() {
-    localStorage.setItem('s3Endpoint', document.getElementById('s3Endpoint').value);
-    localStorage.setItem('s3Bucket', document.getElementById('s3Bucket').value);
-    localStorage.setItem('s3AccessKey', document.getElementById('s3AccessKey').value);
-    localStorage.setItem('s3SecretKey', document.getElementById('s3SecretKey').value);
-}
-
-function loadS3Config() {
-    if(localStorage.getItem('s3Endpoint')) document.getElementById('s3Endpoint').value = localStorage.getItem('s3Endpoint');
-    if(localStorage.getItem('s3Bucket')) document.getElementById('s3Bucket').value = localStorage.getItem('s3Bucket');
-    if(localStorage.getItem('s3AccessKey')) document.getElementById('s3AccessKey').value = localStorage.getItem('s3AccessKey');
-    if(localStorage.getItem('s3SecretKey')) document.getElementById('s3SecretKey').value = localStorage.getItem('s3SecretKey');
-}
-
-async function uploadToS3() {
-    const title = document.getElementById('viewerTitle').innerText;
-    const content = document.getElementById('viewerContent').innerText;
-    const btn = document.getElementById('btnSaveS3');
-    const oldText = btn.innerText; btn.innerText = "Envoi..."; btn.disabled = true;
-    try {
-        const formData = new FormData();
-        formData.append("filename", title); formData.append("content", content);
-        formData.append("endpoint", document.getElementById('s3Endpoint').value);
-        formData.append("bucket", document.getElementById('s3Bucket').value);
-        formData.append("access_key", document.getElementById('s3AccessKey').value);
-        formData.append("secret_key", document.getElementById('s3SecretKey').value);
-        const res = await fetch('/upload_s3', { method: 'POST', body: formData });
-        if (res.ok) alert("✓ Sauvegardé sur S3 !");
-        else alert("❌ Erreur S3 : " + (await res.json()).detail);
-    } catch (e) { alert("❌ Erreur réseau : " + e.message); }
-    finally { btn.innerText = oldText; btn.disabled = false; }
-}
-
-window.onload = () => {
-    loadHistory(); loadS3Config();
-    const sel = document.getElementById('modelSelector');
-    for (let o of sel.options) { if (o.value === '{{model_name}}') o.selected = true; }
-    const activeFileId = localStorage.getItem('active_batch_file_id');
-    if (activeFileId) {
-        const btn = document.getElementById('uploadBtn');
-        btn.innerText = "Annuler"; btn.classList.add('secondary');
-        document.getElementById('audioFile').disabled = true;
-        const statusBox = document.getElementById('batchStatus');
-        statusBox.innerText = "Reprise..."; pollStatus(activeFileId, statusBox);
+                updateVolumeBar(e.data);
+            };
+            source.connect(processor); processor.connect(audioContext.destination);
+            box.innerHTML = "";
+            let lastSpeaker = "";
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === "sentence") {
+                    const row = document.createElement("div"); row.className = "sentence-row " + (data.final ? "finalized" : "");
+                    const s = document.createElement("span"); s.className = "speaker-label";
+                    if (data.speaker !== lastSpeaker) { s.textContent = `[${data.speaker}] `; lastSpeaker = data.speaker; }
+                    const t = document.createElement("span"); t.className = data.final ? "final-text" : "partial-text"; t.textContent = (data.final ? "" : "... ") + data.text;
+                    row.append(s, t); box.appendChild(row); box.scrollTop = box.scrollHeight;
+                } else if (data.type === "final_done") { loadHistory(); }
+            };
+        } catch (err) { alert(err.message); stopRecording(); }
     }
-};
-</script>
+
+    function stopRecording() { location.reload(); }
+    function updateVolumeBar(data) {
+        let sum = 0; for (let i = 0; i < data.length; i++) sum += data[i] ** 2;
+        document.getElementById('audioBar').style.width = Math.min(100, Math.sqrt(sum / data.length) * 400) + '%';
+    }
+    async function changeModel() { await fetch(`/change_model?model=${document.getElementById('modelSelector').value}`, { method: 'POST' }); location.reload(); }
+    async function loadHistory() {
+        const list = document.getElementById('transcriptionList');
+        try {
+            const res = await fetch(`/transcriptions?client_id=${getClientId()}`);
+            const files = await res.json();
+            list.innerHTML = files.map(f => `<div class="fr-col-12 fr-col-md-4"><div class="fr-card fr-card--sm" style="padding:1rem; border:1px solid #3a3a3a;"><h4 class="fr-card__title" style="font-size:0.8rem">${f}</h4><button class="fr-btn fr-btn--sm fr-mt-1w" onclick="viewFile('${f}')">Voir</button></div></div>`).join('') || "Aucune.";
+        } catch (e) { list.innerHTML = "Erreur."; }
+    }
+    let currentText = "";
+    async function viewFile(name) {
+        document.getElementById('v-title').innerText = name; document.getElementById('viewerDialog').showModal();
+        const res = await fetch(`/transcription/${name}?client_id=${getClientId()}`);
+        currentText = await res.text(); detectSpeakers(currentText); updateExportPreview();
+    }
+    function closeViewer() { document.getElementById('viewerDialog').close(); }
+    function detectSpeakers(text) {
+        const cont = document.getElementById('speakerRenameList'); cont.innerHTML = "";
+        const speakers = [...new Set(text.match(/\[(SPEAKER_\d+)\]/g))];
+        if (speakers.length) {
+            document.getElementById('speakerRenameContainer').style.display = "block";
+            speakers.forEach(s => {
+                const spk = s.slice(1, -1);
+                const div = document.createElement('div'); div.className = "fr-col-6";
+                div.innerHTML = `<label class="fr-label fr-text--xs">${spk}</label><input class="fr-input fr-input--sm" type="text" value="${spk}" data-orig="${spk}" oninput="updateExportPreview()">`;
+                cont.appendChild(div);
+            });
+        }
+    }
+    function updateExportPreview() {
+        let t = currentText;
+        document.querySelectorAll('#speakerRenameList input').forEach(i => {
+            t = t.replace(new RegExp('\\[' + i.dataset.orig + '\\]', 'g'), `[${i.value}]`);
+        });
+        if (!document.getElementById('includeTimestamps').checked) t = t.replace(/\[\d+\.?\d*s -> \d+\.?\d*s\]\s*/g, "");
+        document.getElementById('viewerContent').innerText = t;
+    }
+    function copyToClipboard() { navigator.clipboard.writeText(document.getElementById('viewerContent').innerText); alert("Copié !"); }
+    async function uploadFile() {
+        const input = document.getElementById('audioFile'); if (!input.files.length) return;
+        const file = input.files[0]; const total = Math.ceil(file.size / CHUNK_SIZE);
+        const id = crypto.randomUUID(); document.getElementById('uploadProgressContainer').style.display = 'block';
+        for (let i = 0; i < total; i++) {
+            const formData = new FormData(); formData.append("file_id", id); formData.append("client_id", getClientId());
+            formData.append("chunk_index", i); formData.append("total_chunks", total);
+            formData.append("file", file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE));
+            await fetch('/batch_chunk', { method: 'POST', body: formData });
+            document.getElementById('uploadProgressFill').style.width = ((i+1)/total*100) + '%';
+        }
+        pollStatus(id);
+    }
+    async function pollStatus(id) {
+        const interval = setInterval(async () => {
+            const res = await fetch(`/status/${id}`); const data = await res.json();
+            if (data.status === "done") { clearInterval(interval); document.getElementById('batchStatus').innerText = "✅ Terminé"; loadHistory(); }
+            else if (data.status.startsWith("processing:")) document.getElementById('batchStatus').innerText = "⏳ " + data.status.split(":")[1];
+        }, 2000);
+    }
+    function saveS3Config() { localStorage.setItem('s3_conf', JSON.stringify({e: document.getElementById('s3Endpoint').value, b: document.getElementById('s3Bucket').value, a: document.getElementById('s3AccessKey').value, s: document.getElementById('s3SecretKey').value})); }
+    function loadS3Config() { const c = JSON.parse(localStorage.getItem('s3_conf') || '{}'); document.getElementById('s3Endpoint').value = c.e||""; document.getElementById('s3Bucket').value = c.b||""; document.getElementById('s3AccessKey').value = c.a||""; document.getElementById('s3SecretKey').value = c.s||""; }
+    window.onload = () => { loadHistory(); loadS3Config(); document.getElementById('modelSelector').value = '{{model_name}}'; };
+    </script>
 </body>
 </html>
 """
