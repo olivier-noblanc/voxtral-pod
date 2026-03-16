@@ -3,17 +3,39 @@ import numpy as np
 import faster_whisper
 import vosk
 import json
+import requests
+import tempfile
+import os
+import io
 
 class TranscriptionEngine:
-    def __init__(self, model_id="whisper", device="cuda"):
+    def __init__(self, model_id="whisper", device=None):
         self.model_id = model_id
-        self.device = device
+        
+        # Automatic device detection
+        if device:
+            self.device = device
+        else:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            
         self.model = None
+        self.albert_api_key = os.getenv("ALBERT_API_KEY")
+        self.albert_base_url = "https://albert.api.etalab.gouv.fr/v1"
 
     def load(self):
+        if self.model_id == "albert" or (self.model_id == "whisper" and self.albert_api_key):
+            print("[*] Using Albert API for transcription...")
+            # No local model to load for Albert
+            return
+
         if self.model_id == "whisper":
-            print("[*] Loading Faster-Whisper (large-v3)...")
-            compute_type = "float16" if torch.cuda.is_available() else "int8"
+            print(f"[*] Loading Faster-Whisper (large-v3) on {self.device}...")
+            # Selection of compute_type based on device
+            if self.device == "cuda":
+                compute_type = "float16"
+            else:
+                compute_type = "int8"
+                
             self.model = faster_whisper.WhisperModel(
                 "large-v3", 
                 device=self.device, 
@@ -27,6 +49,9 @@ class TranscriptionEngine:
         """
         Transcribe audio and return words with timestamps.
         """
+        if self.model_id == "albert" or (self.model_id == "whisper" and self.albert_api_key):
+            return self._transcribe_albert(audio_np, language, progress_callback)
+
         if self.model is None:
             self.load()
 
@@ -74,3 +99,72 @@ class TranscriptionEngine:
                     })
             
             return all_words, len(audio_np)/16000
+
+    def _transcribe_albert(self, audio_np, language="fr", progress_callback=None):
+        import scipy.io.wavfile as wavfile
+        
+        if progress_callback: progress_callback("Préparation audio pour Albert...", 46)
+        
+        # Albert needs a file object. We'll use a temporary WAV in memory/disk.
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+            temp_path = f.name
+            wavfile.write(temp_path, 16000, (audio_np * 32767).astype(np.int16))
+        
+        try:
+            if progress_callback: progress_callback("Appel API Albert...", 50)
+            
+            headers = {
+                "Authorization": f"Bearer {self.albert_api_key}"
+            }
+            
+            # According to docs, we need 'file', 'model', and 'response_format'
+            # Assuming large-v3 is available under some ID, but docs say "automatic-speech-recognition"
+            # We'll try to find the model name or use a default if possible.
+            # For now, let's use "fluently-asr" or similar if known, or just a placeholder.
+            # Actually, Albert API usually provides a specific model string.
+            
+            with open(temp_path, 'rb') as audio_file:
+                files = {
+                    'file': audio_file
+                }
+                data = {
+                    'model': 'automatic-speech-recognition', # Placeholder ID from docs example
+                    'language': language,
+                    'response_format': 'verbose_json' # We need word timestamps if possible
+                }
+                
+                response = requests.post(
+                    f"{self.albert_base_url}/audio/transcriptions",
+                    headers=headers,
+                    files=files,
+                    data=data
+                )
+            
+            if response.status_code != 200:
+                print(f"[!] Albert API Error: {response.text}")
+                raise Exception(f"Albert API error: {response.status_code}")
+
+            result = response.json()
+            all_words = []
+            
+            # Albert verbose_json might look like OpenAI's format
+            if 'words' in result:
+                for w in result['words']:
+                    all_words.append({"start": w['start'], "end": w['end'], "word": w['word']})
+            elif 'segments' in result:
+                for s in result['segments']:
+                    if 'words' in s:
+                        for w in s['words']:
+                            all_words.append({"start": w['start'], "end": w['end'], "word": w['word']})
+                    else:
+                        # Fallback to segment text if no words
+                        all_words.append({"start": s['start'], "end": s['end'], "word": s['text'].strip()})
+            else:
+                # Final fallback
+                all_words.append({"start": 0, "end": len(audio_np)/16000, "word": result.get('text', '')})
+
+            return all_words, len(audio_np)/16000
+
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)

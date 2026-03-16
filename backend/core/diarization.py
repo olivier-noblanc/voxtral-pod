@@ -4,11 +4,12 @@ from pyannote.audio import Pipeline
 from backend.config import setup_gpu
 
 class DiarizationEngine:
-    def __init__(self, model_id="pyannote/speaker-diarization-3.1", hf_token=None):
+    def __init__(self, model_id="pyannote/speaker-diarization-3.1", hf_token=None, use_cpu=False):
         self.model_id = model_id
         self.hf_token = hf_token
         self.pipeline = None
         self.sample_rate = 16000
+        self.use_cpu = use_cpu
 
     def load(self):
         if not self.hf_token:
@@ -21,7 +22,7 @@ class DiarizationEngine:
             token=self.hf_token
         )
         
-        if torch.cuda.is_available():
+        if torch.cuda.is_available() and not self.use_cpu:
             self.pipeline = self.pipeline.to(torch.device("cuda"))
             setup_gpu()
             print("[*] Pyannote loaded on GPU.")

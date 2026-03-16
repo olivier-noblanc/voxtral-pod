@@ -1,6 +1,7 @@
 import os
 import asyncio
 import numpy as np
+from backend.config import setup_warnings, get_vram_gb
 from backend.core.audio import decode_audio
 from backend.core.diarization import DiarizationEngine
 from backend.core.transcription import TranscriptionEngine
@@ -10,11 +11,32 @@ from backend.config import setup_warnings
 class SotaASR:
     def __init__(self, model_id="whisper", hf_token=None):
         setup_warnings()
-        self.model_id = model_id
+        self.albert_api_key = os.getenv("ALBERT_API_KEY")
+        
+        # 1. Hardware detection
+        cuda_available = torch.cuda.is_available()
+        vram = get_vram_gb()
+        self.no_gpu = not cuda_available
+        self.low_vram = (vram < 4.0) if cuda_available else True
+        
+        if self.no_gpu:
+            print("[*] No compatible CUDA device found. Using CPU optimized mode.")
+        elif self.low_vram:
+            print(f"[*] Low VRAM detected ({vram:.1f}GB). Optimizing for low resources.")
+
+        # 2. Strategy selection
+        # If no GPU or low VRAM AND we have Albert key, force Albert transcription
+        if self.albert_api_key and (self.low_vram or self.no_gpu or model_id == "albert"):
+            print("[*] Fallback: Using Albert API for transcription (No GPU or Low VRAM).")
+            self.model_id = "albert"
+        else:
+            self.model_id = model_id
+            
         self.hf_token = hf_token
         
-        self.diarization_engine = DiarizationEngine(hf_token=hf_token)
-        self.transcription_engine = TranscriptionEngine(model_id=model_id)
+        # Diarization on CPU if no GPU or low VRAM
+        self.diarization_engine = DiarizationEngine(hf_token=hf_token, use_cpu=self.low_vram)
+        self.transcription_engine = TranscriptionEngine(model_id=self.model_id)
         
         self._loaded = False
 
