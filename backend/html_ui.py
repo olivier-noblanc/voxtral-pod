@@ -79,7 +79,18 @@ HTML_UI = r"""<!DOCTYPE html>
                         <select class="fr-select" id="modelSelector" onchange="changeModel()">
                             <option value="whisper">Faster-Whisper Large-v3</option>
                             <option value="voxtral">Voxtral Mini 4B</option>
+                            <option value="albert">API Albert (Étalab)</option>
                         </select>
+                    </div>
+
+                    <div id="albertOptions" class="fr-mt-2w" style="display:none;">
+                        <div class="fr-checkbox-group">
+                            <input type="checkbox" id="albertPartial" onchange="saveAlbertConfig()">
+                            <label class="fr-label" for="albertPartial">
+                                Transcriptions partielles (Albert)
+                                <span class="fr-hint-text">Note : Cela augmente la consommation de jetons API.</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -227,7 +238,8 @@ HTML_UI = r"""<!DOCTYPE html>
             if (captureType === "mic") { btnSystem.disabled = true; btnRecord.classList.add('recording'); }
             else { btnRecord.disabled = true; btnSystem.classList.add('recording'); }
             barCont.style.display = 'block';
-            ws = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/live?client_id=${getClientId()}`);
+            const partialAlbert = document.getElementById('albertPartial').checked;
+            ws = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/live?client_id=${getClientId()}&partial_albert=${partialAlbert}`);
             ws.binaryType = 'arraybuffer';
             audioContext = new AudioContext({ sampleRate: 16000 });
             source = audioContext.createMediaStreamSource(audioStream);
@@ -322,7 +334,22 @@ HTML_UI = r"""<!DOCTYPE html>
     }
     function saveS3Config() { localStorage.setItem('s3_conf', JSON.stringify({e: document.getElementById('s3Endpoint').value, b: document.getElementById('s3Bucket').value, a: document.getElementById('s3AccessKey').value, s: document.getElementById('s3SecretKey').value})); }
     function loadS3Config() { const c = JSON.parse(localStorage.getItem('s3_conf') || '{}'); document.getElementById('s3Endpoint').value = c.e||""; document.getElementById('s3Bucket').value = c.b||""; document.getElementById('s3AccessKey').value = c.a||""; document.getElementById('s3SecretKey').value = c.s||""; }
-    window.onload = () => { loadHistory(); loadS3Config(); document.getElementById('modelSelector').value = '{{model_name}}'; };
+    
+    function saveAlbertConfig() { localStorage.setItem('albert_partial', document.getElementById('albertPartial').checked); }
+    function loadAlbertConfig() {
+        const partial = localStorage.getItem('albert_partial') === 'true';
+        document.getElementById('albertPartial').checked = partial;
+        if (document.getElementById('modelSelector').value === 'albert') {
+            document.getElementById('albertOptions').style.display = 'block';
+        }
+    }
+
+    window.onload = () => { 
+        loadHistory(); 
+        loadS3Config(); 
+        loadAlbertConfig();
+        document.getElementById('modelSelector').value = '{{model_name}}'; 
+    };
     </script>
 </body>
 </html>
