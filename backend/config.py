@@ -21,6 +21,16 @@ def setup_gpu():
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
 
+def get_vram_gb():
+    """Returns the total VRAM of the primary GPU in GB. 0 if no GPU."""
+    if not torch.cuda.is_available():
+        return 0
+    try:
+        props = torch.cuda.get_device_properties(0)
+        return props.total_memory / (1024**3)
+    except Exception:
+        return 0
+
 # === WARNINGS FILTERS ===
 def setup_warnings():
     # Ignore specific math warnings from pyannote on very short segments
