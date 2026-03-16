@@ -9,10 +9,11 @@ DIAR_BATCH_INTERVAL_SEC = 300  # 5 minutes
 class LiveSession:
     """Isolated per-connection live transcription with VAD."""
 
-    def __init__(self, engine, websocket: WebSocket, client_id: str):
+    def __init__(self, engine, websocket: WebSocket, client_id: str, partial_albert: bool = False):
         self.engine = engine
         self.websocket = websocket
         self.client_id = client_id
+        self.partial_albert = partial_albert
 
         self.audio_queue = asyncio.Queue()
         self.pre_speech_buffer = bytearray()
@@ -36,7 +37,9 @@ class LiveSession:
 
     async def process_audio_queue(self):
         """Worker: dequeue chunks, run VAD, trigger inference."""
-        print(f"[*] [{self.client_id}] Live Audio processor started.")
+        mode_str = " (Albert API)" if self.engine.model_id == "albert" else ""
+        partial_str = " [Partials ON]" if self.partial_albert else " [Partials OFF]"
+        print(f"[*] [{self.client_id}] Live Audio processor started{mode_str}{partial_str}.")
         self.vad.reset_states()
         
         partial_interval_bytes = int(SAMPLE_RATE * 2 * 2.0)
@@ -72,7 +75,10 @@ class LiveSession:
                 # Partial transcription
                 if len(self.sentence_buffer) - last_partial_bytes >= partial_interval_bytes:
                     last_partial_bytes = len(self.sentence_buffer)
-                    await self._transcribe_segment(bytes(self.sentence_buffer), final=False)
+                    # Optimization: Skip partials for Albert unless forced by UI
+                    is_albert = self.engine.model_id == "albert"
+                    if not is_albert or self.partial_albert:
+                        await self._transcribe_segment(bytes(self.sentence_buffer), final=False)
             else:
                 if self.is_speaking:
                     self.sentence_buffer.extend(audio_bytes)

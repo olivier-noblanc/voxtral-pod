@@ -31,9 +31,9 @@ def home():
     return HTMLResponse(content=HTML_UI.replace("{{model_name}}", model_name).replace("{{device}}", device))
 
 @app.websocket("/live")
-async def live_endpoint(websocket: WebSocket, background_tasks: BackgroundTasks, client_id: str = "anonymous"):
+async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", partial_albert: bool = False):
     await websocket.accept()
-    session = LiveSession(asr_engine, websocket, client_id)
+    session = LiveSession(asr_engine, websocket, client_id, partial_albert=partial_albert)
     processor_task = asyncio.create_task(session.process_audio_queue())
 
     try:
