@@ -4,6 +4,7 @@ import asyncio
 import datetime
 import torch
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Form, BackgroundTasks, HTTPException
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from backend.config import setup_gpu, setup_warnings, TRANSCRIPTIONS_DIR, TEMP_DIR
 from backend.html_ui import HTML_UI
@@ -11,6 +12,7 @@ from backend.core.engine import SotaASR
 from backend.core.live import LiveSession
 
 app = FastAPI(title="SOTA ASR Server", version="4.0.0")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Global state
 model_name = os.getenv("ASR_MODEL", "whisper").lower()
