@@ -27,7 +27,10 @@ async def startup_event():
 
 @app.get("/")
 def home():
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    try:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    except ImportError:
+        device = "cpu"    
     return HTMLResponse(content=HTML_UI.replace("{{model_name}}", model_name).replace("{{device}}", device))
 
 @app.websocket("/live")
