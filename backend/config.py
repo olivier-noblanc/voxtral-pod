@@ -2,6 +2,8 @@ import os
 import torch
 import warnings
 
+_CPU_THREADS_CONFIGURED = False
+
 # === CACHE HUGGINGFACE ===
 _CACHE_DIR = os.path.abspath("hf_cache")
 _HUB_DIR   = os.path.join(_CACHE_DIR, "hub")
@@ -24,6 +26,12 @@ def setup_gpu():
     if torch.cuda.is_available():
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
+    elif not _CPU_THREADS_CONFIGURED:
+        cpu_threads = max(1, int(os.getenv("CPU_THREADS", str(os.cpu_count() or 1))))
+        torch.set_num_threads(cpu_threads)
+        if hasattr(torch, "set_num_interop_threads"):
+            torch.set_num_interop_threads(max(1, min(4, cpu_threads // 2 or 1)))
+        _CPU_THREADS_CONFIGURED = True
 
 def get_vram_gb():
     """Returns the total VRAM of the primary GPU in GB. 0 if no GPU."""
