@@ -125,10 +125,15 @@ for line in lines:
 
 EOF
 
-# 4. GPU check
-if command -v nvidia-smi &> /dev/null; then
+# 4. Auto-adaptation CPU/GPU
+if command -v nvidia-smi &> /dev/null && nvidia-smi -L &> /dev/null; then
+    export DISABLE_NNPACK=0
+    echo "[*] GPU detected -> DISABLE_NNPACK=0"
     echo "==== GPU Status ===="
     nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv
+else
+    export DISABLE_NNPACK=1
+    echo "[*] CPU mode detected -> DISABLE_NNPACK=1 (silences unsupported NNPACK warnings)"
 fi
 
 # 5. Launch
@@ -160,4 +165,3 @@ else
     
     "$VENV_DIR/bin/uvicorn" backend.main:app  --host 0.0.0.0  --port 8000
 fi
-
