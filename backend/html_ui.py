@@ -295,13 +295,15 @@ HTML_UI = r"""<!DOCTYPE html>
     function closeViewer() { document.getElementById('viewerDialog').close(); }
     function detectSpeakers(text) {
         const cont = document.getElementById('speakerRenameList'); cont.innerHTML = "";
-        const speakers = [...new Set(text.match(/\[(SPEAKER_\d+)\]/g))];
+        const matches = text.match(/\[(SPEAKER_\d+)\]/g) || [];
+        const speakers = [...new Set(matches)];
         if (speakers.length) {
             document.getElementById('speakerRenameContainer').style.display = "block";
-            speakers.forEach(s => {
+            speakers.forEach((s, index) => {
                 const spk = s.slice(1, -1);
+                const inputId = `speakerRename_${index}`;
                 const div = document.createElement('div'); div.className = "fr-col-6";
-                div.innerHTML = `<label class="fr-label fr-text--xs">${spk}</label><input class="fr-input fr-input--sm" type="text" value="${spk}" data-orig="${spk}" oninput="updateExportPreview()">`;
+                div.innerHTML = `<label class="fr-label fr-text--xs" for="${inputId}">${spk}</label><input id="${inputId}" name="${inputId}" class="fr-input fr-input--sm" type="text" value="${spk}" data-orig="${spk}" oninput="updateExportPreview()">`;
                 cont.appendChild(div);
             });
         }
