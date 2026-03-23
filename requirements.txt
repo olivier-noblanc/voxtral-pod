@@ -24,3 +24,5 @@ silero-vad
 boto3
 matplotlib
 vosk
+simple-diarizer
+soundfile
