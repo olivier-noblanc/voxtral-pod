@@ -136,4 +136,28 @@ export ASR_MODEL="$MODEL"
 echo "===================================================="
 echo "🚀 LAUNCH: Model=$MODEL, Language=FR"
 echo "===================================================="
-"$VENV_DIR/bin/uvicorn" backend.main:app --host 0.0.0.0 --port 8000
+
+
+# === DETECTION CERTIFICAT ===
+CERT_FILE=$(ls *.pem 2>/dev/null | grep -i "cert" | head -1)
+KEY_FILE=$(ls *.pem 2>/dev/null | grep -i "key" | head -1)
+
+# Fallback sur .crt si pas de .pem
+if [ -z "$CERT_FILE" ]; then
+    CERT_FILE=$(ls *.crt 2>/dev/null | head -1)
+    KEY_FILE=$(ls *.key 2>/dev/null | head -1)
+fi
+
+if [ -n "$CERT_FILE" ] && [ -n "$KEY_FILE" ]; then
+    echo "[*] Certificat détecté : $CERT_FILE"
+    echo "[*] Clé détectée       : $KEY_FILE"
+    echo "[*] Démarrage en HTTPS → https://10.25.22.104:8000"
+    
+    "$VENV_DIR/bin/uvicorn" backend.main:app  --host 0.0.0.0 --port 8000 --ssl-certfile "$CERT_FILE"  --ssl-keyfile  "$KEY_FILE"
+else
+    echo "[!] Aucun certificat trouvé → démarrage en HTTP"
+    echo "[*] Démarrage en HTTP  → http://10.25.22.104:8084"
+    
+    "$VENV_DIR/bin/uvicorn" backend.main:app  --host 0.0.0.0  --port 8000
+fi
+
