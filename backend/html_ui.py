@@ -81,6 +81,9 @@ HTML_UI = r"""<!DOCTYPE html>
                             <option value="voxtral">Voxtral Mini 4B</option>
                             <option value="albert">API Albert (Étalab)</option>
                         </select>
+                        <p id="cpuWarning" class="fr-hint-text fr-mt-1w" style="display:none; color:#ce0500;">
+                            ⚠️ Aucun GPU détecté — Albert API forcé automatiquement
+                        </p>
                     </div>
 
                     <div id="albertOptions" class="fr-mt-2w" style="display:none;">
