@@ -104,7 +104,6 @@ class TranscriptionEngine:
     def _transcribe_albert(self, audio_np, language="fr", progress_callback=None):
         if progress_callback: progress_callback("Préparation audio pour Albert...", 46)
         
-        # Optimization: Use memory buffer instead of temporary file
         buffer = io.BytesIO()
         import scipy.io.wavfile as wavfile
         wavfile.write(buffer, 16000, (audio_np * 32767).astype(np.int16))
@@ -113,17 +112,12 @@ class TranscriptionEngine:
         try:
             if progress_callback: progress_callback("Appel API Albert...", 50)
             
-            headers = {
-                "Authorization": f"Bearer {self.albert_api_key}"
-            }
-            
-            files = {
-                'file': ('audio.wav', buffer, 'audio/wav')
-            }
-            data = {
-                'model': self.albert_model_id, 
-                'language': language,
-                'response_format': 'verbose_json' 
+            headers = {"Authorization": f"Bearer {self.albert_api_key}"}
+            files   = {'file': ('audio.wav', buffer, 'audio/wav')}
+            data    = {
+                'model':           self.albert_model_id,   # openai/whisper-large-v3
+                'language':        language,
+                'response_format': 'verbose_json'          # ← timestamps si dispo
             }
             
             response = requests.post(
@@ -131,32 +125,56 @@ class TranscriptionEngine:
                 headers=headers,
                 files=files,
                 data=data,
-                timeout=30 # Add timeout for live safety
+                timeout=30
             )
             
             if response.status_code != 200:
                 print(f"[!] Albert API Error: {response.text}")
                 raise Exception(f"Albert API error: {response.status_code}")
-
-            result = response.json()
+    
+            result   = response.json()
+            duration = len(audio_np) / 16000
             all_words = []
-            
-            # Albert verbose_json format support
-            if 'words' in result:
+    
+            # verbose_json → mots avec timestamps
+            if result.get('words'):
                 for w in result['words']:
-                    all_words.append({"start": w['start'], "end": w['end'], "word": w['word']})
-            elif 'segments' in result:
+                    all_words.append({
+                        "start": w['start'],
+                        "end":   w['end'],
+                        "word":  w['word']
+                    })
+            # verbose_json → segments avec timestamps
+            elif result.get('segments'):
                 for s in result['segments']:
-                    if 'words' in s:
+                    if s.get('words'):
                         for w in s['words']:
-                            all_words.append({"start": w['start'], "end": w['end'], "word": w['word']})
+                            all_words.append({
+                                "start": w['start'],
+                                "end":   w['end'],
+                                "word":  w['word']
+                            })
                     else:
-                        all_words.append({"start": s['start'], "end": s['end'], "word": s['text'].strip()})
+                        # Segment sans mots → fallback timestamps segment
+                        all_words.append({
+                            "start": s.get('start', 0.0),
+                            "end":   s.get('end', duration),
+                            "word":  s.get('text', '').strip()
+                        })
+            # json / text → pas de timestamps
+            elif result.get('text'):
+                print("[!] Albert: pas de timestamps → segment unique")
+                all_words.append({
+                    "start": 0.0,
+                    "end":   duration,
+                    "word":  result['text'].strip()
+                })
             else:
-                all_words.append({"start": 0, "end": len(audio_np)/16000, "word": result.get('text', '')})
-
-            return all_words, len(audio_np)/16000
-
+                print(f"[!] Albert: réponse inattendue → {str(result)[:200]}")
+                return [], 0
+    
+            return all_words, duration
+    
         except Exception as e:
             print(f"[!] Albert API Inference error: {e}")
             return [], 0
