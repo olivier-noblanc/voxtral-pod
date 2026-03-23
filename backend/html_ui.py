@@ -315,6 +315,10 @@ HTML_UI = r"""<!DOCTYPE html>
         document.getElementById('viewerContent').innerText = t;
     }
     function copyToClipboard() { navigator.clipboard.writeText(document.getElementById('viewerContent').innerText); alert("Copié !"); }
+    
+    async function handleBatchAction() {
+        await uploadFile();
+    }
     async function uploadFile() {
         const input = document.getElementById('audioFile'); if (!input.files.length) return;
         const file = input.files[0]; const total = Math.ceil(file.size / CHUNK_SIZE);
