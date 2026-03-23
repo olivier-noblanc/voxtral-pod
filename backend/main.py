@@ -31,7 +31,13 @@ def home():
         device = "cuda" if torch.cuda.is_available() else "cpu"
     except ImportError:
         device = "cpu"    
-    return HTMLResponse(content=HTML_UI.replace("{{model_name}}", model_name).replace("{{device}}", device))
+    no_gpu = "true" if device == "cpu" else "false"
+    return HTMLResponse(
+        content=HTML_UI
+            .replace("{{model_name}}", model_name)
+            .replace("{{device}}", device)
+            .replace("{{no_gpu}}", no_gpu)
+    )
 
 @app.websocket("/live")
 async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", partial_albert: bool = False):
