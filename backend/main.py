@@ -3,6 +3,7 @@ import uuid
 import asyncio
 import datetime
 import torch
+import re
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Form, BackgroundTasks, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, PlainTextResponse
@@ -128,7 +129,7 @@ async def run_batch_job(path, file_id, client_id):
                 eta = int((elapsed / pct) * (100 - pct))
             
             jobs_db[file_id] = {
-                "status": f"processing:{status}", 
+                "status": f"processing:{status}",
                 "progress": pct,
                 "eta": eta
             }
@@ -147,6 +148,101 @@ async def run_batch_job(path, file_id, client_id):
     except Exception as e:
         print(f"[!] Batch error: {e}")
         jobs_db[file_id] = {"status": "error", "error": str(e)}
+
+def format_transcription(text: str) -> str:
+    lines = text.split('\n')
+    html_parts = []
+    for line in lines:
+        # Expression régulière pour capturer les segments
+        match = re.match(r'^\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)$', line.strip())
+        if match:
+            time_str, speaker, content = match.groups()
+            html_parts.append(f"""
+                <div class="segment">
+                    <div class="segment-header">
+                        <span class="segment-time">{time_str}</span>
+                        <span class="segment-speaker">{speaker}</span>
+                    </div>
+                    <div class="segment-text">{content}</div>
+                </div>
+            """)
+        elif line.strip():
+            # Si la ligne ne correspond pas au format, on l'affiche simplement
+            html_parts.append(f"<p>{line}</p>")
+    return "\n".join(html_parts)
+
+@app.get("/view/{client_id}/{filename}")
+async def view_transcription(client_id: str, filename: str, request: Request):
+    file_path = os.path.join(TRANSCRIPTIONS_DIR, client_id, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Fichier introuvable.")
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    # On peut éventuellement parser le contenu pour le structurer
+    return HTMLResponse(content=f"""
+        <!DOCTYPE html>
+        <html lang="fr">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{filename} – Voxtral Pod</title>
+            <link rel="stylesheet" href="/static/dsfr.min.css">
+            <style>
+                body {{
+                    background: var(--background-alt-grey);
+                }}
+                .transcript-container {{
+                    max-width: 900px;
+                    margin: 2rem auto;
+                    padding: 1rem;
+                }}
+                .segment {{
+                    margin-bottom: 1.5rem;
+                    padding: 1rem;
+                    background: #fff;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }}
+                .segment-header {{
+                    display: flex;
+                    gap: 1rem;
+                    align-items: baseline;
+                    flex-wrap: wrap;
+                    margin-bottom: 0.5rem;
+                }}
+                .segment-time {{
+                    font-family: monospace;
+                    font-size: 0.8rem;
+                    color: #666;
+                }}
+                .segment-speaker {{
+                    font-weight: bold;
+                    background: #e5e5e5;
+                    padding: 0.2rem 0.5rem;
+                    border-radius: 4px;
+                }}
+                .segment-text {{
+                    line-height: 1.5;
+                }}
+                .back-link {{
+                    margin-bottom: 1rem;
+                    display: inline-block;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="fr-container">
+                <div class="transcript-container">
+                    <a href="/" class="fr-link back-link">← Retour à l'accueil</a>
+                    <h1>{filename}</h1>
+                    <div id="transcript">
+                        {format_transcription(content)}
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+    """)
 
 @app.get("/status/{file_id}")
 async def status_route(file_id: str):

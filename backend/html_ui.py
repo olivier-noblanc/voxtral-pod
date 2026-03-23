@@ -183,41 +183,6 @@ HTML_UI = r"""<!DOCTYPE html>
         </div>
     </footer>
 
-    <dialog id="viewerDialog" class="fr-modal" role="dialog" aria-labelledby="v-title">
-        <div class="fr-container fr-container--fluid">
-            <div class="fr-grid-row fr-grid-row--center">
-                <div class="fr-col-12 fr-col-md-10">
-                    <div class="fr-modal__inner">
-                        <div class="fr-modal__body">
-                            <div class="fr-modal__header">
-                                <button class="fr-link--close fr-link" onclick="closeViewer()">Fermer</button>
-                            </div>
-                            <div class="fr-modal__content">
-                                <h1 id="v-title" class="fr-modal__title">Transcription</h1>
-                                <div id="viewerContent" class="fr-mt-2w" style="background: #161616; color: #eee; padding: 1rem; overflow-y: auto; max-height: 60vh;"></div>
-                                <div class="fr-mt-2w fr-p-2w" style="background: #2a2a2a; border-radius: 4px;">
-                                    <div class="fr-checkbox-group">
-                                        <input type="checkbox" id="includeTimestamps" checked onchange="updateExportPreview()">
-                                        <label class="fr-label" for="includeTimestamps">Repères temporels</label>
-                                    </div>
-                                    <div id="speakerRenameContainer" class="fr-mt-2w" style="display:none;">
-                                        <div id="speakerRenameList" class="fr-grid-row fr-grid-row--gutters"></div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="fr-modal__footer">
-                                <ul class="fr-btns-group fr-btns-group--inline-reverse">
-                                    <li><button class="fr-btn" onclick="copyToClipboard()">📋 Copier</button></li>
-                                    <li><button id="btnSaveS3" class="fr-btn fr-btn--secondary" onclick="uploadToS3()">☁️ S3</button></li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </dialog>
-
     <script>
     // ========================= VARIABLES GLOBALES =========================
     let currentText = "";
@@ -326,80 +291,6 @@ HTML_UI = r"""<!DOCTYPE html>
         document.getElementById('audioBarCont').style.display = 'none';
     }
 
-    // ========================= MODALE TRANSCRIPTION =========================
-    async function viewFile(name) {
-        const dialog = document.getElementById('viewerDialog');
-        if (!dialog) return;
-        document.getElementById('v-title').innerText = name;
-        dialog.classList.add('fr-modal--opened');
-        dialog.showModal();
-        const res = await fetch(`/transcription/${name}?client_id=${getClientId()}`);
-        currentText = await res.text();
-        detectSpeakers(currentText);
-        updateExportPreview();
-    }
-    function closeViewer() {
-        const dialog = document.getElementById('viewerDialog');
-        if (dialog) {
-            dialog.classList.remove('fr-modal--opened');
-            dialog.close();
-        }
-    }
-    function detectSpeakers(text) {
-        const cont = document.getElementById('speakerRenameList');
-        cont.innerHTML = "";
-        const matches = text.match(/\[(SPEAKER_\d+)\]/g) || [];
-        const speakers = [...new Set(matches)];
-        if (speakers.length) {
-            document.getElementById('speakerRenameContainer').style.display = "block";
-            speakers.forEach((s, index) => {
-                const spk = s.slice(1, -1);
-                const inputId = `speakerRename_${index}`;
-                const div = document.createElement('div');
-                div.className = "fr-col-6";
-                div.innerHTML = `<label class="fr-label fr-text--xs" for="${inputId}">${spk}</label><input id="${inputId}" name="${inputId}" class="fr-input fr-input--sm" type="text" value="${spk}" data-orig="${spk}" oninput="updateExportPreview()">`;
-                cont.appendChild(div);
-            });
-        } else {
-            document.getElementById('speakerRenameContainer').style.display = "none";
-        }
-    }
-    function updateExportPreview() {
-        let t = currentText;
-        document.querySelectorAll('#speakerRenameList input').forEach(i => {
-            t = t.replace(new RegExp('\\[' + i.dataset.orig + '\\]', 'g'), `[${i.value}]`);
-        });
-        if (!document.getElementById('includeTimestamps').checked) {
-            t = t.replace(/\[\d+\.?\d*s -> \d+\.?\d*s\]\s*/g, "");
-        }
-        document.getElementById('viewerContent').innerText = t;
-    }
-    function copyToClipboard() {
-        navigator.clipboard.writeText(document.getElementById('viewerContent').innerText);
-        alert("Copié !");
-    }
-    async function uploadToS3() {
-        const content = document.getElementById('viewerContent').innerText;
-        const filename = document.getElementById('v-title').innerText;
-        const endpoint = document.getElementById('s3Endpoint').value;
-        const bucket = document.getElementById('s3Bucket').value;
-        const accessKey = document.getElementById('s3AccessKey').value;
-        const secretKey = document.getElementById('s3SecretKey').value;
-        if (!endpoint || !bucket || !accessKey || !secretKey) {
-            alert("Veuillez configurer les paramètres S3.");
-            return;
-        }
-        const formData = new FormData();
-        formData.append("filename", filename);
-        formData.append("content", content);
-        formData.append("endpoint", endpoint);
-        formData.append("bucket", bucket);
-        formData.append("access_key", accessKey);
-        formData.append("secret_key", secretKey);
-        const res = await fetch("/upload_s3", { method: "POST", body: formData });
-        if (res.ok) alert("Upload S3 réussi.");
-        else alert("Erreur lors de l'upload S3.");
-    }
 
     // ========================= HISTORIQUE =========================
     async function loadHistory() {
@@ -411,7 +302,7 @@ HTML_UI = r"""<!DOCTYPE html>
                 <div class="fr-col-12 fr-col-md-4">
                     <div class="fr-card fr-card--sm" style="padding:1rem; border:1px solid #3a3a3a;">
                         <h4 class="fr-card__title" style="font-size:0.8rem">${f}</h4>
-                        <button class="fr-btn fr-btn--sm fr-mt-1w" onclick="viewFile('${f}')">Voir</button>
+                        <a href="/view/${getClientId()}/${f}" class="fr-btn fr-btn--sm fr-mt-1w">Voir</a>
                     </div>
                 </div>
             `).join('') || "Aucune.";
