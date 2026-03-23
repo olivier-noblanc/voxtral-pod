@@ -121,7 +121,7 @@ class TranscriptionEngine:
                 'file': ('audio.wav', buffer, 'audio/wav')
             }
             data = {
-                'model': 'automatic-speech-recognition', 
+                'model': self.albert_model_id, 
                 'language': language,
                 'response_format': 'verbose_json' 
             }
