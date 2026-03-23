@@ -19,6 +19,7 @@ for _k, _v in [
 
 # === GPU PERFORMANCE OPTIMIZATION (Ampere+) ===
 def setup_gpu():
+    global _CPU_THREADS_CONFIGURED
     # NNPACK can be disabled explicitly via env (set by run.sh in CPU mode).
     disable_nnpack = os.getenv("DISABLE_NNPACK", "0").lower() in ("1", "true", "yes", "on")
     if disable_nnpack and hasattr(torch.backends, "nnpack") and hasattr(torch.backends.nnpack, "enabled"):
