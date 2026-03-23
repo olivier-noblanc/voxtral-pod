@@ -5,3 +5,4 @@ run.txt
 node_modules
 export*.txt
 .history/
+temp_script_content.html

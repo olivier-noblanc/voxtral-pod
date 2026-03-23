@@ -219,33 +219,125 @@ HTML_UI = r"""<!DOCTYPE html>
     </dialog>
 
     <script>
-    // --- Variables globales ---
+    // ========================= VARIABLES GLOBALES =========================
     let currentText = "";
     let ws, audioContext, source, processor, isRecording = false;
     let audioStream = null;
     let captureType = "mic";
     const CHUNK_SIZE = 4 * 1024 * 1024;
+    const workletCode = `
+        class AudioProcessor extends AudioWorkletProcessor {
+            constructor() { super(); this.buffer = new Float32Array(2560); this.offset = 0; }
+            process(inputs) {
+                const input = inputs[0][0];
+                if (!input) return true;
+                for (let i = 0; i < input.length; i++) {
+                    this.buffer[this.offset++] = input[i];
+                    if (this.offset >= 2560) { this.port.postMessage(this.buffer); this.offset = 0; }
+                }
+                return true;
+            }
+        }
+        registerProcessor('audio-processor', AudioProcessor);
+    `;
 
-    // --- Utilitaires ---
+    // ========================= UTILITAIRES =========================
     const getClientId = () => {
         let id = localStorage.getItem("sota_client_id");
         if (!id) { id = "user_" + crypto.randomUUID().slice(0, 8); localStorage.setItem("sota_client_id", id); }
         return id;
     };
+    function updateVolumeBar(data) {
+        let sum = 0; for (let i = 0; i < data.length; i++) sum += data[i] ** 2;
+        document.getElementById('audioBar').style.width = Math.min(100, Math.sqrt(sum / data.length) * 400) + '%';
+    }
 
-    // --- Modale ---
+    // ========================= GESTION MICRO / SYSTÈME =========================
+    async function toggleMicrophone() {
+        if (isRecording) stopRecording();
+        else { captureType = "mic"; startRecording(); }
+    }
+    async function toggleSystemAudio() {
+        if (isRecording) stopRecording();
+        else { captureType = "system"; startRecording(); }
+    }
+
+    async function startRecording() {
+        const btnRecord = document.getElementById('recordBtn');
+        const btnSystem = document.getElementById('systemBtn');
+        const box = document.getElementById('liveTranscript');
+        const barCont = document.getElementById('audioBarCont');
+        try {
+            if (captureType === "system") {
+                audioStream = await navigator.mediaDevices.getDisplayMedia({ video:true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+            } else {
+                audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            }
+            isRecording = true;
+            btnRecord.innerText = (captureType === "mic") ? "⏹️ Arrêter" : "🎤 Micro";
+            btnSystem.innerText = (captureType === "system") ? "⏹️ Arrêter" : "🖥️ Système";
+            if (captureType === "mic") { btnSystem.disabled = true; btnRecord.classList.add('recording'); }
+            else { btnRecord.disabled = true; btnSystem.classList.add('recording'); }
+            barCont.style.display = 'block';
+            const partialAlbert = document.getElementById('albertPartial').checked;
+            ws = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/live?client_id=${getClientId()}&partial_albert=${partialAlbert}`);
+            ws.binaryType = 'arraybuffer';
+            audioContext = new AudioContext({ sampleRate: 16000 });
+            source = audioContext.createMediaStreamSource(audioStream);
+            await audioContext.audioWorklet.addModule('data:text/javascript;base64,' + btoa(workletCode));
+            processor = new AudioWorkletNode(audioContext, 'audio-processor');
+            processor.port.onmessage = (e) => {
+                if (ws && ws.readyState === 1) {
+                    const pcm = new Int16Array(e.data.length);
+                    for (let i = 0; i < e.data.length; i++) pcm[i] = Math.max(-1, Math.min(1, e.data[i])) * 0x7FFF;
+                    ws.send(pcm.buffer);
+                }
+                updateVolumeBar(e.data);
+            };
+            source.connect(processor); processor.connect(audioContext.destination);
+            box.innerHTML = "";
+            let lastSpeaker = "";
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === "sentence") {
+                    const row = document.createElement("div"); row.className = "sentence-row " + (data.final ? "finalized" : "");
+                    const s = document.createElement("span"); s.className = "speaker-label";
+                    if (data.speaker !== lastSpeaker) { s.textContent = `[${data.speaker}] `; lastSpeaker = data.speaker; }
+                    const t = document.createElement("span"); t.className = data.final ? "final-text" : "partial-text"; t.textContent = (data.final ? "" : "... ") + data.text;
+                    row.append(s, t); box.appendChild(row); box.scrollTop = box.scrollHeight;
+                } else if (data.type === "final_done") { loadHistory(); }
+            };
+        } catch (err) { alert(err.message); stopRecording(); }
+    }
+
+    function stopRecording() {
+        if (ws) { ws.close(); ws = null; }
+        if (audioContext) { audioContext.close(); audioContext = null; }
+        if (audioStream) { audioStream.getTracks().forEach(track => track.stop()); audioStream = null; }
+        isRecording = false;
+        const btnRecord = document.getElementById('recordBtn');
+        const btnSystem = document.getElementById('systemBtn');
+        btnRecord.innerText = "🎤 Micro";
+        btnSystem.innerText = "🖥️ Système";
+        btnRecord.classList.remove('recording');
+        btnSystem.classList.remove('recording');
+        btnRecord.disabled = false;
+        btnSystem.disabled = false;
+        document.getElementById('audioBarCont').style.display = 'none';
+    }
+
+    // ========================= MODALE TRANSCRIPTION =========================
     async function viewFile(name) {
         const dialog = document.getElementById('viewerDialog');
         if (!dialog) return;
         document.getElementById('v-title').innerText = name;
-        dialog.classList.add('fr-modal--opened');   // active le style DSFR
+        dialog.classList.add('fr-modal--opened');
         dialog.showModal();
         const res = await fetch(`/transcription/${name}?client_id=${getClientId()}`);
         currentText = await res.text();
         detectSpeakers(currentText);
         updateExportPreview();
     }
-
     function closeViewer() {
         const dialog = document.getElementById('viewerDialog');
         if (dialog) {
@@ -253,7 +345,6 @@ HTML_UI = r"""<!DOCTYPE html>
             dialog.close();
         }
     }
-
     function detectSpeakers(text) {
         const cont = document.getElementById('speakerRenameList');
         cont.innerHTML = "";
@@ -273,7 +364,6 @@ HTML_UI = r"""<!DOCTYPE html>
             document.getElementById('speakerRenameContainer').style.display = "none";
         }
     }
-
     function updateExportPreview() {
         let t = currentText;
         document.querySelectorAll('#speakerRenameList input').forEach(i => {
@@ -284,13 +374,10 @@ HTML_UI = r"""<!DOCTYPE html>
         }
         document.getElementById('viewerContent').innerText = t;
     }
-
     function copyToClipboard() {
         navigator.clipboard.writeText(document.getElementById('viewerContent').innerText);
         alert("Copié !");
     }
-
-    // --- Upload S3 ---
     async function uploadToS3() {
         const content = document.getElementById('viewerContent').innerText;
         const filename = document.getElementById('v-title').innerText;
@@ -314,7 +401,7 @@ HTML_UI = r"""<!DOCTYPE html>
         else alert("Erreur lors de l'upload S3.");
     }
 
-    // --- Historique ---
+    // ========================= HISTORIQUE =========================
     async function loadHistory() {
         const list = document.getElementById('transcriptionList');
         try {
@@ -331,14 +418,14 @@ HTML_UI = r"""<!DOCTYPE html>
         } catch (e) { list.innerHTML = "Erreur."; }
     }
 
-    // --- Changement de modèle ---
+    // ========================= CONFIGURATION MODÈLE =========================
     async function changeModel() {
         const newModel = document.getElementById('modelSelector').value;
         const res = await fetch(`/change_model?model=${newModel}`, { method: 'POST' });
         if (res.ok) location.reload();
     }
 
-    // --- Configuration S3 ---
+    // ========================= CONFIGURATION S3 =========================
     function saveS3Config() {
         localStorage.setItem('s3_conf', JSON.stringify({
             e: document.getElementById('s3Endpoint').value,
@@ -355,7 +442,7 @@ HTML_UI = r"""<!DOCTYPE html>
         document.getElementById('s3SecretKey').value = c.s || "";
     }
 
-    // --- Options Albert ---
+    // ========================= OPTIONS ALBERT =========================
     function saveAlbertConfig() {
         localStorage.setItem('albert_partial', document.getElementById('albertPartial').checked);
     }
@@ -367,7 +454,7 @@ HTML_UI = r"""<!DOCTYPE html>
         }
     }
 
-    // --- Batch upload ---
+    // ========================= BATCH UPLOAD =========================
     async function handleBatchAction() { await uploadFile(); }
     async function uploadFile() {
         const input = document.getElementById('audioFile');
@@ -402,12 +489,7 @@ HTML_UI = r"""<!DOCTYPE html>
         }, 2000);
     }
 
-    // --- Gestion du microphone / système (extraits essentiels) ---
-    // (Gardez ici le code existant pour `startRecording`, `stopRecording`, etc.
-    // Assurez-vous de ne pas dupliquer ces fonctions.)
-    // Exemple simplifié : les fonctions existantes doivent être conservées.
-
-    // --- Initialisation ---
+    // ========================= INITIALISATION =========================
     window.onload = () => {
         loadHistory();
         loadS3Config();
