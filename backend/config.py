@@ -17,6 +17,10 @@ for _k, _v in [
 
 # === GPU PERFORMANCE OPTIMIZATION (Ampere+) ===
 def setup_gpu():
+    # NNPACK can be disabled explicitly via env (set by run.sh in CPU mode).
+    disable_nnpack = os.getenv("DISABLE_NNPACK", "0").lower() in ("1", "true", "yes", "on")
+    if disable_nnpack and hasattr(torch.backends, "nnpack") and hasattr(torch.backends.nnpack, "enabled"):
+        torch.backends.nnpack.enabled = False
     if torch.cuda.is_available():
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
