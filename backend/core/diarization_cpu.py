@@ -1,28 +1,62 @@
 # backend/core/diarization_cpu.py
-from simple_diarizer.diarizer import Diarizer
-import numpy as np, soundfile as sf, tempfile, os
+import numpy as np
+import soundfile as sf
+import tempfile, os
+from resemblyzer import VoiceEncoder, preprocess_wav
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.metrics import silhouette_score
 
 class LightDiarizationEngine:
     def __init__(self):
-        self.diarizer = Diarizer(embed_model='ecapa', cluster_method='sc')
+        self.encoder = VoiceEncoder("cpu")
 
     def load(self):
-        pass  # lazy load dans simple-diarizer
+        pass
 
     def diarize(self, audio_float32, hook=None):
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
-            sf.write(f.name, audio_float32, 16000)
-            wav_path = f.name
-        try:
-            segments = self.diarizer.diarize(wav_path, num_speakers=None)
-            result = [(s['start'], s['end'], s['label']) for s in segments]
-            return self._inject_overlaps(audio_float32, result)
-        finally:
-            os.unlink(wav_path)
+        wav = preprocess_wav(audio_float32)
+
+        # Embeddings sur fenêtres glissantes 1.5s / step 0.5s
+        sr, win, step = 16000, int(1.5 * 16000), int(0.5 * 16000)
+        times, embeddings = [], []
+
+        for start in range(0, len(wav) - win, step):
+            chunk = wav[start:start + win]
+            embeddings.append(self.encoder.embed_utterance(chunk))
+            times.append(start / sr)
+
+        if len(embeddings) < 2:
+            return [(0.0, len(audio_float32) / 16000, "SPEAKER_00")]
+
+        X = np.array(embeddings)
+        n = self._estimate_speakers(X)
+        labels = AgglomerativeClustering(n_clusters=n).fit_predict(X)
+
+        segments = self._labels_to_segments(times, labels, step / sr)
+        return self._inject_overlaps(audio_float32, segments)
+
+    def _estimate_speakers(self, X, max_spk=6):
+        best_n, best_score = 2, -1
+        for n in range(2, min(max_spk + 1, len(X))):
+            labels = AgglomerativeClustering(n_clusters=n).fit_predict(X)
+            score = silhouette_score(X, labels)
+            if score > best_score:
+                best_score, best_n = score, n
+        return best_n
+
+    def _labels_to_segments(self, times, labels, step_sec):
+        segments = []
+        for t, spk in zip(times, labels):
+            label = f"SPEAKER_{spk:02d}"
+            end = t + step_sec
+            if segments and segments[-1][2] == label:
+                segments[-1] = (segments[-1][0], end, label)
+            else:
+                segments.append((t, end, label))
+        return segments
 
     def _inject_overlaps(self, audio, segments, window=1.0, step=0.25):
-        sr = 16000
-        win = int(window * sr)
+        sr, win = 16000, int(window * 16000)
         overlaps = []
         for start in range(0, len(audio) - win, int(step * sr)):
             chunk = audio[start:start + win]
