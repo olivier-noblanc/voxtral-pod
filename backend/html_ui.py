@@ -164,7 +164,7 @@ HTML_UI = r"""<!DOCTYPE html>
         </div>
     </footer>
 
-    <dialog id="viewerDialog" class="fr-modal" role="dialog" aria-labelledby="v-title">
+    <dialog id="viewerDialog" role="dialog" aria-labelledby="v-title">
         <div class="fr-container">
             <div class="fr-grid-row fr-grid-row--center">
                 <div class="fr-col-12 fr-col-md-10">
@@ -198,6 +198,57 @@ HTML_UI = r"""<!DOCTYPE html>
     </dialog>
 
     <script>
+    // Définition des fonctions avant leur utilisation
+    let currentText = "";
+    async function viewFile(name) {
+        console.log('Début de viewFile avec name:', name);
+        const dialog = document.getElementById('viewerDialog');
+        console.log('Dialog trouvé:', dialog);
+        if (!dialog) {
+            console.error('Dialog element not found');
+            return;
+        }
+        document.getElementById('v-title').innerText = name;
+        console.log('Ajout de la classe fr-modal--opened');
+        dialog.classList.add('fr-modal--opened');
+        console.log('Appel de showModal');
+        dialog.showModal();
+        console.log('showModal appelé');
+        const res = await fetch(`/transcription/${name}?client_id=${getClientId()}`);
+        currentText = await res.text(); detectSpeakers(currentText); updateExportPreview();
+    }
+    function closeViewer() {
+        const dialog = document.getElementById('viewerDialog');
+        if (dialog) {
+            dialog.classList.remove('fr-modal--opened');
+            dialog.close();
+        }
+    }
+    function detectSpeakers(text) {
+        const cont = document.getElementById('speakerRenameList'); cont.innerHTML = "";
+        const matches = text.match(/\[(SPEAKER_\d+)\]/g) || [];
+        const speakers = [...new Set(matches)];
+        if (speakers.length) {
+            document.getElementById('speakerRenameContainer').style.display = "block";
+            speakers.forEach((s, index) => {
+                const spk = s.slice(1, -1);
+                const inputId = `speakerRename_${index}`;
+                const div = document.createElement('div'); div.className = "fr-col-6";
+                div.innerHTML = `<label class="fr-label fr-text--xs" for="${inputId}">${spk}</label><input id="${inputId}" name="${inputId}" class="fr-input fr-input--sm" type="text" value="${spk}" data-orig="${spk}" oninput="updateExportPreview()">`;
+                cont.appendChild(div);
+            });
+        }
+    }
+    function updateExportPreview() {
+        let t = currentText;
+        document.querySelectorAll('#speakerRenameList input').forEach(i => {
+            t = t.replace(new RegExp('\\[' + i.dataset.orig + '\\]', 'g'), `[${i.value}]`);
+        });
+        if (!document.getElementById('includeTimestamps').checked) t = t.replace(/\[\d+\.?\d*s -> \d+\.?\d*s\]\s*/g, "");
+        document.getElementById('viewerContent').innerText = t;
+    }
+    function copyToClipboard() { navigator.clipboard.writeText(document.getElementById('viewerContent').innerText); alert("Copié !"); }
+    
     const CHUNK_SIZE = 4 * 1024 * 1024;
     const getClientId = () => {
         let id = localStorage.getItem("sota_client_id");
@@ -277,18 +328,18 @@ HTML_UI = r"""<!DOCTYPE html>
         let sum = 0; for (let i = 0; i < data.length; i++) sum += data[i] ** 2;
         document.getElementById('audioBar').style.width = Math.min(100, Math.sqrt(sum / data.length) * 400) + '%';
     }
-    async function changeModel() { await fetch(`/change_model?model=${document.getElementById('modelSelector').value}`, { method: 'POST' }); location.reload(); }
-    async function loadHistory() {
-        const list = document.getElementById('transcriptionList');
-        try {
-            const res = await fetch(`/transcriptions?client_id=${getClientId()}`);
-            const files = await res.json();
-            list.innerHTML = files.map(f => `<div class="fr-col-12 fr-col-md-4"><div class="fr-card fr-card--sm" style="padding:1rem; border:1px solid #3a3a3a;"><h4 class="fr-card__title" style="font-size:0.8rem">${f}</h4><button class="fr-btn fr-btn--sm fr-mt-1w" onclick="viewFile('${f}')">Voir</button></div></div>`).join('') || "Aucune.";
-        } catch (e) { list.innerHTML = "Erreur."; }
-    }
-    let currentText = "";
     async function viewFile(name) {
-        document.getElementById('v-title').innerText = name; document.getElementById('viewerDialog').showModal();
+        console.log('Début de viewFile avec name:', name);
+        const dialog = document.getElementById('viewerDialog');
+        console.log('Dialog trouvé:', dialog);
+        if (!dialog) {
+            console.error('Dialog element not found');
+            return;
+        }
+        document.getElementById('v-title').innerText = name;
+        console.log('Appel de showModal');
+        dialog.showModal();
+        console.log('showModal appelé');
         const res = await fetch(`/transcription/${name}?client_id=${getClientId()}`);
         currentText = await res.text(); detectSpeakers(currentText); updateExportPreview();
     }
@@ -353,10 +404,14 @@ HTML_UI = r"""<!DOCTYPE html>
         }
     }
 
-    window.onload = () => { 
-        loadHistory(); 
-        loadS3Config(); 
+    window.onload = () => {
+        console.log('window.onload déclenché');
+        console.log('Vérification de l\'élément viewerDialog:', document.getElementById('viewerDialog'));
+        loadHistory();
+        loadS3Config();
         loadAlbertConfig();
+        console.log('Initialisation terminée');
+    };
          const noGpu = '{{no_gpu}}' === 'true';
     const selector = document.getElementById('modelSelector');
 
