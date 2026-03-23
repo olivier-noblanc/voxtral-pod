@@ -24,6 +24,7 @@ silero-vad
 boto3
 matplotlib
 vosk
+webrtcvad-wheels
 simple-diarizer
 soundfile
 resemblyzer
