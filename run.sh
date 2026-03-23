@@ -133,12 +133,7 @@ if command -v nvidia-smi &> /dev/null && nvidia-smi -L &> /dev/null; then
     nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv
 else
     export DISABLE_NNPACK=1
-    CPU_THREADS="$(nproc 2>/dev/null || echo 4)"
-    export CPU_THREADS
-    export OMP_NUM_THREADS="$CPU_THREADS"
-    export MKL_NUM_THREADS="$CPU_THREADS"
     echo "[*] CPU mode detected -> DISABLE_NNPACK=1 (silences unsupported NNPACK warnings)"
-    echo "[*] CPU threads tuned -> CPU_THREADS=$CPU_THREADS"
 fi
 
 # 5. Launch
