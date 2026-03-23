@@ -36,7 +36,12 @@ class SotaASR:
         self.hf_token = hf_token
         
         # Diarization on CPU if no GPU or low VRAM
-        self.diarization_engine = DiarizationEngine(hf_token=hf_token, use_cpu=self.low_vram)
+        if self.no_gpu or self.low_vram:
+            from backend.core.diarization_cpu import LightDiarizationEngine
+            self.diarization_engine = LightDiarizationEngine()
+        else:
+            self.diarization_engine = DiarizationEngine(hf_token=hf_token, use_cpu=False)
+    
         self.transcription_engine = TranscriptionEngine(model_id=self.model_id)
         
         self._loaded = False
