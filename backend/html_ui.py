@@ -351,7 +351,27 @@ HTML_UI = r"""<!DOCTYPE html>
         loadHistory(); 
         loadS3Config(); 
         loadAlbertConfig();
-        document.getElementById('modelSelector').value = '{{model_name}}'; 
+         const noGpu = '{{no_gpu}}' === 'true';
+    const selector = document.getElementById('modelSelector');
+
+    if (noGpu) {
+        // Force Albert, disable selector
+        selector.value    = 'albert';
+        selector.disabled = true;
+
+        // Warning visible
+        document.getElementById('cpuWarning').style.display = 'block';
+
+        // Options Albert visibles
+        document.getElementById('albertOptions').style.display = 'block';
+
+        // Badge rouge
+        const badge = document.getElementById('currentModelDisplay');
+        badge.innerText   = 'Albert API (mode CPU)';
+        badge.className   = 'fr-badge fr-badge--error fr-badge--no-icon';
+    } else {
+        selector.value = '{{model_name}}';
+    }
     };
     </script>
 </body>
