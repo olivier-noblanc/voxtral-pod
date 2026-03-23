@@ -26,3 +26,5 @@ matplotlib
 vosk
 simple-diarizer
 soundfile
+resemblyzer
+scikit-learn
