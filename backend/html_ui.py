@@ -435,7 +435,6 @@ HTML_UI = r"""<!DOCTYPE html>
             selector.value = '{{model_name}}';
         }
     };
-    };
     </script>
 </body>
 </html>
