@@ -21,6 +21,7 @@ class TranscriptionEngine:
         self.model = None
         self.albert_api_key = os.getenv("ALBERT_API_KEY")
         self.albert_base_url = "https://albert.api.etalab.gouv.fr/v1"
+        self.albert_model_id = os.getenv("ALBERT_MODEL_ID", "openai/whisper-large-v3")
 
     def load(self):
         if self.model_id == "albert" or (self.model_id == "whisper" and self.albert_api_key):
