@@ -40,6 +40,7 @@ def home(request: Request):
     no_gpu = "true" if device == "cpu" else "false"
     import subprocess
     commit = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    print(f"[DEBUG] home() – commit envoyé au client : {commit}")
     ws_protocol = "wss:" if request.url.scheme == "https" else "ws:"
     # Calcul de l'URL WebSocket
     protocol = "wss" if request.url.scheme == "https" else "ws"
@@ -370,14 +371,18 @@ async def git_status():
     import subprocess
     result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True)
     commit = result.stdout.strip()
+    print(f"[DEBUG] git_status() – commit actuel : {commit}")
     return {"commit": commit}
 
 @app.post("/git_update")
 async def git_update():
     import subprocess
+    print("[DEBUG] git_update() – exécution de git pull")
     result = subprocess.run(["git", "pull"], capture_output=True, text=True)
     stdout = result.stdout.strip()
     stderr = result.stderr.strip()
+    print(f"[DEBUG] git_update() – stdout: {stdout}")
+    print(f"[DEBUG] git_update() – stderr: {stderr}")
     return {"stdout": stdout, "stderr": stderr}
 
 @app.post("/upload_s3")

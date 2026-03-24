@@ -418,14 +418,19 @@ HTML_UI = r"""<!DOCTYPE html>
     <script>
     async function checkGitStatus() {
         try {
+            console.log('🔍 checkGitStatus – démarrage');
             const resp = await fetch('/git_status');
             const data = await resp.json();
+            console.log('🔍 git_status response :', data);
             const latestCommit = data.commit;
             const clientCommit = document.body.dataset.commit;
+            console.log('🔍 clientCommit =', clientCommit, 'latestCommit =', latestCommit);
             if (clientCommit && clientCommit !== latestCommit) {
                 if (confirm('Une nouvelle version du serveur est disponible. Voulez‑vous mettre à jour maintenant ?')) {
+                    console.log('🔄 appel à /git_update');
                     const updResp = await fetch('/git_update', {method: 'POST'});
                     const updData = await updResp.json();
+                    console.log('🔄 git_update response :', updData);
                     alert('Mise à jour terminée:\n' + updData.stdout);
                     location.reload();
                 }
