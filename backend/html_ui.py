@@ -58,7 +58,7 @@ HTML_UI = r"""<!DOCTYPE html>
         }
     </style>
 </head>
-<body>
+<body data-commit="{{commit}}">
     <header role="banner" class="fr-header">
         <div class="fr-header__body">
             <div class="fr-container">
@@ -414,6 +414,27 @@ HTML_UI = r"""<!DOCTYPE html>
             selector.value = '{{model_name}}';
         }
     };
+    </script>
+    <script>
+    async function checkGitStatus() {
+        try {
+            const resp = await fetch('/git_status');
+            const data = await resp.json();
+            const latestCommit = data.commit;
+            const clientCommit = document.body.dataset.commit;
+            if (clientCommit && clientCommit !== latestCommit) {
+                if (confirm('Une nouvelle version du serveur est disponible. Voulez‑vous mettre à jour maintenant ?')) {
+                    const updResp = await fetch('/git_update', {method: 'POST'});
+                    const updData = await updResp.json();
+                    alert('Mise à jour terminée:\n' + updData.stdout);
+                    location.reload();
+                }
+            }
+        } catch (e) {
+            console.error('Erreur lors de la vérification du statut git :', e);
+        }
+    }
+    window.addEventListener('load', checkGitStatus);
     </script>
 </body>
 </html>

@@ -36,13 +36,16 @@ def home():
     try:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     except ImportError:
-        device = "cpu"    
+        device = "cpu"
     no_gpu = "true" if device == "cpu" else "false"
+    import subprocess
+    commit = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     return HTMLResponse(
         content=HTML_UI
             .replace("{{model_name}}", model_name)
             .replace("{{device}}", device)
             .replace("{{no_gpu}}", no_gpu)
+            .replace("{{commit}}", commit)
     )
 
 @app.websocket("/live")
@@ -354,6 +357,21 @@ async def save_live_transcription_route(client_id: str, content: str = Form(...)
 @app.get("/status/{file_id}")
 async def status_route(file_id: str):
     return jobs_db.get(file_id, {"status": "not_found"})
+
+@app.get("/git_status")
+async def git_status():
+    import subprocess
+    result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True)
+    commit = result.stdout.strip()
+    return {"commit": commit}
+
+@app.post("/git_update")
+async def git_update():
+    import subprocess
+    result = subprocess.run(["git", "pull"], capture_output=True, text=True)
+    stdout = result.stdout.strip()
+    stderr = result.stderr.strip()
+    return {"stdout": stdout, "stderr": stderr}
 
 @app.post("/upload_s3")
 async def upload_s3_route(
