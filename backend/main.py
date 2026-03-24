@@ -6,6 +6,7 @@ import torch
 import re
 import json
 import threading
+import sys
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Form, BackgroundTasks, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
@@ -414,82 +415,46 @@ async def status_route(file_id: str):
 async def git_status():
     try:
         repo = Repo(".")
-        # Récupérer le commit local
         local_commit = repo.head().decode()
-        
-        # Récupérer les informations du remote
-        # Utiliser dulwich pour obtenir les références distantes
+
+        # 1. Fetch réseau — on ignore le retour, il ne contient pas les remotes/origin/*
         try:
-            # Effectuer un fetch pour obtenir les dernières références distantes
-            # Cela permet de détecter les nouveaux push
-            try:
-                # Utiliser porcelain.fetch() pour obtenir les dernières références distantes
-                remote_refs = porcelain.fetch(repo, "origin")
-            except Exception as e:
-                print(f"[WARNING] git_status() – impossible de fetch les références distantes : {e}")
-                # Si le fetch échoue, utiliser les références locales existantes
-                remote_refs = repo.get_refs()
-            
-            # Trouver la branche 'origin/main' ou 'origin/master'
-            remote_branch_ref = b"refs/remotes/origin/main"
-            if remote_branch_ref not in remote_refs:
-                remote_branch_ref = b"refs/remotes/origin/master"
-            
-            if remote_branch_ref in remote_refs:
-                remote_commit = remote_refs[remote_branch_ref].decode()
-                
-                # Calculer le nombre de commits en retard
-                # Utiliser dulwich pour comparer les commits
-                try:
-                    # Obtenir les commits communs entre local et distant
-                    local_commit_obj = repo.get_object(local_commit.encode())
-                    remote_commit_obj = repo.get_object(remote_commit.encode())
-                    
-                    # Utiliser dulwich pour trouver les commits en commun
-                    # et compter ceux qui sont présents dans remote mais pas dans local
-                    from dulwich.objects import Commit
-                    from dulwich.diff_tree import tree_changes
-                    
-                    # Créer un ensemble des commits locaux
-                    local_commits = set()
-                    current_commit = local_commit_obj
-                    
-                    # Parcourir les commits locaux
-                    while current_commit is not None:
-                        local_commits.add(current_commit.id.decode())
-                        if len(current_commit.parents) == 0:
-                            break
-                        current_commit = repo.get_object(current_commit.parents[0])
-                    
-                    # Compter les commits distants qui ne sont pas locaux
-                    behind_count = 0
-                    current_remote = remote_commit_obj
-                    
-                    # Parcourir les commits distants jusqu'à atteindre un commit commun
-                    while current_remote is not None:
-                        if current_remote.id.decode() in local_commits:
-                            break
-                        behind_count += 1
-                        if len(current_remote.parents) == 0:
-                            break
-                        current_remote = repo.get_object(current_remote.parents[0])
-                        
-                except Exception as e:
-                    print(f"[ERROR] git_status() – erreur lors du calcul des commits en retard : {e}")
-                    behind_count = -1
-                    
-            else:
-                behind_count = -1  # Impossible de trouver la branche remote
-                
+            porcelain.fetch(repo, "origin")
         except Exception as e:
-            print(f"[ERROR] git_status() – erreur lors de la récupération des références distantes : {e}")
-            behind_count = -1
-            
-        print(f"[DEBUG] git_status() – commit local : {local_commit}, commits en retard : {behind_count}")
-        return {"commit": local_commit, "behind": behind_count}
+            print(f"[WARNING] fetch failed: {e}")
+
+        # 2. APRÈS le fetch, lire les refs locales du repo — elles sont maintenant à jour
+        all_refs = repo.get_refs()
+
+        # 3. La clé correcte après porcelain.fetch() est refs/remotes/origin/main
+        remote_branch_ref = b"refs/remotes/origin/main"
+        if remote_branch_ref not in all_refs:
+            remote_branch_ref = b"refs/remotes/origin/master"
+        if remote_branch_ref not in all_refs:
+            return {"commit": local_commit, "behind": -1, "error": "remote ref introuvable"}
+
+        remote_commit_sha = all_refs[remote_branch_ref].decode()
+
+        # 4. Compter les commits en retard
+        local_commits = set()
+        c = repo.get_object(local_commit.encode())
+        while True:
+            local_commits.add(c.id.decode())
+            if not c.parents: break
+            c = repo.get_object(c.parents[0])
+
+        behind = 0
+        c = repo.get_object(remote_commit_sha.encode())
+        while True:
+            if c.id.decode() in local_commits: break
+            behind += 1
+            if not c.parents: break
+            c = repo.get_object(c.parents[0])
+
+        return {"commit": local_commit, "behind": behind}
+
     except Exception as e:
-        print(f"[ERROR] git_status() – erreur lors de la récupération du commit : {e}")
-        return {"commit": "unknown", "behind": -1}
+        return {"commit": "unknown", "behind": -1, "error": str(e)}
 
 async def restart_after_delay():
     # Attendre 1 seconde avant de redémarrer
@@ -499,65 +464,37 @@ async def restart_after_delay():
 
 @app.post("/git_update")
 async def git_update():
-    import os
     import sys
-    import asyncio
-
-    print("[DEBUG] git_update() – mise à jour et redémarrage automatique")
-    
     try:
-        # Utiliser dulwich pour faire un pull
         repo = Repo(".")
-        
-        # Obtenir les références distantes
-        try:
-            # Effectuer un fetch pour obtenir les dernières références distantes
-            remote_refs = porcelain.fetch(repo, "origin")
-        except Exception as e:
-            print(f"[WARNING] git_update() – impossible de fetch les références distantes : {e}")
-            # Si le fetch échoue, utiliser les références locales existantes
-            remote_refs = repo.get_refs()
-        
-        # Trouver la branche 'origin/main' ou 'origin/master'
+
+        # 1. Fetch
+        porcelain.fetch(repo, "origin")
+
+        # 2. Lire les refs après fetch
+        all_refs = repo.get_refs()
         remote_branch_ref = b"refs/remotes/origin/main"
-        if remote_branch_ref not in remote_refs:
+        if remote_branch_ref not in all_refs:
             remote_branch_ref = b"refs/remotes/origin/master"
-        
-        if remote_branch_ref in remote_refs:
-            # Obtenir le commit distant
-            remote_commit = remote_refs[remote_branch_ref]
-            
-            # Effectuer un pull avec dulwich
-            try:
-                # Récupérer les changements distants
-                # repo.fetch(remote_refs)  # Déjà fait ci-dessus
-                
-                # Mettre à jour la branche locale
-                local_ref = b"refs/heads/main"
-                if local_ref not in repo.refs:
-                    local_ref = b"refs/heads/master"
-                
-                if local_ref in repo.refs:
-                    # Mettre à jour la référence locale vers le commit distant
-                    repo.refs[local_ref] = remote_commit
-                    
-            except Exception as e:
-                print(f"[ERROR] git_update() – erreur lors du pull : {e}")
-                return {"stdout": f"Erreur lors du pull : {str(e)}", "stderr": ""}
-        
-        # Envoyer une réponse HTTP avant de redémarrer
-        response_data = {"stdout": "Mise à jour terminée. Redémarrage en cours...", "stderr": ""}
-        
-        # Lancer le redémarrage en arrière-plan avec asyncio
-        print("[INFO] Redémarrage de l'application en cours...")
-        restart_task = asyncio.create_task(restart_after_delay())
-        
-        # Retourner immédiatement la réponse HTTP
-        return response_data
-        
+
+        remote_sha = all_refs[remote_branch_ref]
+
+        # 3. Avancer la branche locale
+        local_ref = b"refs/heads/main"
+        if local_ref not in repo.refs:
+            local_ref = b"refs/heads/master"
+        repo.refs[local_ref] = remote_sha
+
+        # 4. Restart différé
+        async def _restart():
+            await asyncio.sleep(1)
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+
+        asyncio.create_task(_restart())
+        return {"stdout": "Mise à jour OK, redémarrage...", "stderr": ""}
+
     except Exception as e:
-        print(f"[ERROR] Erreur lors du redémarrage automatique: {e}")
-        return {"stdout": f"Erreur lors du redémarrage automatique: {str(e)}", "stderr": ""}
+        return {"stdout": f"Erreur: {str(e)}", "stderr": ""}
 
 @app.post("/upload_s3")
 async def upload_s3_route(
