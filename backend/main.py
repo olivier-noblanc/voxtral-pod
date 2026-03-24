@@ -193,6 +193,12 @@ async def run_batch_job(path, file_id, client_id):
         jobs_db[file_id] = {"status": "error", "error": str(e)}
 
 def format_transcription(text: str) -> str:
+    # Décoder les séquences \uXXXX littérales si présentes
+    try:
+        text = codecs.decode(text, 'unicode_escape').encode('latin-1').decode('utf-8')
+    except Exception:
+        pass  # Si le texte est déjà propre, on ignore
+    
     lines = text.split('\n')
     html_parts = []
     for line in lines:
