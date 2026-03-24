@@ -376,6 +376,8 @@ HTML_UI = r"""<!DOCTYPE html>
         const file = input.files[0];
         const total = Math.ceil(file.size / CHUNK_SIZE);
         const id = crypto.randomUUID();
+        // Sauvegarder l'ID du job dans localStorage
+        localStorage.setItem('pending_job', id);
         document.getElementById('uploadProgressContainer').style.display = 'block';
         for (let i = 0; i < total; i++) {
             const formData = new FormData();
@@ -395,10 +397,19 @@ HTML_UI = r"""<!DOCTYPE html>
             const data = await res.json();
             if (data.status === "done") {
                 clearInterval(interval);
+                // Nettoyer localStorage quand le job est terminé
+                localStorage.removeItem('pending_job');
                 document.getElementById('batchStatus').innerText = "✓ Terminé.";
                 loadHistory();
+            } else if (data.status === "not_found") {
+                clearInterval(interval);
+                localStorage.removeItem('pending_job');
             } else if (data.status.startsWith("processing:")) {
-                document.getElementById('batchStatus').innerText = "⏳ " + data.status.split(":")[1];
+                const pct = data.progress || 0;
+                const eta = data.eta ? ` (ETA: ${data.eta}s)` : '';
+                document.getElementById('batchStatus').innerText = `⏳ ${data.status.split(":")[1]} — ${pct}%${eta}`;
+                document.getElementById('uploadProgressFill').style.width = pct + '%';
+                document.getElementById('uploadProgressContainer').style.display = 'block';
             }
         }, 2000);
     }
@@ -408,6 +419,14 @@ HTML_UI = r"""<!DOCTYPE html>
         loadHistory();
         loadS3Config();
         loadAlbertConfig();
+
+        // Reprendre un job en cours si présent
+        const pendingJob = localStorage.getItem('pending_job');
+        if (pendingJob) {
+            document.getElementById('uploadProgressContainer').style.display = 'block';
+            document.getElementById('batchStatus').innerText = '⏳ Reprise du job en cours...';
+            pollStatus(pendingJob);
+        }
 
         const noGpu = '{{no_gpu}}' === 'true';
         const selector = document.getElementById('modelSelector');
