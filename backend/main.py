@@ -161,7 +161,7 @@ def format_transcription(text: str) -> str:
                 <div class="segment">
                     <div class="segment-header">
                         <span class="segment-time">{time_str}</span>
-                        <span class="segment-speaker">{speaker}</span>
+                        <span class="segment-speaker" data-speaker="{speaker}">{speaker}</span>
                     </div>
                     <div class="segment-text">{content}</div>
                 </div>
@@ -235,14 +235,113 @@ async def view_transcription(client_id: str, filename: str, request: Request):
                 <div class="transcript-container">
                     <a href="/" class="fr-link back-link">← Retour à l'accueil</a>
                     <h1>{filename}</h1>
+                    <button class="fr-btn fr-btn--secondary" onclick="toggleSpeakerEditor()">Modifier les speakers</button>
+                    <div id="speakerRenameContainer" style="display:none;" class="fr-mt-2w"><div id="speakerRenameList" class="fr-grid-row fr-grid-row--gutters"></div></div>
                     <div id="transcript">
                         {format_transcription(content)}
                     </div>
+                    <button class="fr-btn fr-btn--primary" onclick="saveChanges()">Enregistrer les modifications</button>
+                    <script>
+                    function toggleSpeakerEditor() {{
+                        const container = document.getElementById('speakerRenameContainer');
+                        if (container.style.display === 'none') {{
+                            container.style.display = 'block';
+                            initSpeakerEditor();
+                        }} else {{
+                            container.style.display = 'none';
+                        }}
+                    }}
+                    function initSpeakerEditor() {{
+                        const speakerSpans = document.querySelectorAll('.segment-speaker');
+                        const speakers = new Set();
+                        speakerSpans.forEach(span => {{
+                            const speaker = span.dataset.speaker;
+                            if (speaker) speakers.add(speaker);
+                        }});
+                        const listDiv = document.getElementById('speakerRenameList');
+                        listDiv.innerHTML = '';
+                        speakers.forEach(speaker => {{
+                            const colDiv = document.createElement('div');
+                            colDiv.className = 'fr-col-12 fr-col-md-6';
+                            const label = document.createElement('label');
+                            label.htmlFor = `speaker-input-${{speaker}}`;
+                            label.textContent = `Speaker "${{speaker}}" :`;
+                            const input = document.createElement('input');
+                            input.type = 'text';
+                            input.id = `speaker-input-${{speaker}}`;
+                            input.value = speaker;
+                            input.className = 'fr-input';
+                            input.dataset.currentSpeaker = speaker;
+                            input.addEventListener('input', (e) => {{
+                                const newName = e.target.value;
+                                const oldName = e.target.dataset.currentSpeaker;
+                                document.querySelectorAll(`.segment-speaker[data-speaker="${{oldName}}"]`).forEach(span => {{
+                                    span.textContent = newName;
+                                    span.dataset.speaker = newName;
+                                }});
+                                e.target.dataset.currentSpeaker = newName;
+                            }});
+                            colDiv.appendChild(label);
+                            colDiv.appendChild(input);
+                            listDiv.appendChild(colDiv);
+                        }});
+                    }}
+                    function getUpdatedContent() {{
+                        const segments = document.querySelectorAll('.segment');
+                        const lines = [];
+                        segments.forEach(seg => {{
+                            const time = seg.querySelector('.segment-time')?.textContent.trim() || '';
+                            const speaker = seg.querySelector('.segment-speaker')?.textContent.trim() || '';
+                            const text = seg.querySelector('.segment-text')?.textContent.trim() || '';
+                            if (time && speaker) {{
+                                lines.push(`[${{time}}] [${{speaker}}] ${{text}}`);
+                            }} else if (text) {{
+                                lines.push(text);
+                            }}
+                        }});
+                        return lines.join('\n');
+                    }}
+                    async function saveChanges() {{
+                        const updated = getUpdatedContent();
+                        const client_id = "{client_id}";
+                        const filename = "{filename}";
+                        const res = await fetch(`/update_transcription/${{client_id}}/${{filename}}`, {{
+                            method: 'POST',
+                            headers: {{'Content-Type': 'application/x-www-form-urlencoded'}},
+                            body: new URLSearchParams({{content: updated}})
+                        }});
+                        if (res.ok) {{
+                            alert('Transcription sauvegardée.');
+                        }} else {{
+                            alert('Erreur lors de la sauvegarde.');
+                        }}
+                    }}
+                    </script>
                 </div>
             </div>
         </body>
         </html>
     """)
+
+@app.post("/update_transcription/{client_id}/{filename}")
+async def update_transcription_route(client_id: str, filename: str, content: str = Form(...)):
+    file_path = os.path.join(TRANSCRIPTIONS_DIR, client_id, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Fichier introuvable.")
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    return {"status": "ok"}
+
+@app.post("/save_live_transcription/{client_id}")
+async def save_live_transcription_route(client_id: str, content: str = Form(...)):
+    out_dir = os.path.join(TRANSCRIPTIONS_DIR, client_id)
+    os.makedirs(out_dir, exist_ok=True)
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"live_{ts}.txt"
+    file_path = os.path.join(out_dir, filename)
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    return {"status": "ok", "filename": filename}
 
 @app.get("/status/{file_id}")
 async def status_route(file_id: str):

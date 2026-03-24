@@ -276,6 +276,20 @@ HTML_UI = r"""<!DOCTYPE html>
     }
 
     function stopRecording() {
+        // Save live transcription if any
+        const transcriptBox = document.getElementById('liveTranscript');
+        const transcriptText = transcriptBox.innerText.trim();
+        if (transcriptText) {
+            const clientId = getClientId();
+            fetch(`/save_live_transcription/${clientId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: new URLSearchParams({content: transcriptText})
+            }).then(res => {
+                if (!res.ok) console.error('Failed to save live transcription');
+                else loadHistory();
+            }).catch(err => console.error(err));
+        }
         if (ws) { ws.close(); ws = null; }
         if (audioContext) { audioContext.close(); audioContext = null; }
         if (audioStream) { audioStream.getTracks().forEach(track => track.stop()); audioStream = null; }
