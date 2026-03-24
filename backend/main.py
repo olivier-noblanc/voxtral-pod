@@ -32,7 +32,7 @@ async def startup_event():
     asr_engine.load()
 
 @app.get("/")
-def home():
+def home(request: Request):
     try:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     except ImportError:
@@ -40,12 +40,19 @@ def home():
     no_gpu = "true" if device == "cpu" else "false"
     import subprocess
     commit = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    ws_protocol = "wss:" if request.url.scheme == "https" else "ws:"
+    # Calcul de l'URL WebSocket
+    protocol = "wss" if request.url.scheme == "https" else "ws"
+    host = request.headers.get("host")
+    ws_url = f"{protocol}://{host}/live?client_id=${{getClientId()}}&partial_albert=${{partialAlbert}}"
     return HTMLResponse(
         content=HTML_UI
             .replace("{{model_name}}", model_name)
             .replace("{{device}}", device)
             .replace("{{no_gpu}}", no_gpu)
             .replace("{{commit}}", commit)
+            .replace("{{ws_protocol}}", ws_protocol)
+            .replace("{{ws_url}}", ws_url)
     )
 
 @app.websocket("/live")

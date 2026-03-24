@@ -245,7 +245,7 @@ HTML_UI = r"""<!DOCTYPE html>
             else { btnRecord.disabled = true; btnSystem.classList.add('recording'); }
             barCont.style.display = 'block';
             const partialAlbert = document.getElementById('albertPartial').checked;
-            ws = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/live?client_id=${getClientId()}&partial_albert=${partialAlbert}`);
+            ws = new WebSocket(`{{ws_url}}`);
             ws.binaryType = 'arraybuffer';
             audioContext = new AudioContext({ sampleRate: 16000 });
             source = audioContext.createMediaStreamSource(audioStream);
