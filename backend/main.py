@@ -4,6 +4,7 @@ import asyncio
 import datetime
 import torch
 import re
+import json
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Form, BackgroundTasks, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, PlainTextResponse
@@ -185,18 +186,23 @@ def format_transcription(text: str) -> str:
         match = re.match(r'^\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)$', line.strip())
         if match:
             time_str, speaker, content = match.groups()
+            # Échapper les caractères spéciaux pour éviter les erreurs JavaScript
+            escaped_time = json.dumps(time_str)[1:-1]  # Supprime les guillemets externes
+            escaped_speaker = json.dumps(speaker)[1:-1]
+            escaped_content = json.dumps(content)[1:-1]
             html_parts.append(f"""
                 <div class="segment">
                     <div class="segment-header">
-                        <span class="segment-time">{time_str}</span>
-                        <span class="segment-speaker" data-speaker="{speaker}">{speaker}</span>
+                        <span class="segment-time">{escaped_time}</span>
+                        <span class="segment-speaker" data-speaker="{escaped_speaker}">{escaped_speaker}</span>
                     </div>
-                    <div class="segment-text">{content}</div>
+                    <div class="segment-text">{escaped_content}</div>
                 </div>
             """)
         elif line.strip():
             # Si la ligne ne correspond pas au format, on l'affiche simplement
-            html_parts.append(f"<p>{line}</p>")
+            escaped_line = json.dumps(line)[1:-1]
+            html_parts.append(f"<p>{escaped_line}</p>")
     return "\n".join(html_parts)
 
 @app.get("/view/{client_id}/{filename}")
