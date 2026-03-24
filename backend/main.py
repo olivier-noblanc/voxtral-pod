@@ -11,6 +11,11 @@ from backend.config import setup_gpu, setup_warnings, TRANSCRIPTIONS_DIR, TEMP_D
 from backend.html_ui import HTML_UI
 from backend.core.engine import SotaASR
 from backend.core.live import LiveSession
+# Optional import of boto3 for S3 uploads. Wrapped in try/except to avoid import errors if boto3 is not installed.
+try:
+    import boto3
+except ImportError:
+    boto3 = None
 
 app = FastAPI(title="SOTA ASR Server", version="4.0.0")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -254,28 +259,28 @@ async def view_transcription(client_id: str, filename: str, request: Request):
                     function initSpeakerEditor() {{
                         const speakerSpans = document.querySelectorAll('.segment-speaker');
                         const speakers = new Set();
-                        speakerSpans.forEach(span => {{
+                        speakerSpans.forEach(function(span) {{
                             const speaker = span.dataset.speaker;
                             if (speaker) speakers.add(speaker);
                         }});
                         const listDiv = document.getElementById('speakerRenameList');
                         listDiv.innerHTML = '';
-                        speakers.forEach(speaker => {{
+                        speakers.forEach(function(speaker) {{
                             const colDiv = document.createElement('div');
                             colDiv.className = 'fr-col-12 fr-col-md-6';
                             const label = document.createElement('label');
-                            label.htmlFor = `speaker-input-${{speaker}}`;
-                            label.textContent = `Speaker "${{speaker}}" :`;
+                            label.htmlFor = 'speaker-input-' + speaker;
+                            label.textContent = 'Speaker "' + speaker + '" :';
                             const input = document.createElement('input');
                             input.type = 'text';
-                            input.id = `speaker-input-${{speaker}}`;
+                            input.id = 'speaker-input-' + speaker;
                             input.value = speaker;
                             input.className = 'fr-input';
                             input.dataset.currentSpeaker = speaker;
-                            input.addEventListener('input', (e) => {{
+                            input.addEventListener('input', function(e) {{
                                 const newName = e.target.value;
                                 const oldName = e.target.dataset.currentSpeaker;
-                                document.querySelectorAll(`.segment-speaker[data-speaker="${{oldName}}"]`).forEach(span => {{
+                                document.querySelectorAll('.segment-speaker[data-speaker="' + oldName + '"]').forEach(function(span) {{
                                     span.textContent = newName;
                                     span.dataset.speaker = newName;
                                 }});
@@ -289,12 +294,15 @@ async def view_transcription(client_id: str, filename: str, request: Request):
                     function getUpdatedContent() {{
                         const segments = document.querySelectorAll('.segment');
                         const lines = [];
-                        segments.forEach(seg => {{
-                            const time = seg.querySelector('.segment-time')?.textContent.trim() || '';
-                            const speaker = seg.querySelector('.segment-speaker')?.textContent.trim() || '';
-                            const text = seg.querySelector('.segment-text')?.textContent.trim() || '';
+                        segments.forEach(function(seg) {{
+                            const timeElem = seg.querySelector('.segment-time');
+                            const time = timeElem ? timeElem.textContent.trim() : '';
+                            const speakerElem = seg.querySelector('.segment-speaker');
+                            const speaker = speakerElem ? speakerElem.textContent.trim() : '';
+                            const textElem = seg.querySelector('.segment-text');
+                            const text = textElem ? textElem.textContent.trim() : '';
                             if (time && speaker) {{
-                                lines.push(`[${{time}}] [${{speaker}}] ${{text}}`);
+                                lines.push('[' + time + '] [' + speaker + '] ' + text);
                             }} else if (text) {{
                                 lines.push(text);
                             }}
@@ -305,7 +313,7 @@ async def view_transcription(client_id: str, filename: str, request: Request):
                         const updated = getUpdatedContent();
                         const client_id = "{client_id}";
                         const filename = "{filename}";
-                        const res = await fetch(`/update_transcription/${{client_id}}/${{filename}}`, {{
+                        const res = await fetch('/update_transcription/' + client_id + '/' + filename, {{
                             method: 'POST',
                             headers: {{'Content-Type': 'application/x-www-form-urlencoded'}},
                             body: new URLSearchParams({{content: updated}})
@@ -353,8 +361,9 @@ async def upload_s3_route(
     endpoint: str = Form(...), bucket: str = Form(...),
     access_key: str = Form(...), secret_key: str = Form(...)
 ):
+    if boto3 is None:
+        raise HTTPException(status_code=500, detail="Le module boto3 n'est pas installé. Veuillez l'installer pour pouvoir télécharger sur S3.")
     try:
-        import boto3
         s3 = boto3.client('s3', endpoint_url=endpoint, aws_access_key_id=access_key, aws_secret_access_key=secret_key)
         s3.put_object(Bucket=bucket, Key=filename, Body=content.encode("utf-8"), ContentType='text/plain; charset=utf-8')
         return {"status": "ok"}
