@@ -99,14 +99,26 @@ class SotaASR:
             except Exception:
                 pass
 
-        diar_segments = await asyncio.to_thread(self.diarization_engine.diarize, audio_np, hook=diar_hook)
+        # Déterminer si on doit paralléliser (uniquement pour Albert)
+        parallel = (self.model_id == "albert")
 
-        # 3. Transcribe
-        if progress_callback: progress_callback("Transcription en cours...", 45)
-        
-        # Note: TranscriptionEngine returns words directly now
-        words, _ = await asyncio.to_thread(self.transcription_engine.transcribe, audio_np, progress_callback=progress_callback)
-        if progress_callback: progress_callback("Transcription terminée", 95)
+        if parallel:
+            # Lancement concurrent sans callbacks pour éviter les conflits
+            if progress_callback:
+                progress_callback("Diarisation et transcription en parallèle...", 10)
+            diar_task = asyncio.to_thread(self.diarization_engine.diarize, audio_np, hook=None)
+            trans_task = asyncio.to_thread(self.transcription_engine.transcribe, audio_np, progress_callback=None)
+            diar_segments, (words, _) = await asyncio.gather(diar_task, trans_task)
+            if progress_callback:
+                progress_callback("Fusion des résultats...", 80)
+        else:
+            # Mode séquentiel original (avec progression détaillée)
+            if progress_callback:
+                progress_callback("Diarisation...", 5)
+            diar_segments = await asyncio.to_thread(self.diarization_engine.diarize, audio_np, hook=None)
+            if progress_callback:
+                progress_callback("Transcription...", 45)
+            words, _ = await asyncio.to_thread(self.transcription_engine.transcribe, audio_np, progress_callback=progress_callback)
 
         # 4. Merge (TranscriptionSuite Reference)
         words_with_speakers = assign_speakers_to_words(words, diar_segments)
