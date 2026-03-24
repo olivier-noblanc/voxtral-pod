@@ -14,9 +14,9 @@ from backend.core.engine import SotaASR
 from backend.core.live import LiveSession
 # Optional import of boto3 for S3 uploads. Wrapped in try/except to avoid import errors if boto3 is not installed.
 
-import boto3
-import dulwich
-from dulwich.repo import Repo
+import boto3 # pyright: ignore[reportMissingImports]
+import dulwich  # noqa: F401
+from dulwich.repo import Repo # pyright: ignore[reportMissingImports]
 
 
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
