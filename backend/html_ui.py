@@ -318,7 +318,7 @@ HTML_UI = r"""<!DOCTYPE html>
                 // Déterminer si c'est un fichier de transcription batch ou live
                 const isBatch = f.startsWith('batch_');
                 const audioFilename = isBatch ? f.replace('.txt', '.wav') : f.replace('.txt', '.wav');
-                const downloadUrl = `/download_audio/${getClientId()}/${audioFilename}`;
+                const downloadUrl = `/download/${getClientId()}/${f}`;
                 return `
                     <div class="fr-col-12 fr-col-md-4">
                         <div class="fr-card fr-card--sm" style="padding:1rem; border:1px solid #3a3a3a;">
@@ -427,31 +427,20 @@ HTML_UI = r"""<!DOCTYPE html>
     <script>
     async function checkGitStatus() {
         try {
-            console.log('🔍 checkGitStatus – démarrage');
             const resp = await fetch('/git_status');
             const data = await resp.json();
-            console.log('🔍 git_status response :', data);
-            const latestCommit = data.commit;
-            const clientCommit = document.body.dataset.commit;
-            console.log('🔍 clientCommit =', clientCommit, 'latestCommit =', latestCommit);
-            
-            // Vérifier si on est en retard par rapport au remote
-            if (data.behind !== undefined && data.behind > 0) {
-                alert(`⚠️ Vous êtes ${data.behind} commit(s) en retard par rapport au dépôt distant.`);
-            }
-            
-            if (clientCommit && clientCommit !== latestCommit) {
-                if (confirm('Une nouvelle version du serveur est disponible. Voulez‑vous mettre à jour maintenant ?')) {
-                    console.log('🔄 appel à /git_update');
-                    const updResp = await fetch('/git_update', {method: 'POST'});
+            console.log('🔍 git_status:', data);
+
+            if (data.behind > 0) {
+                if (confirm(`⚠️ ${data.behind} commit(s) disponible(s). Mettre à jour maintenant ?`)) {
+                    const updResp = await fetch('/git_update', { method: 'POST' });
                     const updData = await updResp.json();
-                    console.log('🔄 git_update response :', updData);
-                    alert('Mise à jour terminée:\n' + updData.stdout);
+                    alert('Mise à jour:\n' + updData.stdout);
                     location.reload();
                 }
             }
         } catch (e) {
-            console.error('Erreur lors de la vérification du statut git :', e);
+            console.error('Erreur git status:', e);
         }
     }
     window.addEventListener('load', checkGitStatus);

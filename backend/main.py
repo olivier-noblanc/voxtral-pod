@@ -5,6 +5,7 @@ import datetime
 import torch
 import re
 import json
+import html
 import threading
 import sys
 import boto3 # pyright: ignore[reportMissingImports]
@@ -195,27 +196,20 @@ def format_transcription(text: str) -> str:
     lines = text.split('\n')
     html_parts = []
     for line in lines:
-        # Expression régulière pour capturer les segments
         match = re.match(r'^\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)$', line.strip())
         if match:
             time_str, speaker, content = match.groups()
-            # Échapper les caractères spéciaux pour éviter les erreurs JavaScript
-            escaped_time = json.dumps(time_str)[1:-1]  # Supprime les guillemets externes
-            escaped_speaker = json.dumps(speaker)[1:-1]
-            escaped_content = json.dumps(content)[1:-1]
             html_parts.append(f"""
                 <div class="segment">
                     <div class="segment-header">
-                        <span class="segment-time">{escaped_time}</span>
-                        <span class="segment-speaker" data-speaker="{escaped_speaker}">{escaped_speaker}</span>
+                        <span class="segment-time">{html.escape(time_str)}</span>
+                        <span class="segment-speaker" data-speaker="{html.escape(speaker)}">{html.escape(speaker)}</span>
                     </div>
-                    <div class="segment-text">{escaped_content}</div>
+                    <div class="segment-text">{html.escape(content)}</div>
                 </div>
             """)
         elif line.strip():
-            # Si la ligne ne correspond pas au format, on l'affiche simplement
-            escaped_line = json.dumps(line)[1:-1]
-            html_parts.append(f"<p>{escaped_line}</p>")
+            html_parts.append(f"<p>{html.escape(line)}</p>")
     return "\n".join(html_parts)
 
 @app.get("/view/{client_id}/{filename}")
