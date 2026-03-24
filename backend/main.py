@@ -58,7 +58,7 @@ def home(request: Request):
     # Calcul de l'URL WebSocket
     protocol = "wss" if request.url.scheme == "https" else "ws"
     host = request.headers.get("host")
-    ws_url = f"{protocol}://{host}/live?client_id=${{getClientId()}}&partial_albert=${{partialAlbert}}"
+    ws_url = f"{protocol}://{host}/live?client_id={{getClientId()}}&partial_albert={{partialAlbert}}"
     return HTMLResponse(
         content=HTML_UI
             .replace("{{model_name}}", model_name)
