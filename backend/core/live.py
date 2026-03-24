@@ -4,6 +4,7 @@ import os
 import datetime
 from fastapi import WebSocket
 from backend.core.vad import VADManager, SAMPLE_RATE
+from backend.config import TRANSCRIPTIONS_DIR
 
 # Diarization batch interval (seconds of audio accumulated before running Pyannote)
 DIAR_BATCH_INTERVAL_SEC = 300  # 5 minutes
@@ -92,6 +93,30 @@ class LiveSession:
                         self.sentence_buffer = bytearray()
                         if len(pcm_data) >= self.min_segment_bytes:
                             await self._transcribe_segment(pcm_data, final=True)
+
+    async def save_audio_file(self):
+        """Sauvegarde les données audio dans un fichier WAV."""
+        if not self.full_session_audio:
+            return None
+            
+        # Créer le répertoire pour les fichiers audio
+        audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "live_audio")
+        os.makedirs(audio_dir, exist_ok=True)
+        
+        # Générer le nom de fichier basé sur client_id et timestamp
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"live_{self.client_id}_{timestamp}.wav"
+        filepath = os.path.join(audio_dir, filename)
+        
+        # Convertir les données audio en format WAV
+        # Pour cela, nous devons reconstruire les données audio complètes
+        audio_bytes = b''.join(self.full_session_audio)
+        
+        # Sauvegarder le fichier audio brut (format PCM)
+        with open(filepath, 'wb') as f:
+            f.write(audio_bytes)
+            
+        return filename
 
     async def _transcribe_segment(self, pcm_data, final=True):
         """Invoke engine transcription and send via WS."""

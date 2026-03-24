@@ -8,7 +8,7 @@ import json
 import threading
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Form, BackgroundTasks, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
 from backend.config import setup_gpu, setup_warnings, TRANSCRIPTIONS_DIR, TEMP_DIR
 from backend.html_ui import HTML_UI
 from backend.core.engine import SotaASR
@@ -87,6 +87,8 @@ async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", part
         await session.audio_queue.put(None)
         await processor_task
         if session.full_session_audio:
+            # Sauvegarder les données audio
+            audio_filename = await session.save_audio_file()
             # Final pass can be added here if needed, reused from run_batch_job logic
             pass
 
@@ -174,6 +176,15 @@ async def run_batch_job(path, file_id, client_id):
         txt_path = os.path.join(out_dir, f"batch_{ts}.txt")
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(transcript)
+        
+        # Sauvegarder le fichier audio original pour le téléchargement
+        audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "batch_audio")
+        os.makedirs(audio_dir, exist_ok=True)
+        audio_filename = f"batch_{client_id}_{ts}.wav"
+        audio_path = os.path.join(audio_dir, audio_filename)
+        # Copier le fichier audio original
+        import shutil
+        shutil.copy2(path, audio_path)
         
         jobs_db[file_id] = {"status": "done", "result": transcript[:500] + "..."}
     except Exception as e:
@@ -370,6 +381,19 @@ async def update_transcription_route(client_id: str, filename: str, content: str
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
     return {"status": "ok"}
+
+@app.get("/download_audio/{client_id}/{filename}")
+async def download_audio(client_id: str, filename: str):
+    # Chemin vers les fichiers audio enregistrés
+    audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "live_audio")
+    file_path = os.path.join(audio_dir, filename)
+    
+    # Vérifier si le fichier existe
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Fichier audio non trouvé.")
+    
+    # Retourner le fichier
+    return FileResponse(file_path, media_type="audio/wav", filename=filename)
 
 @app.post("/save_live_transcription/{client_id}")
 async def save_live_transcription_route(client_id: str, content: str = Form(...)):

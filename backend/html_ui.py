@@ -314,14 +314,21 @@ HTML_UI = r"""<!DOCTYPE html>
         try {
             const res = await fetch(`/transcriptions?client_id=${getClientId()}`);
             const files = await res.json();
-            list.innerHTML = files.map(f => `
-                <div class="fr-col-12 fr-col-md-4">
-                    <div class="fr-card fr-card--sm" style="padding:1rem; border:1px solid #3a3a3a;">
-                        <h4 class="fr-card__title" style="font-size:0.8rem">${f}</h4>
-                        <a href="/view/${getClientId()}/${f}" class="fr-btn fr-btn--sm fr-mt-1w">Voir</a>
+            list.innerHTML = files.map(f => {
+                // Déterminer si c'est un fichier de transcription batch ou live
+                const isBatch = f.startsWith('batch_');
+                const audioFilename = isBatch ? f.replace('.txt', '.wav') : f.replace('.txt', '.wav');
+                const downloadUrl = `/download_audio/${getClientId()}/${audioFilename}`;
+                return `
+                    <div class="fr-col-12 fr-col-md-4">
+                        <div class="fr-card fr-card--sm" style="padding:1rem; border:1px solid #3a3a3a;">
+                            <h4 class="fr-card__title" style="font-size:0.8rem">${f}</h4>
+                            <a href="/view/${getClientId()}/${f}" class="fr-btn fr-btn--sm fr-mt-1w">Voir</a>
+                            <a href="${downloadUrl}" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger</a>
+                        </div>
                     </div>
-                </div>
-            `).join('') || "Aucune.";
+                `;
+            }).join('') || "Aucune.";
         } catch (e) { list.innerHTML = "Erreur."; }
     }
 
