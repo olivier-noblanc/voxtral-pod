@@ -349,7 +349,8 @@ async def view_transcription(client_id: str, filename: str, request: Request):
                                 lines.push(text);
                             }}
                         }});
-                        return lines.join('\\n');
+                        var sep = String.fromCharCode(10);
+                        return lines.join(sep);
                     }}
                     async function saveChanges() {{
                         const updated = getUpdatedContent();
