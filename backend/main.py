@@ -14,6 +14,8 @@ from backend.core.live import LiveSession
 # Optional import of boto3 for S3 uploads. Wrapped in try/except to avoid import errors if boto3 is not installed.
 
 import boto3
+import dulwich
+from dulwich.repo import Repo
 
 
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -44,9 +46,13 @@ def home(request: Request):
     except ImportError:
         device = "cpu"
     no_gpu = "true" if device == "cpu" else "false"
-    import subprocess
-    commit = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
-    print(f"[DEBUG] home() – commit envoyé au client : {commit}")
+    try:
+        repo = Repo(".")
+        commit = repo.head().decode()
+        print(f"[DEBUG] home() – commit envoyé au client : {commit}")
+    except Exception as e:
+        print(f"[ERROR] home() – erreur lors de la récupération du commit : {e}")
+        commit = "unknown"
     ws_protocol = "wss:" if request.url.scheme == "https" else "ws:"
     # Calcul de l'URL WebSocket
     protocol = "wss" if request.url.scheme == "https" else "ws"
@@ -374,11 +380,14 @@ async def status_route(file_id: str):
 
 @app.get("/git_status")
 async def git_status():
-    import subprocess
-    result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True)
-    commit = result.stdout.strip()
-    print(f"[DEBUG] git_status() – commit actuel : {commit}")
-    return {"commit": commit}
+    try:
+        repo = Repo(".")
+        commit = repo.head().decode()
+        print(f"[DEBUG] git_status() – commit actuel : {commit}")
+        return {"commit": commit}
+    except Exception as e:
+        print(f"[ERROR] git_status() – erreur lors de la récupération du commit : {e}")
+        return {"commit": "unknown"}
 
 @app.post("/git_update")
 async def git_update():
