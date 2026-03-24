@@ -406,21 +406,40 @@ async def git_status():
                 remote_commit = remote_refs[remote_branch_ref].decode()
                 
                 # Calculer le nombre de commits en retard
-                # Utiliser git log pour comparer les commits
-                import subprocess
+                # Utiliser dulwich pour comparer les commits
                 try:
-                    # Exécuter la commande git pour obtenir le nombre de commits en retard
-                    result = subprocess.run(
-                        ["git", "rev-list", "--count", f"{local_commit}..{remote_commit}"],
-                        capture_output=True,
-                        text=True,
-                        cwd="."
-                    )
+                    # Obtenir les commits communs entre local et distant
+                    local_commit_obj = repo.get_object(local_commit.encode())
+                    remote_commit_obj = repo.get_object(remote_commit.encode())
                     
-                    if result.returncode == 0:
-                        behind_count = int(result.stdout.strip())
-                    else:
-                        behind_count = -1  # Erreur dans la commande git
+                    # Utiliser dulwich pour trouver les commits en commun
+                    # et compter ceux qui sont présents dans remote mais pas dans local
+                    from dulwich.objects import Commit
+                    from dulwich.diff_tree import tree_changes
+                    
+                    # Créer un ensemble des commits locaux
+                    local_commits = set()
+                    current_commit = local_commit_obj
+                    
+                    # Parcourir les commits locaux
+                    while current_commit is not None:
+                        local_commits.add(current_commit.id.decode())
+                        if len(current_commit.parents) == 0:
+                            break
+                        current_commit = repo.get_object(current_commit.parents[0])
+                    
+                    # Compter les commits distants qui ne sont pas locaux
+                    behind_count = 0
+                    current_remote = remote_commit_obj
+                    
+                    # Parcourir les commits distants jusqu'à atteindre un commit commun
+                    while current_remote is not None:
+                        if current_remote.id.decode() in local_commits:
+                            break
+                        behind_count += 1
+                        if len(current_remote.parents) == 0:
+                            break
+                        current_remote = repo.get_object(current_remote.parents[0])
                         
                 except Exception as e:
                     print(f"[ERROR] git_status() – erreur lors du calcul des commits en retard : {e}")
@@ -441,31 +460,48 @@ async def git_status():
 
 @app.post("/git_update")
 async def git_update():
-    import subprocess
     import os
+    import sys
     
     print("[DEBUG] git_update() – mise à jour et redémarrage automatique")
     
     try:
-        # Détection du port utilisé par l'application en cours
-        # On utilise une approche simple basée sur le port standard
-        # Pour une détection plus précise, on pourrait analyser les processus
-        # mais pour simplifier, on utilise le port 8000 qui est le port standard
-        port = "8000"
+        # Utiliser dulwich pour faire un pull
+        repo = Repo(".")
         
-        # Créer une commande shell unique qui tue le processus et redémarre l'application
-        # Utilisation de && pour chaîner les commandes
-        command = f"lsof -t -i:{port} | xargs kill -TERM && bash run.sh"
+        # Obtenir les références distantes
+        remote_refs = repo.get_refs()
         
-        print(f"[INFO] Exécution de la commande de redémarrage: {command}")
+        # Trouver la branche 'origin/main' ou 'origin/master'
+        remote_branch_ref = b"refs/remotes/origin/main"
+        if remote_branch_ref not in remote_refs:
+            remote_branch_ref = b"refs/remotes/origin/master"
         
-        # Exécuter la commande dans un sous-processus
-        subprocess.Popen(
-            command,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
+        if remote_branch_ref in remote_refs:
+            # Obtenir le commit distant
+            remote_commit = remote_refs[remote_branch_ref]
+            
+            # Effectuer un pull avec dulwich
+            try:
+                # Récupérer les changements distants
+                repo.fetch(remote_refs)
+                
+                # Mettre à jour la branche locale
+                local_ref = b"refs/heads/main"
+                if local_ref not in repo.refs:
+                    local_ref = b"refs/heads/master"
+                
+                if local_ref in repo.refs:
+                    # Mettre à jour la référence locale vers le commit distant
+                    repo.refs[local_ref] = remote_commit
+                    
+            except Exception as e:
+                print(f"[ERROR] git_update() – erreur lors du pull : {e}")
+                return {"stdout": f"Erreur lors du pull : {str(e)}", "stderr": ""}
+        
+        # Redémarrer l'application en utilisant sys.executable
+        print("[INFO] Redémarrage de l'application...")
+        os.execv(sys.executable, [sys.executable] + sys.argv)
         
         # Retourner immédiatement une réponse
         return {"stdout": "Mise à jour terminée. Redémarrage en cours...", "stderr": ""}
