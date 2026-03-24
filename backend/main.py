@@ -7,6 +7,10 @@ import re
 import json
 import threading
 import sys
+import boto3 # pyright: ignore[reportMissingImports]
+import dulwich  # noqa: F401
+from dulwich.repo import Repo # pyright: ignore[reportMissingImports]
+from dulwich import porcelain
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Form, BackgroundTasks, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
@@ -15,11 +19,6 @@ from backend.html_ui import HTML_UI
 from backend.core.engine import SotaASR
 from backend.core.live import LiveSession
 # Optional import of boto3 for S3 uploads. Wrapped in try/except to avoid import errors if boto3 is not installed.
-
-import boto3 # pyright: ignore[reportMissingImports]
-import dulwich  # noqa: F401
-from dulwich.repo import Repo # pyright: ignore[reportMissingImports]
-from dulwich import porcelain
 
 
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
