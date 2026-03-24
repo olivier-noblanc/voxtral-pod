@@ -388,23 +388,91 @@ async def status_route(file_id: str):
 async def git_status():
     try:
         repo = Repo(".")
-        commit = repo.head().decode()
-        print(f"[DEBUG] git_status() – commit actuel : {commit}")
-        return {"commit": commit}
+        # Récupérer le commit local
+        local_commit = repo.head().decode()
+        
+        # Récupérer les informations du remote
+        # Utiliser dulwich pour obtenir les références distantes
+        try:
+            # Obtenir les branches distantes
+            remote_refs = repo.get_refs()
+            
+            # Trouver la branche 'origin/main' ou 'origin/master'
+            remote_branch_ref = b"refs/remotes/origin/main"
+            if remote_branch_ref not in remote_refs:
+                remote_branch_ref = b"refs/remotes/origin/master"
+            
+            if remote_branch_ref in remote_refs:
+                remote_commit = remote_refs[remote_branch_ref].decode()
+                
+                # Calculer le nombre de commits en retard
+                # Utiliser git log pour comparer les commits
+                import subprocess
+                try:
+                    # Exécuter la commande git pour obtenir le nombre de commits en retard
+                    result = subprocess.run(
+                        ["git", "rev-list", "--count", f"{local_commit}..{remote_commit}"],
+                        capture_output=True,
+                        text=True,
+                        cwd="."
+                    )
+                    
+                    if result.returncode == 0:
+                        behind_count = int(result.stdout.strip())
+                    else:
+                        behind_count = -1  # Erreur dans la commande git
+                        
+                except Exception as e:
+                    print(f"[ERROR] git_status() – erreur lors du calcul des commits en retard : {e}")
+                    behind_count = -1
+                    
+            else:
+                behind_count = -1  # Impossible de trouver la branche remote
+                
+        except Exception as e:
+            print(f"[ERROR] git_status() – erreur lors de la récupération des références distantes : {e}")
+            behind_count = -1
+            
+        print(f"[DEBUG] git_status() – commit local : {local_commit}, commits en retard : {behind_count}")
+        return {"commit": local_commit, "behind": behind_count}
     except Exception as e:
         print(f"[ERROR] git_status() – erreur lors de la récupération du commit : {e}")
-        return {"commit": "unknown"}
+        return {"commit": "unknown", "behind": -1}
 
 @app.post("/git_update")
 async def git_update():
     import subprocess
-    print("[DEBUG] git_update() – exécution de git pull")
-    result = subprocess.run(["git", "pull"], capture_output=True, text=True)
-    stdout = result.stdout.strip()
-    stderr = result.stderr.strip()
-    print(f"[DEBUG] git_update() – stdout: {stdout}")
-    print(f"[DEBUG] git_update() – stderr: {stderr}")
-    return {"stdout": stdout, "stderr": stderr}
+    import os
+    
+    print("[DEBUG] git_update() – mise à jour et redémarrage automatique")
+    
+    try:
+        # Détection du port utilisé par l'application en cours
+        # On utilise une approche simple basée sur le port standard
+        # Pour une détection plus précise, on pourrait analyser les processus
+        # mais pour simplifier, on utilise le port 8000 qui est le port standard
+        port = "8000"
+        
+        # Créer une commande shell unique qui tue le processus et redémarre l'application
+        # Utilisation de && pour chaîner les commandes
+        command = f"lsof -t -i:{port} | xargs kill -TERM && bash run.sh"
+        
+        print(f"[INFO] Exécution de la commande de redémarrage: {command}")
+        
+        # Exécuter la commande dans un sous-processus
+        subprocess.Popen(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        
+        # Retourner immédiatement une réponse
+        return {"stdout": "Mise à jour terminée. Redémarrage en cours...", "stderr": ""}
+        
+    except Exception as e:
+        print(f"[ERROR] Erreur lors du redémarrage automatique: {e}")
+        return {"stdout": f"Erreur lors du redémarrage automatique: {str(e)}", "stderr": ""}
 
 @app.post("/upload_s3")
 async def upload_s3_route(

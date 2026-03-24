@@ -157,7 +157,6 @@ if [ -n "$CERT_FILE" ] && [ -n "$KEY_FILE" ]; then
     echo "[*] Certificat détecté : $CERT_FILE"
     echo "[*] Clé détectée       : $KEY_FILE"
     echo "[*] Démarrage en HTTPS → https://10.25.22.104:8000"
-    
     "$VENV_DIR/bin/uvicorn" backend.main:app  --host 0.0.0.0 --port 8000 --ssl-certfile "$CERT_FILE"  --ssl-keyfile  "$KEY_FILE"
 else
     echo "[!] Aucun certificat trouvé → démarrage en HTTP"

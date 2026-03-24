@@ -427,6 +427,12 @@ HTML_UI = r"""<!DOCTYPE html>
             const latestCommit = data.commit;
             const clientCommit = document.body.dataset.commit;
             console.log('🔍 clientCommit =', clientCommit, 'latestCommit =', latestCommit);
+            
+            // Vérifier si on est en retard par rapport au remote
+            if (data.behind !== undefined && data.behind > 0) {
+                alert(`⚠️ Vous êtes ${data.behind} commit(s) en retard par rapport au dépôt distant.`);
+            }
+            
             if (clientCommit && clientCommit !== latestCommit) {
                 if (confirm('Une nouvelle version du serveur est disponible. Voulez‑vous mettre à jour maintenant ?')) {
                     console.log('🔄 appel à /git_update');
