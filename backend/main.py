@@ -12,12 +12,18 @@ from backend.html_ui import HTML_UI
 from backend.core.engine import SotaASR
 from backend.core.live import LiveSession
 # Optional import of boto3 for S3 uploads. Wrapped in try/except to avoid import errors if boto3 is not installed.
-try:
-    import boto3
-except ImportError:
-    boto3 = None
+
+import boto3
+
+
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 app = FastAPI(title="SOTA ASR Server", version="4.0.0")
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
+app.add_middleware(HTTPSRedirectMiddleware)
+app.add_middleware(ProxyHeadersMiddleware)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Global state
