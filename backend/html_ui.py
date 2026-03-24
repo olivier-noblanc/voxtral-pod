@@ -318,7 +318,7 @@ HTML_UI = r"""<!DOCTYPE html>
                 // Déterminer si c'est un fichier de transcription batch ou live
                 const isBatch = f.startsWith('batch_');
                 const audioFilename = isBatch ? f.replace('.txt', '.wav') : f.replace('.txt', '.wav');
-                const downloadUrl = `/download/${getClientId()}/${f}`;
+                const downloadUrl = `/download_audio/${getClientId()}/${audioFilename}`;
                 return `
                     <div class="fr-col-12 fr-col-md-4">
                         <div class="fr-card fr-card--sm" style="padding:1rem; border:1px solid #3a3a3a;">

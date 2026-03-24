@@ -349,7 +349,7 @@ async def view_transcription(client_id: str, filename: str, request: Request):
                                 lines.push(text);
                             }}
                         }});
-                        return lines.join('\n');
+                        return lines.join('\\n');
                     }}
                     async function saveChanges() {{
                         const updated = getUpdatedContent();
@@ -385,8 +385,14 @@ async def update_transcription_route(client_id: str, filename: str, content: str
 @app.get("/download_audio/{client_id}/{filename}")
 async def download_audio(client_id: str, filename: str):
     # Chemin vers les fichiers audio enregistrés
+    # Essayer d'abord dans le répertoire live_audio
     audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "live_audio")
     file_path = os.path.join(audio_dir, filename)
+    
+    # Si le fichier n'existe pas dans live_audio, essayer dans batch_audio
+    if not os.path.exists(file_path):
+        audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "batch_audio")
+        file_path = os.path.join(audio_dir, filename)
     
     # Vérifier si le fichier existe
     if not os.path.exists(file_path):
