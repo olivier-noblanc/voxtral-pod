@@ -5,6 +5,7 @@ import datetime
 import torch
 import re
 import json
+import threading
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Form, BackgroundTasks, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, PlainTextResponse
@@ -17,6 +18,7 @@ from backend.core.live import LiveSession
 import boto3 # pyright: ignore[reportMissingImports]
 import dulwich  # noqa: F401
 from dulwich.repo import Repo # pyright: ignore[reportMissingImports]
+from dulwich import porcelain
 
 
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -394,8 +396,15 @@ async def git_status():
         # Récupérer les informations du remote
         # Utiliser dulwich pour obtenir les références distantes
         try:
-            # Obtenir les branches distantes
-            remote_refs = repo.get_refs()
+            # Effectuer un fetch pour obtenir les dernières références distantes
+            # Cela permet de détecter les nouveaux push
+            try:
+                # Utiliser porcelain.fetch() pour obtenir les dernières références distantes
+                remote_refs = porcelain.fetch(repo, "origin")
+            except Exception as e:
+                print(f"[WARNING] git_status() – impossible de fetch les références distantes : {e}")
+                # Si le fetch échoue, utiliser les références locales existantes
+                remote_refs = repo.get_refs()
             
             # Trouver la branche 'origin/main' ou 'origin/master'
             remote_branch_ref = b"refs/remotes/origin/main"
@@ -458,11 +467,18 @@ async def git_status():
         print(f"[ERROR] git_status() – erreur lors de la récupération du commit : {e}")
         return {"commit": "unknown", "behind": -1}
 
+async def restart_after_delay():
+    # Attendre 1 seconde avant de redémarrer
+    await asyncio.sleep(1)
+    # Exécuter le processus actuel à nouveau
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
 @app.post("/git_update")
 async def git_update():
     import os
     import sys
-    
+    import asyncio
+
     print("[DEBUG] git_update() – mise à jour et redémarrage automatique")
     
     try:
@@ -470,7 +486,13 @@ async def git_update():
         repo = Repo(".")
         
         # Obtenir les références distantes
-        remote_refs = repo.get_refs()
+        try:
+            # Effectuer un fetch pour obtenir les dernières références distantes
+            remote_refs = porcelain.fetch(repo, "origin")
+        except Exception as e:
+            print(f"[WARNING] git_update() – impossible de fetch les références distantes : {e}")
+            # Si le fetch échoue, utiliser les références locales existantes
+            remote_refs = repo.get_refs()
         
         # Trouver la branche 'origin/main' ou 'origin/master'
         remote_branch_ref = b"refs/remotes/origin/main"
@@ -484,7 +506,7 @@ async def git_update():
             # Effectuer un pull avec dulwich
             try:
                 # Récupérer les changements distants
-                repo.fetch(remote_refs)
+                # repo.fetch(remote_refs)  # Déjà fait ci-dessus
                 
                 # Mettre à jour la branche locale
                 local_ref = b"refs/heads/main"
@@ -499,12 +521,15 @@ async def git_update():
                 print(f"[ERROR] git_update() – erreur lors du pull : {e}")
                 return {"stdout": f"Erreur lors du pull : {str(e)}", "stderr": ""}
         
-        # Redémarrer l'application en utilisant sys.executable
-        print("[INFO] Redémarrage de l'application...")
-        os.execv(sys.executable, [sys.executable] + sys.argv)
+        # Envoyer une réponse HTTP avant de redémarrer
+        response_data = {"stdout": "Mise à jour terminée. Redémarrage en cours...", "stderr": ""}
         
-        # Retourner immédiatement une réponse
-        return {"stdout": "Mise à jour terminée. Redémarrage en cours...", "stderr": ""}
+        # Lancer le redémarrage en arrière-plan avec asyncio
+        print("[INFO] Redémarrage de l'application en cours...")
+        restart_task = asyncio.create_task(restart_after_delay())
+        
+        # Retourner immédiatement la réponse HTTP
+        return response_data
         
     except Exception as e:
         print(f"[ERROR] Erreur lors du redémarrage automatique: {e}")
