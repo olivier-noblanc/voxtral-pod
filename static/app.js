@@ -439,8 +439,20 @@ async function checkGitStatus() {
             if (confirm('⚠️ ' + data.behind + ' commit(s) disponible(s). Mettre à jour maintenant ?')) {
                 const updResp = await fetch('/git_update', { method: 'POST' });
                 const updData = await updResp.json();
-                alert('Mise à jour:\n' + updData.stdout);
-                location.reload();
+                alert('Résultat de la mise à jour :\n' + (updData.stdout || "Succès."));
+                
+                // Afficher un message de redémarrage
+                const statusElem = document.getElementById('batchStatus');
+                if (statusElem) {
+                    statusElem.innerText = "🔄 Le serveur redémarre avec la nouvelle version... Veuillez patienter.";
+                    document.getElementById('uploadProgressContainer').style.display = 'block';
+                    document.getElementById('uploadProgressFill').style.width = '100%';
+                }
+                
+                // Attendre que le serveur redémarre (environ 10s)
+                setTimeout(() => {
+                    location.reload();
+                }, 10000);
             }
         }
     } catch (e) {

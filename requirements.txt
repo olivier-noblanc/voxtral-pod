@@ -27,4 +27,3 @@ soxr
 boto3
 matplotlib
 scikit-learn
-dulwich

@@ -45,9 +45,8 @@ def _update_job_status(job_id: str, status: str, progress: int = 0, result_file:
 async def home(request: Request):
     """Render the main HTML UI."""
     try:
-        from dulwich.repo import Repo
-        repo = Repo(".")
-        commit = repo.head().decode()
+        import subprocess
+        commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()[:7]
     except (Exception, ImportError):
         commit = "unknown"
     protocol = "wss" if request.url.scheme == "https" else "ws"
@@ -286,61 +285,40 @@ async def status_route(file_id: str):
 
 @router.get("/git_status")
 async def git_status():
-    """Return git status (behind count)."""
+    """Return git status (behind count) using standard git CLI."""
     try:
-        from dulwich.repo import Repo
-        from dulwich import porcelain
-        repo = Repo(".")
-        local_commit = repo.head().decode()
-        try:
-            porcelain.fetch(repo, "origin")
-        except Exception:
-            pass
-        refs = repo.get_refs()
-        remote_ref = b"refs/remotes/origin/main"
-        if remote_ref not in refs:
-            remote_ref = b"refs/remotes/origin/master"
-        if remote_ref not in refs:
-            return {"commit": local_commit, "behind": -1, "error": "remote ref introuvable"}
-        remote_sha = refs[remote_ref].decode()
-        # Count commits behind
-        behind = 0
-        local_obj = repo.get_object(local_commit.encode())
-        remote_obj = repo.get_object(remote_sha.encode())
-        while remote_obj.id != local_obj.id:
-            behind += 1
-            if not remote_obj.parents:
-                break
-            remote_obj = repo.get_object(remote_obj.parents[0])
-        return {"commit": local_commit, "behind": behind}
+        import subprocess
+        # Fetch quietly
+        subprocess.run(["git", "fetch", "origin", "main"], capture_output=True, check=False)
+        
+        # Current SHA
+        local_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        
+        # Behind count
+        behind_out = subprocess.check_output(["git", "rev-list", "--count", "HEAD..origin/main"], text=True).strip()
+        behind = int(behind_out) if behind_out.isdigit() else 0
+        
+        return {"commit": local_sha[:7], "behind": behind}
     except Exception as e:
         return {"commit": "unknown", "behind": -1, "error": str(e)}
 
 # ---------- POST routes ----------
 @router.post("/git_update")
 async def git_update():
-    """Pull latest git changes and restart."""
+    """Pull & Reset using Git CLI and restart the container."""
     try:
-        from dulwich.repo import Repo
-        from dulwich import porcelain
-        repo = Repo(".")
-        porcelain.fetch(repo, "origin")
-        refs = repo.get_refs()
-        remote_ref = b"refs/remotes/origin/main"
-        if remote_ref not in refs:
-            remote_ref = b"refs/remotes/origin/master"
-        remote_sha = refs[remote_ref]
-        local_ref = b"refs/heads/main"
-        if local_ref not in repo.refs:
-            local_ref = b"refs/heads/master"
-        repo.refs[local_ref] = remote_sha
-        porcelain.reset(repo, b"HEAD", b"hard")
+        import subprocess
+        # Force sync with origin/main (consistent with run.sh)
+        subprocess.run(["git", "fetch", "origin", "main"], check=True)
+        res = subprocess.run(["git", "reset", "--hard", "origin/main"], capture_output=True, text=True, check=True)
+        
         async def _restart():
-            import sys
-            await asyncio.sleep(1)
-            os.execv(sys.executable, [sys.executable] + sys.argv)
+            await asyncio.sleep(2)
+            print("[INFO] Git CLI update OK. Exiting container...")
+            os._exit(0)
+            
         asyncio.create_task(_restart())
-        return {"stdout": "Mise à jour OK, redémarrage...", "stderr": ""}
+        return {"stdout": res.stdout or "Mise à jour réussie. Redémarrage...", "stderr": ""}
     except Exception as e:
         return {"stdout": "", "stderr": str(e)}
 
