@@ -1,0 +1,14 @@
+/* Server custom styles */
+.style1 { color:#3B82F6; }
+.style2 { display:flex; gap:10px; align-items:center; margin-bottom:1rem; }
+.style3 { width:200px; margin-bottom:0; }
+.style4 { color:#10B981; }
+.style5 { display:none; margin-top:1rem; }
+.style6 { margin-top:1rem; font-weight:bold; color:#F59E0B; }
+.style7 { display:none; }
+.style8 { display:none; margin-top:1rem; }
+.style9 { display:flex; flex-direction:column; gap:5px; }
+.style10 { max-width:800px; width:90%; height:80vh; display:flex; flex-direction:column; }
+.style11 { flex:1; overflow-y:auto; background:#111827; color:#E5E7EB; padding:1rem; border-radius:4px; font-family:sans-serif; white-space:pre-wrap; }
+.style12 { padding:4px 12px; margin:0; }
+.style13 { display:flex; justify-content:space-between; align-items:center; background:#374151; padding:8px 12px; border-radius:6px; }

@@ -13,7 +13,7 @@ from fastapi import (
     File, UploadFile, Form, BackgroundTasks
 )
 from fastapi.responses import JSONResponse, HTMLResponse, PlainTextResponse
-from vad_manager import VADManager, SAMPLE_RATE
+from backend.core.vad import VADManager, SAMPLE_RATE
 
 # === CACHE HUGGINGFACE ===
 _CACHE_DIR = os.path.abspath("hf_cache")
@@ -68,16 +68,16 @@ HTML_UI = """<!DOCTYPE html>
 </head>
 <body>
 <main class="container">
-    <h2>🎙️ SOTA ASR — <span id="currentModelDisplay" style="color:#3B82F6">{{model_name}}</span></h2>
-    <div style="display:flex; gap:10px; align-items:center; margin-bottom:1rem;">
+<h2>🎙️ SOTA ASR — <span id="currentModelDisplay" class="style1">{{model_name}}</span></h2>
+<div class="style2">
         <span>Changer de modèle :</span>
-        <select id="modelSelector" style="width:200px; margin-bottom:0;" onchange="changeModel()">
+<select id="modelSelector" class="style3" onchange="changeModel()">
             <option value="voxtral" ${model_name === 'voxtral' ? 'selected' : ''}>Voxtral Mini (Fastest)</option>
             <option value="whisper" ${model_name === 'whisper' ? 'selected' : ''}>Faster-Whisper Large (Reliable)</option>
             <option value="qwen" ${model_name === 'qwen' ? 'selected' : ''}>Qwen2-Audio (Advanced)</option>
         </select>
     </div>
-    <p>Accélération: <strong>{{device}}</strong> | <span style="color:#10B981">💾 Sauvegarde auto dans <code>transcriptions_terminees/</code></span></p>
+<p>Accélération: <strong>{{device}}</strong> | <span class="style4">💾 Sauvegarde auto dans <code>transcriptions_terminees/</code></span></p>
 
     <div class="grid">
         <div>
@@ -92,15 +92,15 @@ HTML_UI = """<!DOCTYPE html>
             <p><small>Envoi via chunks de 4 MB + Diarisation réelle (Pyannote)</small></p>
             <input type="file" id="audioFile" accept="audio/*">
             <button onclick="uploadFile()" id="uploadBtn">Envoyer &amp; Transcrire</button>
-            <progress id="uploadProgress" value="0" max="100" style="display:none;"></progress>
-            <div id="batchStatus" style="margin-top:1rem;font-weight:bold;color:#F59E0B;"></div>
-            <div id="batchResult" class="live-box" style="display:none;margin-top:1rem;"></div>
+<progress id="uploadProgress" value="0" max="100" class="style7"></progress>
+            <div id="batchStatus" class="style6"></div>
+            <div id="batchResult" class="live-box style8"></div>
         </div>
     </div>
 
     <div class="batch-box" style="margin-top:2rem;">
         <h3>📜 Dernières transcriptions</h3>
-        <div id="transcriptionList" style="display:flex; flex-direction:column; gap:5px;">
+        <div id="transcriptionList" class="style9">
             Chargement de l'historique...
         </div>
     </div>
@@ -112,7 +112,7 @@ HTML_UI = """<!DOCTYPE html>
             <a href="#close" aria-label="Close" class="close" onclick="closeViewer()"></a>
             <h4 id="viewerTitle">Transcription</h4>
         </header>
-        <div id="viewerContent" style="flex:1; overflow-y:auto; background:#111827; color:#E5E7EB; padding:1rem; border-radius:4px; font-family:sans-serif; white-space:pre-wrap;">
+        <div id="viewerContent" class="style11">
         </div>
         <footer>
             <button class="secondary" onclick="closeViewer()">Fermer</button>
@@ -227,9 +227,9 @@ async function loadHistory() {
     const res = await fetch(`/transcriptions?client_id=${cid}`);
     const files = await res.json();
     list.innerHTML = files.map(f => `
-        <div style="display:flex; justify-content:space-between; align-items:center; background:#374151; padding:8px 12px; border-radius:6px;">
+            <div class="style13">
             <span>${f}</span>
-            <button class="outline" style="padding:4px 12px; margin:0;" onclick="viewFile('${f}')">Voir</button>
+            <button class="outline style12" onclick="viewFile('${f}')">Voir</button>
         </div>
     `).join('') || "Aucune transcription.";
 }

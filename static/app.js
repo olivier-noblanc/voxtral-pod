@@ -1,5 +1,6 @@
 // ========================= VARIABLES GLOBALES =========================
-let currentText = "";
+ 
+
 let ws, audioContext, source, processor, isRecording = false;
 let audioStream = null;
 let captureType = "mic";
@@ -58,7 +59,6 @@ async function startRecording() {
         if (captureType === "mic") { btnSystem.disabled = true; btnRecord.classList.add('recording'); }
         else { btnRecord.disabled = true; btnSystem.classList.add('recording'); }
         barCont.style.display = 'block';
-        const partialAlbert = document.getElementById('albertPartial').checked;
         const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
         const wsUrl = `${wsProtocol}//${location.host}/live`;
         ws = new WebSocket(wsUrl);
@@ -153,7 +153,7 @@ list.innerHTML = files.map(f => {
         </div>
     `;
 }).join('') || "Aucune.";
-    } catch (e) { list.innerHTML = "Erreur."; }
+    } catch { list.innerHTML = "Erreur."; }
 }
 
 // ========================= CONFIGURATION MODÈLE =========================
@@ -303,7 +303,19 @@ async function pollStatus(id) {
 window.onload = () => {
     loadHistory();
     loadS3Config();
-    loadAlbertConfig();
+loadAlbertConfig();
+// Event listeners (replacing inline attributes)
+document.getElementById('recordBtn').addEventListener('click', toggleMicrophone);
+document.getElementById('systemBtn').addEventListener('click', toggleSystemAudio);
+document.getElementById('uploadBtn').addEventListener('click', handleBatchAction);
+document.getElementById('toggleS3').addEventListener('click', toggleS3Config);
+document.getElementById('modelSelector').addEventListener('change', changeModel);
+document.getElementById('albertPartial').addEventListener('change', saveAlbertConfig);
+document.getElementById('s3Endpoint').addEventListener('change', saveS3Config);
+document.getElementById('s3Bucket').addEventListener('change', saveS3Config);
+document.getElementById('s3AccessKey').addEventListener('change', saveS3Config);
+document.getElementById('s3SecretKey').addEventListener('change', saveS3Config);
+document.getElementById('toggleSpeakerEditorBtn').addEventListener('click', toggleSpeakerEditor);
     // Ajout du gestionnaire pour le bouton "Modifier les speakers"
     // (déplacé en dehors de window.onload, fonction globale définie plus haut)
     document.getElementById('uploadBtn').disabled = false;
