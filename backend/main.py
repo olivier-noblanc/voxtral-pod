@@ -91,9 +91,15 @@ async def list_trans(client_id: str):
 @app.get("/transcription/{filename}")
 async def get_trans(filename: str, client_id: str):
     p = os.path.join(TRANSCRIPTIONS_DIR, client_id, filename)
-    if not os.path.exists(p): raise HTTPException(status_code=404, detail="Fichier introuvable.")
-    with open(p, "r", encoding="utf-8") as f:
-        return PlainTextResponse(f.read())
+    if not os.path.exists(p):
+        raise HTTPException(status_code=404, detail="Fichier introuvable.")
+    # Retourner le fichier texte avec un en‑tête de téléchargement explicite
+    return FileResponse(
+        p,
+        media_type="text/plain",
+        filename=filename,
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 @app.post("/change_model")
 async def change_model_route(model: str):
@@ -384,6 +390,22 @@ async def download_audio(client_id: str, filename: str):
         if os.path.exists(file_path):
             return FileResponse(file_path, media_type="audio/wav", filename=filename)
     raise HTTPException(status_code=404, detail="Fichier audio non trouvé.")
+
+# Nouvelle route pour télécharger le transcript au format texte
+@app.get("/download_transcript/{client_id}/{filename}")
+async def download_transcript(client_id: str, filename: str):
+    """
+    Retourne le fichier de transcription (.txt) avec un en‑tête de téléchargement.
+    """
+    file_path = os.path.join(TRANSCRIPTIONS_DIR, client_id, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Fichier transcript introuvable.")
+    return FileResponse(
+        file_path,
+        media_type="text/plain",
+        filename=filename,
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 @app.post("/save_live_transcription/{client_id}")
 async def save_live_transcription_route(client_id: str, content: str = Form(...)):
