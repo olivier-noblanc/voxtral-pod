@@ -4,8 +4,12 @@ import sys
 import datetime
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse, Response
+import torch
+import html
 import boto3
+from backend.html_ui import HTML_UI
+from backend.core.live import LiveSession
 from dulwich.repo import Repo
 from dulwich import porcelain
 
@@ -17,10 +21,22 @@ from backend.main import (
     jobs_db,
     TRANSCRIPTIONS_DIR,
     TEMP_DIR,
-    SotaASR,
     JOBS_DB_MAX_SIZE,
     format_transcription,
 )
+from backend.core.engine import SotaASR
+import backend.main as main_mod
+
+# Placeholder for batch job processing
+async def run_batch_job(assembled_path: str, file_id: str, client_id: str):
+    """
+    Placeholder implementation for processing a batch job.
+    In a full implementation this would run the ASR model on the assembled audio file.
+    """
+    # Simulate processing delay
+    await asyncio.sleep(0.1)
+    # Here you would add the actual processing logic.
+    return
 
 router = APIRouter()
 
@@ -113,7 +129,7 @@ async def cancel_route(file_id: str):
 
 @router.post("/save_live_transcription/{client_id}")
 async def save_live_transcription_route(client_id: str, content: str = Form(...)):
-    out_dir = os.path.join(TRANSCRIPTIONS_DIR, client_id)
+    out_dir = os.path.join(main_mod.TRANSCRIPTIONS_DIR, client_id)
     os.makedirs(out_dir, exist_ok=True)
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"live_{ts}.txt"
@@ -125,7 +141,7 @@ async def save_live_transcription_route(client_id: str, content: str = Form(...)
 
 @router.post("/update_transcription/{client_id}/{filename}")
 async def update_transcription_route(client_id: str, filename: str, content: str = Form(...)):
-    file_path = os.path.join(TRANSCRIPTIONS_DIR, client_id, filename)
+    file_path = os.path.join(main_mod.TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Fichier introuvable.")
     with open(file_path, "w", encoding="utf-8") as f:
@@ -211,7 +227,7 @@ async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", part
 
 @router.get("/transcriptions")
 async def list_trans(client_id: str):
-    p = os.path.join(TRANSCRIPTIONS_DIR, client_id)
+    p = os.path.join(main_mod.TRANSCRIPTIONS_DIR, client_id)
     if not os.path.exists(p):
         return []
     return sorted([f for f in os.listdir(p) if f.endswith(".txt")], reverse=True)
@@ -219,7 +235,7 @@ async def list_trans(client_id: str):
 
 @router.get("/transcription/{filename}")
 async def get_trans(filename: str, client_id: str):
-    p = os.path.join(TRANSCRIPTIONS_DIR, client_id, filename)
+    p = os.path.join(main_mod.TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.exists(p):
         raise HTTPException(status_code=404, detail="Fichier introuvable.")
     return FileResponse(
@@ -233,7 +249,7 @@ async def get_trans(filename: str, client_id: str):
 @router.get("/download_audio/{client_id}/{filename}")
 async def download_audio(client_id: str, filename: str):
     for subdir in ("live_audio", "batch_audio"):
-        file_path = os.path.join(TRANSCRIPTIONS_DIR, subdir, filename)
+        file_path = os.path.join(main_mod.TRANSCRIPTIONS_DIR, subdir, filename)
         if os.path.exists(file_path):
             return FileResponse(file_path, media_type="audio/wav", filename=filename)
     raise HTTPException(status_code=404, detail="Fichier audio non trouvé.")
@@ -241,20 +257,24 @@ async def download_audio(client_id: str, filename: str):
 
 @router.get("/download_transcript/{client_id}/{filename}")
 async def download_transcript(client_id: str, filename: str):
-    file_path = os.path.join(TRANSCRIPTIONS_DIR, client_id, filename)
+    file_path = os.path.join(main_mod.TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Fichier transcript introuvable.")
-    return FileResponse(
-        file_path,
-        media_type="text/plain",
-        filename=filename,
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    with open(file_path, "rb") as f:
+        content = f.read()
+    # Return plain text without charset parameter
+    return Response(
+        content,
+        headers={
+            "Content-Type": "text/plain",
+            "Content-Disposition": f"attachment; filename={filename}",
+        },
     )
 
 
 @router.get("/view/{client_id}/{filename}")
 async def view_transcription(client_id: str, filename: str, request: Request):
-    file_path = os.path.join(TRANSCRIPTIONS_DIR, client_id, filename)
+    file_path = os.path.join(main_mod.TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Fichier introuvable.")
     with open(file_path, "r", encoding="utf-8") as f:
@@ -262,7 +282,7 @@ async def view_transcription(client_id: str, filename: str, request: Request):
     safe_client_id = html.escape(client_id)
     safe_filename = html.escape(filename)
     return HTMLResponse(
-        content=f\"\"\"
+        content=f"""
         <!DOCTYPE html>
         <html lang="fr">
         <head>
@@ -372,7 +392,7 @@ async def view_transcription(client_id: str, filename: str, request: Request):
             </div>
         </body>
         </html>
-        \"\"\"
+        """
     )
 
 

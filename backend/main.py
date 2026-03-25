@@ -102,7 +102,8 @@ async def startup_event():
 # GET routes are defined in backend/routes/api.py
 
 # Inclusion du router contenant toutes les routes POST
-from backend.routes.api import router as api_router
+from backend.routes import api as api_module
+api_router = api_module.router
 app.include_router(api_router)
 
 if __name__ == "__main__":
