@@ -49,7 +49,14 @@ async function startRecording() {
         else { btnRecord.disabled = true; btnSystem.classList.add('recording'); }
         barCont.style.display = 'block';
         const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
-        const wsUrl = wsProtocol + '//' + location.host + '/live';
+        let wsUrl = wsProtocol + '//' + location.host + '/live';
+        const model = document.getElementById('modelSelector').value;
+        const partial = document.getElementById('albertPartial').checked;
+        if (model === 'albert' && partial) {
+            wsUrl += `?client_id=${getClientId()}&partial_albert=true`;
+        } else {
+            wsUrl += `?client_id=${getClientId()}`;
+        }
         ws = new WebSocket(wsUrl);
         ws.binaryType = 'arraybuffer';
         audioContext = new AudioContext({ sampleRate: 16000 });
@@ -340,6 +347,20 @@ window.onload = () => {
     loadHistory();
     loadS3Config();
     loadAlbertConfig();
+
+    // Forcer Albert si aucun GPU détecté
+    const deviceBadge = document.querySelector('.fr-badge.fr-badge--info');
+    if (deviceBadge && deviceBadge.textContent.trim() === 'cpu') {
+        const modelSelect = document.getElementById('modelSelector');
+        if (modelSelect) {
+            modelSelect.value = 'albert';
+            // Afficher l'avertissement CPU
+            const cpuWarn = document.getElementById('cpuWarning');
+            if (cpuWarn) cpuWarn.style.display = 'block';
+            // Mettre à jour l'affichage des options Albert
+            loadAlbertConfig();
+        }
+    }
 
     // Vérifier les mises à jour Git
     checkGitStatus();

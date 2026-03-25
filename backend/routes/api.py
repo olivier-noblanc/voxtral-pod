@@ -231,6 +231,14 @@ async def home(request: Request):
     except ImportError:
         device = "cpu"
     no_gpu = "true" if device == "cpu" else "false"
+    # Forcer le modèle Albert lorsqu'aucun GPU n'est disponible
+    if no_gpu == "true":
+        model_name = "albert"
+        asr_engine = SotaASR(model_id="albert", hf_token=os.getenv("HF_TOKEN"))
+        asr_engine.load()
+        # Mettre à jour les références globales du module principal
+        main_mod.model_name = model_name
+        main_mod.asr_engine = asr_engine
     try:
         repo = Repo(".")
         commit = repo.head().decode()
@@ -240,7 +248,7 @@ async def home(request: Request):
         commit = "unknown"
     protocol = "wss" if request.url.scheme == "https" else "ws"
     host = request.headers.get("host")
-    ws_url = f"{protocol}://{host}/live?client_id={{getClientId()}}&partial_albert={{partialAlbert}}"
+    ws_url = f"{protocol}://{host}/live?client_id={{getClientId()}}&partial_albert={no_gpu}"
     return HTMLResponse(
         content=HTML_UI
         .replace("{{model_name}}", model_name)
@@ -384,7 +392,7 @@ async def view_transcription(client_id: str, filename: str, request: Request):
                             colDiv.className = 'fr-col-12 fr-col-md-6';
                             const label = document.createElement('label');
                             label.htmlFor = 'speaker-input-' + speaker;
-                            label.textContent = 'Speaker \"' + speaker + '\" :';
+                            label.textContent = 'Speaker "' + speaker + '" :';
                             const input = document.createElement('input');
                             input.type = 'text';
                             input.id = 'speaker-input-' + speaker;
@@ -394,7 +402,7 @@ async def view_transcription(client_id: str, filename: str, request: Request):
                             input.addEventListener('input', function(e) {{
                                 const newName = e.target.value;
                                 const oldName = e.target.dataset.currentSpeaker;
-                                document.querySelectorAll('.segment-speaker[data-speaker=\"' + oldName + '\"]')
+                                document.querySelectorAll('.segment-speaker[data-speaker="' + oldName + '"]')
                                     .forEach(function(span) {{
                                         span.textContent = newName;
                                         span.dataset.speaker = newName;
