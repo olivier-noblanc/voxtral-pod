@@ -316,7 +316,7 @@ async def view_transcription(client_id: str, filename: str, request: Request):
                     <div id="transcript">
                         {format_transcription(content)}
                     </div>
-                    <form id="updateForm" method="post" action="/update_transcription/{{client_id}}/{{filename}}">
+                    <form id="updateForm" method="post" action="/update_transcription/{safe_client_id}/{safe_filename}">
                         <input type="hidden" name="content" id="updatedContentInput" value="">
                         <button type="submit" class="fr-btn fr-btn--primary">Enregistrer les modifications</button>
                     </form>
