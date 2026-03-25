@@ -259,6 +259,7 @@ def _assemble_chunks(assembled_path: str, total_chunks: int, upload_dir: str) ->
 
 async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
     """Process a batch audio file, store transcript, and update job status."""
+    print(f"[*] Starting GPU Job for {file_id} (Client: {client_id})")
     # Update status to indicate transcription start
     _update_job_status(file_id, "processing:Transcription...", 10)
     # Ensure the ASR engine is loaded
@@ -266,6 +267,7 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
     # Progress callback updates job status
     def progress_callback(step: str, pct: int):
         pct = max(0, min(100, pct))
+        print(f"[*] [Batch {file_id}] {step} : {pct}%")
         _update_job_status(file_id, f"processing:{step}", pct)
     # Run the ASR processing pipeline
     transcript = await engine.process_file(assembled_path, progress_callback=progress_callback)
