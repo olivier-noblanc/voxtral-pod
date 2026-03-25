@@ -11,7 +11,7 @@ from backend.html_ui import HTML_UI
 # Import shared state (no import of server_asr_ref)
 from backend.state import get_job, update_job, add_job, JOBS_DB_MAX_SIZE, get_asr_engine, get_current_model, set_current_model
 from backend.config import TEMP_DIR, TRANSCRIPTIONS_DIR
-# import backend.main as backend_main  # Retiré pour éviter circular import
+from backend.utils import format_transcription
 
 router = APIRouter()
 
@@ -131,23 +131,28 @@ async def view_transcription(client_id: str, filename: str, request: Request):
             raise HTTPException(status_code=404, detail="Fichier introuvable.")
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
+
+    # Parse and format each line
+    segments_html = "\n".join(format_transcription(line) for line in content.splitlines() if line.strip())
+
     safe_file = html_escape(filename)
-    temp_notice = "<p><em>Version temporaire (en cours de nettoyage)</em></p>" if is_temp else ""
+    temp_notice = "<p class=\"fr-text--sm fr-mb-2w\"><em>Version temporaire (en cours de nettoyage)</em></p>" if is_temp else ""
     return HTMLResponse(
         f"""<!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-fr-scheme="dark">
 <head>
 <meta charset="UTF-8"><title>{safe_file} – Voxtral Pod</title>
 <link rel="stylesheet" href="/static/dsfr.min.css">
 <style>
-body {{ background: var(--background-alt-grey); }}
+body {{ background: var(--background-alt-grey); padding-bottom: 4rem; }}
 .transcript-container {{ max-width: 900px; margin: 2rem auto; padding: 1rem; }}
-.segment {{ margin-bottom: 1.5rem; padding: 1rem; background:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }}
-.segment-header {{ display:flex; gap:1rem; align-items:baseline; flex-wrap:wrap; margin-bottom:0.5rem; }}
-.segment-time {{ font-family:monospace; font-size:0.8rem; color:#666; }}
-.segment-speaker {{ font-weight:bold; background:#e5e5e5; padding:0.2rem 0.5rem; border-radius:4px; }}
-.segment-text {{ line-height:1.5; }}
+.segment {{ margin-bottom: 1.5rem; padding: 1rem; background: var(--background-default-grey); border-radius:8px; border: 1px solid var(--border-default-grey); }}
+.segment-header {{ display:flex; gap:1rem; align-items:baseline; flex-wrap:wrap; margin-bottom:0.5rem; border-bottom: 1px solid var(--border-subtle-grey); padding-bottom: 0.2rem; }}
+.segment-time {{ font-family:monospace; font-size:0.8rem; color: var(--text-mention-grey); }}
+.segment-speaker {{ font-weight:bold; background: var(--background-contrast-info); color: var(--text-label-info); padding:0.1rem 0.4rem; border-radius:4px; font-size: 0.9rem; }}
+.segment-text {{ line-height:1.6; font-size: 1.1rem; }}
 .back-link {{ margin-bottom:1rem; display:inline-block; }}
+#speakerRenameContainer {{ background: var(--background-contrast-info); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border-default-info); }}
 </style>
 </head>
 <body>
@@ -156,8 +161,85 @@ body {{ background: var(--background-alt-grey); }}
 <a href="/" class="fr-link back-link">← Retour à l'accueil</a>
 <h1>{safe_file}</h1>
 {temp_notice}
-<div id="transcript"><pre>{html_escape(content)}</pre></div>
-</div></div></body></html>"""
+
+<button id="toggleSpeakerEditorBtn" class="fr-btn fr-btn--secondary fr-mb-4w">👥 Éditer les speakers</button>
+
+<div id="speakerRenameContainer" style="display:none;" class="fr-mb-4w">
+    <h3 class="fr-h6">Renommer les intervenants</h3>
+    <div id="speakerRenameList" class="fr-grid-row fr-grid-row--gutters"></div>
+</div>
+
+<div id="transcript">
+{segments_html}
+</div>
+
+</div></div>
+
+<script>
+function toggleSpeakerEditor() {{
+    const container = document.getElementById('speakerRenameContainer');
+    if (!container) return;
+    if (container.style.display === 'none' || container.style.display === '') {{
+        container.style.display = 'block';
+        initSpeakerEditor();
+    }} else {{
+        container.style.display = 'none';
+    }}
+}}
+
+function initSpeakerEditor() {{
+    const speakerSpans = document.querySelectorAll('.segment-speaker');
+    const speakers = new Set();
+    speakerSpans.forEach(span => {{
+        const speaker = span.dataset.speaker;
+        if (speaker) speakers.add(speaker);
+    }});
+    const listDiv = document.getElementById('speakerRenameList');
+    listDiv.innerHTML = '';
+    
+    if (speakers.size === 0) {{
+        listDiv.innerHTML = '<div class="fr-col-12"><p class="fr-text--sm">Aucun speaker détecté dans cette transcription.</p></div>';
+        return;
+    }}
+
+    speakers.forEach(speaker => {{
+        const colDiv = document.createElement('div');
+        colDiv.className = 'fr-col-12 fr-col-md-6';
+        
+        const formGroup = document.createElement('div');
+        formGroup.className = 'fr-input-group';
+        
+        const label = document.createElement('label');
+        label.className = 'fr-label';
+        label.htmlFor = 'speaker-input-' + speaker;
+        label.textContent = 'Nom pour "' + speaker + '" :';
+        
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = 'speaker-input-' + speaker;
+        input.value = speaker;
+        input.className = 'fr-input';
+        input.dataset.originalSpeaker = speaker;
+        
+        input.addEventListener('input', e => {{
+            const newName = e.target.value;
+            const originalSpeaker = e.target.dataset.originalSpeaker;
+            document.querySelectorAll('.segment-speaker[data-speaker="' + originalSpeaker + '"]').forEach(span => {{
+                span.textContent = newName;
+            }});
+        }});
+        
+        formGroup.appendChild(label);
+        formGroup.appendChild(input);
+        colDiv.appendChild(formGroup);
+        listDiv.appendChild(colDiv);
+    }});
+}}
+
+document.getElementById('toggleSpeakerEditorBtn').addEventListener('click', toggleSpeakerEditor);
+</script>
+
+</body></html>"""
     )
 
 @router.get("/status/{file_id}")

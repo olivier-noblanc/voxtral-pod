@@ -25,42 +25,7 @@ from backend.config import TRANSCRIPTIONS_DIR
 #     line does not match the expected pattern.
 #   * Return an empty string for empty input.
 # ----------------------------------------------------------------------
-from html import escape as html_escape
-import re
-
-def format_transcription(line: str) -> str:
-    """
-    Convert a raw transcription line into an HTML fragment.
-
-    Parameters
-    ----------
-    line: str
-        Raw line, e.g. "[0.50s -> 1.20s] [SPEAKER_00] Bonjour"
-
-    Returns
-    -------
-    str
-        HTML snippet containing the formatted segment.
-    """
-    if not line:
-        return ""
-
-    # Pattern with optional whitespace around components
-    pattern = r"^\[([0-9.]+)s\s*->\s*([0-9.]+)s\]\s*\[([^\]]+)\]\s*(.*)$"
-    match = re.match(pattern, line)
-    if match:
-        start, end, speaker, text = match.groups()
-        # Escape the free‑form text to prevent HTML injection
-        escaped_text = html_escape(text)
-        return (
-            f'<span class=\"segment-time\">[{start}s → {end}s]</span> '
-            f'<span class=\"segment-speaker\">[{speaker}]</span> '
-            f'<span class=\"segment-text\">{escaped_text}</span>'
-        )
-    else:
-        # Fallback: plain text with generic class
-        escaped = html_escape(line)
-        return f'<span class=\"segment-text\">{escaped}</span>'
+from backend.utils import format_transcription
 
 app = FastAPI(title="SOTA ASR Server", version="4.0.0")
 # trusted_hosts : accepter uniquement les proxies locaux (nginx/caddy sur la même machine)
