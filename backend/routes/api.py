@@ -92,9 +92,13 @@ async def download_audio(client_id: str, filename: str):
         raise HTTPException(status_code=403, detail="Accès refusé : ce fichier n'appartient pas à votre session.")
 
     for subdir in ("live_audio", "batch_audio"):
-        file_path = os.path.join(TRANSCRIPTIONS_DIR, subdir, filename)
-        if os.path.isfile(file_path):
-            return FileResponse(file_path, media_type="audio/wav", filename=filename)
+        try:
+            file_path = _safe_join(TRANSCRIPTIONS_DIR, subdir, filename)
+            if os.path.isfile(file_path):
+                return FileResponse(file_path, media_type="audio/wav", filename=filename)
+        except HTTPException:
+            # Si _safe_join lève une erreur pour un sous-répertoire, on continue
+            continue
     raise HTTPException(status_code=404, detail="Fichier audio non trouvé.")
 
 @router.get("/download_transcript/{client_id}/{filename}")
