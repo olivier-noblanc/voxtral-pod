@@ -13,7 +13,7 @@
     border-radius: 4px; margin: 1rem 0; overflow: hidden; display: none;
 }
 
-#audio-bar { width: 0%; height: 100%; background: #10B981; transition: width 0.1s ease; }
+#audioBar { width: 0%; height: 100%; background: #10B981; transition: width 0.1s ease; }
 
 .speaker-label { color: #60A5FA; font-weight: bold; }
 
