@@ -87,8 +87,8 @@ async function startRecording() {
         ws = new WebSocket(wsUrl);
         console.log('WebSocket opened to', wsUrl);
         ws.binaryType = 'arraybuffer';
-        // Use 16 kHz sample rate as in the original working commit
-        audioContext = new AudioContext({ sampleRate: 16000 });
+        // Use default sample rate to match the MediaStream source
+        audioContext = new AudioContext();
         console.log('AudioContext created with sampleRate', audioContext.sampleRate);
         source = audioContext.createMediaStreamSource(audioStream);
         await audioContext.audioWorklet.addModule('data:text/javascript;base64,' + btoa(workletCode));
@@ -97,27 +97,24 @@ async function startRecording() {
         console.log('AudioWorkletNode (processor) created');
 processor.port.onmessage = (e) => {
     console.log('Audio worklet data received, length:', e.data.length);
+    // Dynamically compute down‑sampling factor based on the AudioContext sample rate
+    const targetRate = 16000;
+    const factor = Math.max(1, Math.round(audioContext.sampleRate / targetRate));
+    const downLength = Math.floor(e.data.length / factor);
+    const downsampled = new Float32Array(downLength);
+    for (let i = 0; i < downLength; i++) {
+        downsampled[i] = e.data[i * factor];
+    }
+    const pcm = new Int16Array(downsampled.length);
+    for (let i = 0; i < downsampled.length; i++) {
+        pcm[i] = Math.max(-1, Math.min(1, downsampled[i])) * 0x7FFF;
+    }
     if (ws && ws.readyState === 1) {
-        // Dynamically compute down‑sampling factor based on the AudioContext sample rate
-        const targetRate = 16000;
-        const factor = Math.max(1, Math.round(audioContext.sampleRate / targetRate));
-        const downLength = Math.floor(e.data.length / factor);
-        const downsampled = new Float32Array(downLength);
-        for (let i = 0; i < downLength; i++) {
-            downsampled[i] = e.data[i * factor];
-        }
-        const pcm = new Int16Array(downsampled.length);
-        for (let i = 0; i < downsampled.length; i++) {
-            pcm[i] = Math.max(-1, Math.min(1, downsampled[i])) * 0x7FFF;
-        }
         ws.send(pcm.buffer);
         console.log('PCM data sent (downsampled by factor', factor, ')');
-        // Update UI with original data for accurate volume bar
-        updateVolumeBar(e.data);
-    } else {
-        // Still update UI even if the socket is not ready
-        updateVolumeBar(e.data);
     }
+    // Update UI with downsampled data for a responsive volume bar
+    updateVolumeBar(e.data);
 };
         source.connect(processor);
         console.log('MediaStreamSource connected to processor');
