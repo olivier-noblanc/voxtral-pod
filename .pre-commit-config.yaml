@@ -1,0 +1,11 @@
+repos:
+  - repo: local
+    hooks:
+      - id: check-dom-contract
+        name: Verify DOM contract between JS and HTML
+        entry: scripts/check_dom_contract.py
+        language: python
+        files: ^static/app\.js$|^backend/html_ui\.py$
+        stages: [commit]
+        always_run: false
+        pass_filenames: false

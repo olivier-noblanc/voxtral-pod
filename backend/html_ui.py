@@ -117,7 +117,13 @@ HTML_UI = r"""<!DOCTYPE html>
                 </div>
             </div>
         </div>
-    </main>
+    <!-- Speaker editor placeholders added for DOM contract -->
+    <div id="speakerRenameContainer" style="display:none;">
+        <ul id="speakerRenameList"></ul>
+        <button id="toggleSpeakerEditorBtn">Toggle Speaker Editor</button>
+    </div>
+
+</main>
 
     <footer class="fr-footer fr-mt-4w" role="contentinfo">
         <div class="fr-container">

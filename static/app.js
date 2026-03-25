@@ -118,10 +118,11 @@ async function startRecording() {
             for (let i = 0; i < downsampled.length; i++) {
                 pcm[i] = Math.max(-1, Math.min(1, downsampled[i])) * 0x7FFF;
             }
-            if (ws && ws.readyState === 1) {
+            if (ws.readyState === 1)
+            {
                 ws.send(pcm.buffer);
-                console.log('PCM data sent (downsampled by factor', factor, ')');
             }
+            console.log('PCM data sent (downsampled by factor', factor, ')');
             // Update UI with downsampled data for a responsive volume bar
             updateVolumeBar(e.data);
         };
