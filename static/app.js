@@ -72,8 +72,9 @@ async function startRecording() {
         ws = new WebSocket(wsUrl);
         console.log('WebSocket opened to', wsUrl);
         ws.binaryType = 'arraybuffer';
-        audioContext = new AudioContext({ sampleRate: 16000 });
-        console.log('AudioContext created with sampleRate 16000');
+        // Use default sample rate to avoid mismatch with MediaStream source
+        audioContext = new AudioContext();
+        console.log('AudioContext created with sampleRate', audioContext.sampleRate);
         source = audioContext.createMediaStreamSource(audioStream);
         await audioContext.audioWorklet.addModule('data:text/javascript;base64,' + btoa(workletCode));
         console.log('AudioWorklet module added');
