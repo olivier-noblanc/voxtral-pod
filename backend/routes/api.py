@@ -153,6 +153,11 @@ body {{ background: var(--background-alt-grey); padding-bottom: 4rem; }}
 .segment-text {{ line-height:1.6; font-size: 1.1rem; }}
 .back-link {{ margin-bottom:1rem; display:inline-block; }}
 #speakerRenameContainer {{ background: var(--background-contrast-info); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border-default-info); }}
+
+/* Masquage dynamique pour copier-coller LLM */
+#transcript.hide-timestamps .segment-time {{ display: none !important; }}
+#transcript.hide-speakers .segment-speaker {{ display: none !important; }}
+#transcript.hide-timestamps.hide-speakers .segment-header {{ display: none !important; }}
 </style>
 </head>
 <body>
@@ -162,7 +167,24 @@ body {{ background: var(--background-alt-grey); padding-bottom: 4rem; }}
 <h1>{safe_file}</h1>
 {temp_notice}
 
-<button id="toggleSpeakerEditorBtn" class="fr-btn fr-btn--secondary fr-mb-4w">👥 Éditer les speakers</button>
+<div class="fr-grid-row fr-grid-row--gutters fr-mb-4w">
+    <div class="fr-col-12 fr-col-md-6">
+        <button id="toggleSpeakerEditorBtn" class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-user-line fr-w-100">👥 Éditer les speakers</button>
+    </div>
+    <div class="fr-col-12 fr-col-md-6">
+        <div class="fr-fieldset fr-p-2w" style="background: var(--background-alt-blue-france); border-radius: 8px;">
+            <p class="fr-text--xs fr-mb-1w fr-text--bold">Options Copie LLM (ChatGPT/Claude)</p>
+            <div class="fr-checkbox-group fr-checkbox-group--sm">
+                <input type="checkbox" id="hideTimestamps">
+                <label class="fr-label" for="hideTimestamps">Masquer les timestamps</label>
+            </div>
+            <div class="fr-checkbox-group fr-checkbox-group--sm">
+                <input type="checkbox" id="hideSpeakers">
+                <label class="fr-label" for="hideSpeakers">Masquer les speakers</label>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div id="speakerRenameContainer" style="display:none;" class="fr-mb-4w">
     <h3 class="fr-h6">Renommer les intervenants</h3>
@@ -176,6 +198,14 @@ body {{ background: var(--background-alt-grey); padding-bottom: 4rem; }}
 </div></div>
 
 <script>
+// Gestion du masquage des métadonnées
+document.getElementById('hideTimestamps').addEventListener('change', e => {{
+    document.getElementById('transcript').classList.toggle('hide-timestamps', e.target.checked);
+}});
+document.getElementById('hideSpeakers').addEventListener('change', e => {{
+    document.getElementById('transcript').classList.toggle('hide-speakers', e.target.checked);
+}});
+
 function toggleSpeakerEditor() {{
     const container = document.getElementById('speakerRenameContainer');
     if (!container) return;

@@ -71,6 +71,7 @@ HTML_UI = r"""<!DOCTYPE html>
                         <div class="fr-btns-group fr-btns-group--inline-md fr-btns-group--sm fr-my-2w">
 <button id="recordBtn" class="fr-btn">🎤 Micro</button>
 <button id="systemBtn" class="fr-btn fr-btn--secondary">💻 Système</button>
+<button id="meetingBtn" class="fr-btn fr-btn--secondary">👥 Réunion</button>
                         </div>
                         <div class="audio-bar-container" id="audioBarCont"><div id="audioBar"></div></div>
                         <div class="live-box" id="liveTranscript">En attente de flux audio...</div>

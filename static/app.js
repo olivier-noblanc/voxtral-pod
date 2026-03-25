@@ -64,16 +64,31 @@ async function toggleSystemAudio() {
     if (isRecording) stopRecording();
     else { captureType = "system"; startRecording(); }
 }
+async function toggleMeeting() {
+    if (isRecording) stopRecording();
+    else { captureType = "meeting"; startRecording(); }
+}
 
 async function startRecording() {
     console.log('startRecording initiated, captureType:', captureType);
     const btnRecord = document.getElementById('recordBtn');
     const btnSystem = document.getElementById('systemBtn');
+    const btnMeeting = document.getElementById('meetingBtn');
     const box = document.getElementById('liveTranscript');
     const barCont = document.getElementById('audioBarCont');
     try {
         if (captureType === "system") {
             audioStream = await navigator.mediaDevices.getDisplayMedia({ video:true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+        } else if (captureType === "meeting") {
+            // Mixed mode: capture both mic and system
+            const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const sysStream = await navigator.mediaDevices.getDisplayMedia({ video:true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+            
+            // Combine tracks into a single stream for easier cleanup, 
+            // but we'll create separate sources for mixing in AudioContext.
+            audioStream = new MediaStream([...micStream.getTracks(), ...sysStream.getTracks()]);
+            audioStream._micStream = micStream;
+            audioStream._sysStream = sysStream;
         } else {
             audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             console.log('Audio stream obtained (mic), tracks:', audioStream.getTracks().length);
@@ -81,8 +96,11 @@ async function startRecording() {
         isRecording = true;
         btnRecord.innerText = (captureType === "mic") ? "⏹️ Arrêter" : "🎤 Micro";
         btnSystem.innerText = (captureType === "system") ? "⏹️ Arrêter" : "🖥️ Système";
-        if (captureType === "mic") { btnSystem.disabled = true; btnRecord.classList.add('recording'); }
-        else { btnRecord.disabled = true; btnSystem.classList.add('recording'); }
+        btnMeeting.innerText = (captureType === "meeting") ? "⏹️ Arrêter" : "👥 Réunion";
+
+        if (captureType === "mic") { btnSystem.disabled = true; btnMeeting.disabled = true; btnRecord.classList.add('recording'); }
+        else if (captureType === "system") { btnRecord.disabled = true; btnMeeting.disabled = true; btnSystem.classList.add('recording'); }
+        else { btnRecord.disabled = true; btnSystem.disabled = true; btnMeeting.classList.add('recording'); }
         barCont.style.display = 'block';
         const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
         let wsUrl = wsProtocol + '//' + location.host + '/live';
@@ -99,11 +117,24 @@ async function startRecording() {
         // Use default sample rate to match the MediaStream source
         audioContext = new AudioContext();
         console.log('AudioContext created with sampleRate', audioContext.sampleRate);
-        source = audioContext.createMediaStreamSource(audioStream);
+        
         await audioContext.audioWorklet.addModule('data:text/javascript;base64,' + btoa(workletCode));
         console.log('AudioWorklet module added');
         processor = new AudioWorkletNode(audioContext, 'audio-processor');
         console.log('AudioWorkletNode (processor) created');
+
+        if (captureType === "meeting" && audioStream._micStream && audioStream._sysStream) {
+            const micSource = audioContext.createMediaStreamSource(audioStream._micStream);
+            const sysSource = audioContext.createMediaStreamSource(audioStream._sysStream);
+            micSource.connect(processor);
+            sysSource.connect(processor);
+            console.log('Mic and System streams mixed into processor');
+        } else {
+            source = audioContext.createMediaStreamSource(audioStream);
+            source.connect(processor);
+            console.log('Single stream connected to processor');
+        }
+
         processor.port.onmessage = (e) => {
             console.log('Audio worklet data received, length:', e.data.length);
             // Dynamically compute down-sampling factor based on the AudioContext sample rate
@@ -205,16 +236,25 @@ function stopRecording() {
     setTimeout(loadHistory, 8000);
     setTimeout(loadHistory, 15000);
     if (audioContext) { audioContext.close(); audioContext = null; }
-    if (audioStream) { audioStream.getTracks().forEach(track => track.stop()); audioStream = null; }
+    if (audioStream) { 
+        audioStream.getTracks().forEach(track => track.stop()); 
+        if (audioStream._micStream) audioStream._micStream.getTracks().forEach(t => t.stop());
+        if (audioStream._sysStream) audioStream._sysStream.getTracks().forEach(t => t.stop());
+        audioStream = null; 
+    }
     isRecording = false;
     const btnRecord = document.getElementById('recordBtn');
     const btnSystem = document.getElementById('systemBtn');
+    const btnMeeting = document.getElementById('meetingBtn');
     btnRecord.innerText = "🎤 Micro";
     btnSystem.innerText = "🖥️ Système";
+    btnMeeting.innerText = "👥 Réunion";
     btnRecord.classList.remove('recording');
     btnSystem.classList.remove('recording');
+    btnMeeting.classList.remove('recording');
     btnRecord.disabled = false;
     btnSystem.disabled = false;
+    btnMeeting.disabled = false;
     document.getElementById('audioBarCont').style.display = 'none';
 }
 
@@ -415,6 +455,8 @@ window.onload = () => {
     if (elRecord) elRecord.addEventListener('click', toggleMicrophone);
     const elSystem = document.getElementById('systemBtn');
     if (elSystem) elSystem.addEventListener('click', toggleSystemAudio);
+    const elMeeting = document.getElementById('meetingBtn');
+    if (elMeeting) elMeeting.addEventListener('click', toggleMeeting);
     const elUpload = document.getElementById('uploadBtn');
     if (elUpload) elUpload.addEventListener('click', handleBatchAction);
     const elToggleS3 = document.getElementById('toggleS3');
