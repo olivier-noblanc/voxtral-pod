@@ -125,15 +125,13 @@ HTML_UI = r"""<!DOCTYPE html>
                         </div>
                         <div class="audio-bar-container" id="audioBarCont"><div id="audioBar"></div></div>
                         <div class="live-box" id="liveTranscript">En attente de flux audio...</div>
-                        <button class="fr-btn fr-btn--secondary" onclick="toggleSpeakerEditor()">Modifier les speakers</button>
-                        <div id="speakerRenameContainer" style="display:none;" class="fr-mt-2w"><div id="speakerRenameList" class="fr-grid-row fr-grid-row--gutters"></div></div>
                     </section>
                 </div>
 
                 <div class="fr-col-12 fr-col-md-5">
                     <section class="fr-pt-2w">
                         <h2 class="fr-h4">Fichiers (Batch)</h2>
-                        <div class="fr-upload-group">
+                        <div class="fr-upséi-group">
                             <input class="fr-upload" type="file" id="audioFile" accept="audio/*,video/*">
                         </div>
 <button onclick="handleBatchAction()" id="uploadBtn" class="fr-btn fr-mt-2w" disabled>Transcrire</button>

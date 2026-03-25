@@ -316,7 +316,10 @@ async def view_transcription(client_id: str, filename: str, request: Request):
                     <div id="transcript">
                         {format_transcription(content)}
                     </div>
-                    <button class="fr-btn fr-btn--primary" onclick="saveChanges()">Enregistrer les modifications</button>
+                    <form id="updateForm" method="post" action="/update_transcription/{{client_id}}/{{filename}}">
+                        <input type="hidden" name="content" id="updatedContentInput" value="">
+                        <button type="submit" class="fr-btn fr-btn--primary">Enregistrer les modifications</button>
+                    </form>
                     <script>
                     function toggleSpeakerEditor() {{
                         const container = document.getElementById('speakerRenameContainer');
@@ -372,36 +375,30 @@ async def view_transcription(client_id: str, filename: str, request: Request):
                             const speaker = speakerElem ? speakerElem.textContent.trim() : '';
                             const textElem = seg.querySelector('.segment-text');
                             const text = textElem ? textElem.textContent.trim() : '';
-                            if (time && speaker) {{
-                                lines.push('[' + time + '] [' + speaker + '] ' + text);
+                            if (speaker) {{
+                                if (time) {{
+                                    lines.push('[' + time + '] [' + speaker + '] ' + text);
+                                }} else {{
+                                    lines.push('[' + speaker + '] ' + text);
+                                }}
                             }} else if (text) {{
                                 lines.push(text);
                             }}
                         }});
-                        var sep = String.fromCharCode(10);
-                        return lines.join(sep);
+                        return lines.join('\\n');
                     }}
-                    async function saveChanges() {{
+                    document.getElementById('updateForm').addEventListener('submit', function(e) {{
                         const updated = getUpdatedContent();
-                        const client_id = "{safe_client_id}";
-                        const filename = "{safe_filename}";
-                        const res = await fetch('/update_transcription/' + client_id + '/' + filename, {{
-                            method: 'POST',
-                            headers: {{'Content-Type': 'application/x-www-form-urlencoded'}},
-                            body: new URLSearchParams({{content: updated}})
-                        }});
-                        if (res.ok) {{
-                            alert('Transcription sauvegardée.');
-                        }} else {{
-                            alert('Erreur lors de la sauvegarde.');
-                        }}
-                    }}
+                        document.getElementById('updatedContentInput').value = updated;
+                    }});
                     </script>
                 </div>
             </div>
         </body>
         </html>
     """)
+
+from fastapi.responses import RedirectResponse
 
 @app.post("/update_transcription/{client_id}/{filename}")
 async def update_transcription_route(client_id: str, filename: str, content: str = Form(...)):
@@ -410,7 +407,8 @@ async def update_transcription_route(client_id: str, filename: str, content: str
         raise HTTPException(status_code=404, detail="Fichier introuvable.")
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
-    return {"status": "ok"}
+    # Rediriger vers la page de visualisation mise à jour (SSR)
+    return RedirectResponse(url=f"/view/{client_id}/{filename}", status_code=303)
 
 @app.get("/download_audio/{client_id}/{filename}")
 async def download_audio(client_id: str, filename: str):
