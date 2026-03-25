@@ -3,7 +3,7 @@ let ws, audioContext, source, processor, isRecording = false;
 let audioStream = null;
 let captureType = "mic";
 const CHUNK_SIZE = 4 * 1024 * 1024;
-const workletCode = ""; // TODO: replace with actual AudioWorklet processor code
+const workletCode = "class AudioProcessor extends AudioWorkletProcessor { constructor() { super(); } process(inputs, outputs, parameters) { const input = inputs[0]; if (input && input[0]) { this.port.postMessage(input[0]); } return true; } } registerProcessor('audio-processor', AudioProcessor);"; // AudioWorklet processor
 
 // ========================= UTILITAIRES =========================
 function getClientId() {
