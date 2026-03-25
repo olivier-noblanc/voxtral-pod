@@ -7,7 +7,7 @@ from html import escape as html_escape
 from backend.html_ui import HTML_UI
 
 # Import shared state (no import of server_asr_ref)
-from backend.state import jobs_db, add_job, asr_engine, model_name, JOBS_DB_MAX_SIZE
+from backend.state import get_job, update_job, add_job, JOBS_DB_MAX_SIZE, get_asr_engine, get_current_model, set_current_model
 from backend.config import TEMP_DIR
 import backend.main as backend_main  # pylint: disable=no-member
 
@@ -15,12 +15,11 @@ router = APIRouter()
 
 # ---------- Helper ----------
 def _update_job_status(job_id: str, status: str, progress: int = 0, result_file: str | None = None):
-    """Update a job entry in the FIFO jobs_db."""
-    job = jobs_db.get(job_id, {})
-    job.update({"status": status, "progress": progress})
+    """Update a job entry in the SQLite state."""
+    data = {"status": status, "progress": progress}
     if result_file:
-        job["result_file"] = result_file
-    jobs_db[job_id] = job
+        data["result_file"] = result_file
+    update_job(job_id, data)
 
 # ---------- GET routes ----------
 @router.get("/")
@@ -36,10 +35,12 @@ async def home(request: Request):
     host = request.headers.get("host")
     from backend.core.engine import SotaASR
     ws_url = f"{protocol}://{host}/live?client_id={{getClientId()}}&partial_albert={{no_gpu}}"
+    current_model = get_current_model()
+    engine = get_asr_engine(load_model=False)
     return HTMLResponse(
         content=HTML_UI
-        .replace("{{model_name}}", model_name)
-        .replace("{{device}}", "cuda" if not asr_engine.no_gpu else "cpu")
+        .replace("{{model_name}}", current_model)
+        .replace("{{device}}", "cuda" if not engine.no_gpu else "cpu")
         .replace("{{commit}}", commit)
         .replace("{{ws_url}}", ws_url)
     )
@@ -135,7 +136,7 @@ body {{ background: var(--background-alt-grey); }}
 @router.get("/status/{file_id}")
 async def status_route(file_id: str):
     """Return the status of a batch job."""
-    return jobs_db.get(file_id, {"status": "not_found"})
+    return get_job(file_id, {"status": "not_found"})
 
 @router.get("/git_status")
 async def git_status():
@@ -200,11 +201,9 @@ async def git_update():
 @router.post("/change_model")
 async def change_model_route(model: str):
     """Change the ASR model at runtime."""
-    global asr_engine, model_name
-    model_name = model.lower()
-    from backend.core.engine import SotaASR
-    asr_engine = SotaASR(model_id=model_name, hf_token=os.getenv("HF_TOKEN"))
-    asr_engine.load()
+    set_current_model(model.lower())
+    # Pre-warm the model in this worker
+    get_asr_engine(load_model=True)
     return {"status": "ok"}
 
 @router.post("/save_live_transcription/{client_id}")
@@ -261,14 +260,13 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
     # Update status to indicate transcription start
     _update_job_status(file_id, "processing:Transcription...", 10)
     # Ensure the ASR engine is loaded
-    if not getattr(asr_engine, "_loaded", False):
-        asr_engine.load()
+    engine = get_asr_engine(load_model=True)
     # Progress callback updates job status
     def progress_callback(step: str, pct: int):
         pct = max(0, min(100, pct))
         _update_job_status(file_id, f"processing:{step}", pct)
     # Run the ASR processing pipeline
-    transcript = await asr_engine.process_file(assembled_path, progress_callback=progress_callback)
+    transcript = await engine.process_file(assembled_path, progress_callback=progress_callback)
     # Save transcript in client‑specific directory
     client_dir = os.path.join(backend_main.TRANSCRIPTIONS_DIR, client_id)
     os.makedirs(client_dir, exist_ok=True)
@@ -292,7 +290,8 @@ async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", part
     """WebSocket endpoint for live transcription."""
     await websocket.accept()
     from backend.core.live import LiveSession
-    session = LiveSession(asr_engine, websocket, client_id, partial_albert=partial_albert)
+    engine = get_asr_engine(load_model=True)
+    session = LiveSession(engine, websocket, client_id, partial_albert=partial_albert)
     processor = asyncio.create_task(session.process_audio_queue())
     try:
         while True:

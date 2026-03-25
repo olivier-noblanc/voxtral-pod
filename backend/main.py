@@ -4,9 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 # Import shared state
-from backend.state import asr_engine, model_name
-# Import ASR engine class
-from backend.core.engine import SotaASR
+from backend.state import get_asr_engine
 # Import API router
 from backend.routes import api as api_module
 # Expose TRANSCRIPTIONS_DIR for external monkey‑patching (tests modify backend.main.TRANSCRIPTIONS_DIR)
@@ -70,10 +68,9 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize the ASR engine at startup."""
-    global asr_engine
-    asr_engine = SotaASR(model_id=model_name, hf_token=os.getenv("HF_TOKEN"))
-    asr_engine.load()
+    """Initialize the ASR engine instance at startup."""
+    # Instancie le modèle sans charger les poids pour économiser la VRAM si workers=N
+    get_asr_engine(load_model=False)
 
 # Include all routes defined in backend/routes/api.py
 app.include_router(api_module.router)
