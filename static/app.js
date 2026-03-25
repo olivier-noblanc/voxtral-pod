@@ -81,13 +81,28 @@ async function startRecording() {
         processor = new AudioWorkletNode(audioContext, 'audio-processor');
         console.log('AudioWorkletNode (processor) created');
 processor.port.onmessage = (e) => {
-    console.log('Audio worklet data received, length:', e.data.length);
+    console.log('Audio worklet data received, original length:', e.data.length);
     if (ws && ws.readyState === 1) {
-        const pcm = new Int16Array(e.data.length);
-        for (let i = 0; i < e.data.length; i++) pcm[i] = Math.max(-1, Math.min(1, e.data[i])) * 0x7FFF;
+        // Downsample from the input sample rate (e.g., 48000 Hz) to 16000 Hz expected by the server
+        const factor = 3; // 48000 / 16000 = 3
+        const downLength = Math.floor(e.data.length / factor);
+        const downsampled = new Float32Array(downLength);
+        for (let i = 0; i < downLength; i++) {
+            downsampled[i] = e.data[i * factor];
+        }
+        const pcm = new Int16Array(downsampled.length);
+        for (let i = 0; i < downsampled.length; i++) {
+            pcm[i] = Math.max(-1, Math.min(1, downsampled[i])) * 0x7FFF;
+        }
+        console.log('Sending PCM data, length:', pcm.length);
         ws.send(pcm.buffer);
+        console.log('PCM data sent');
+        // Update volume bar using the downsampled data for a more responsive UI
+        updateVolumeBar(downsampled);
+    } else {
+        // Still update the UI even if the socket is not ready
+        updateVolumeBar(e.data);
     }
-    updateVolumeBar(e.data);
 };
         source.connect(processor);
         console.log('MediaStreamSource connected to processor');
