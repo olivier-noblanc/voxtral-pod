@@ -25,7 +25,8 @@ def test_home_ws_url_no_gpu_true():
     fake_engine.no_gpu = True
 
     with patch("backend.routes.api.get_asr_engine", return_value=fake_engine), \
-         patch("backend.routes.api.get_current_model", return_value="whisper"):
+         patch("backend.routes.api.get_current_model", return_value="whisper"), \
+         patch("backend.routes.api.HTML_UI", "TEMPLATE {{ws_url}}"):
         from backend.main import app
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.get("/")
@@ -41,8 +42,8 @@ def test_home_ws_url_no_gpu_false():
     fake_engine.no_gpu = False
 
     with patch("backend.routes.api.get_asr_engine", return_value=fake_engine), \
-         patch("backend.routes.api.get_current_model", return_value="whisper"):
-        from backend.main import app
+         patch("backend.routes.api.get_current_model", return_value="whisper"), \
+         patch("backend.routes.api.HTML_UI", "TEMPLATE {{ws_url}}"):
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.get("/")
         assert resp.status_code == 200
