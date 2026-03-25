@@ -1,34 +1,23 @@
 // ========================= VARIABLES GLOBALES =========================
- 
-
 let ws, audioContext, source, processor, isRecording = false;
 let audioStream = null;
 let captureType = "mic";
 const CHUNK_SIZE = 4 * 1024 * 1024;
-const workletCode = `
-    class AudioProcessor extends AudioWorkletProcessor {
-        constructor() { super(); this.buffer = new Float32Array(2560); this.offset = 0; }
-        process(inputs) {
-            const input = inputs[0][0];
-            if (!input) return true;
-            for (let i = 0; i < input.length; i++) {
-                this.buffer[this.offset++] = input[i];
-                if (this.offset >= 2560) { this.port.postMessage(this.buffer); this.offset = 0; }
-            }
-            return true;
-        }
-    }
-    registerProcessor('audio-processor', AudioProcessor);
-`;
+const workletCode = ""; // TODO: replace with actual AudioWorklet processor code
 
 // ========================= UTILITAIRES =========================
-const getClientId = () => {
+function getClientId() {
     let id = localStorage.getItem("sota_client_id");
-    if (!id) { id = "user_" + crypto.randomUUID().slice(0, 8); localStorage.setItem("sota_client_id", id); }
+    if (!id) {
+        id = "user_" + crypto.randomUUID().slice(0, 8);
+        localStorage.setItem("sota_client_id", id);
+    }
     return id;
-};
+}
+
 function updateVolumeBar(data) {
-    let sum = 0; for (let i = 0; i < data.length; i++) sum += data[i] ** 2;
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) sum += data[i] ** 2;
     document.getElementById('audioBar').style.width = Math.min(100, Math.sqrt(sum / data.length) * 400) + '%';
 }
 
@@ -60,7 +49,7 @@ async function startRecording() {
         else { btnRecord.disabled = true; btnSystem.classList.add('recording'); }
         barCont.style.display = 'block';
         const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
-        const wsUrl = `${wsProtocol}//${location.host}/live`;
+        const wsUrl = wsProtocol + '//' + location.host + '/live';
         ws = new WebSocket(wsUrl);
         ws.binaryType = 'arraybuffer';
         audioContext = new AudioContext({ sampleRate: 16000 });
@@ -75,20 +64,32 @@ async function startRecording() {
             }
             updateVolumeBar(e.data);
         };
-        source.connect(processor); processor.connect(audioContext.destination);
+        source.connect(processor);
+        processor.connect(audioContext.destination);
         box.innerHTML = "";
         let lastSpeaker = "";
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (data.type === "sentence") {
-                const row = document.createElement("div"); row.className = "sentence-row " + (data.final ? "finalized" : "");
-                const s = document.createElement("span"); s.className = "speaker-label";
-                if (data.speaker !== lastSpeaker) { s.textContent = `[${data.speaker}] `; lastSpeaker = data.speaker; }
-                const t = document.createElement("span"); t.className = data.final ? "final-text" : "partial-text"; t.textContent = (data.final ? "" : "... ") + data.text;
-                row.append(s, t); box.appendChild(row); box.scrollTop = box.scrollHeight;
-            } else if (data.type === "final_done") { loadHistory(); }
+                const row = document.createElement("div");
+                row.className = "sentence-row " + (data.final ? "finalized" : "");
+                const s = document.createElement("span");
+                s.className = "speaker-label";
+                if (data.speaker !== lastSpeaker) { s.textContent = "[" + data.speaker + "] "; lastSpeaker = data.speaker; }
+                const t = document.createElement("span");
+                t.className = data.final ? "final-text" : "partial-text";
+                t.textContent = (data.final ? "" : "... ") + data.text;
+                row.append(s, t);
+                box.appendChild(row);
+                box.scrollTop = box.scrollHeight;
+            } else if (data.type === "final_done") {
+                loadHistory();
+            }
         };
-    } catch (err) { alert(err.message); stopRecording(); }
+    } catch (err) {
+        alert(err.message);
+        stopRecording();
+    }
 }
 
 function stopRecording() {
@@ -97,10 +98,10 @@ function stopRecording() {
     const transcriptText = transcriptBox.innerText.trim();
     if (transcriptText) {
         const clientId = getClientId();
-        fetch(`/save_live_transcription/${clientId}`, {
+        fetch('/save_live_transcription/' + clientId, {
             method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: new URLSearchParams({content: transcriptText})
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ content: transcriptText })
         }).then(res => {
             if (!res.ok) console.error('Failed to save live transcription');
             else loadHistory();
@@ -125,41 +126,37 @@ function stopRecording() {
 async function loadHistory() {
     const list = document.getElementById('transcriptionList');
     try {
-        const res = await fetch(`/transcriptions?client_id=${getClientId()}`);
+        const res = await fetch('/transcriptions?client_id=' + getClientId());
         const files = await res.json();
-list.innerHTML = files.map(f => {
-    // Déterminer si c'est un fichier de transcription batch ou live
-    const isBatch = f.startsWith('batch_');
-    let audioFilename;
-    if (isBatch) {
-        // Le nom du fichier audio batch inclut l'ID client : batch_<client_id>_<timestamp>.wav
-        const ts = f.replace('batch_', '').replace('.txt', '');
-        audioFilename = `batch_${getClientId()}_${ts}.wav`;
-    } else {
-        // Pour les transcriptions live, le fichier audio inclut l'ID client
-        const ts = f.replace('live_', '').replace('.txt', '');
-        audioFilename = `live_${getClientId()}_${ts}.wav`;
+        list.innerHTML = files.map(function(f) {
+            var isBatch = f.startsWith('batch_');
+            var audioFilename;
+            if (isBatch) {
+                let ts = f.replace('batch_', '').replace('.txt', '');
+                audioFilename = 'batch_' + getClientId() + '_' + ts + '.wav';
+            } else {
+                let ts = f.replace('live_', '').replace('.txt', '');
+                audioFilename = 'live_' + getClientId() + '_' + ts + '.wav';
+            }
+            var downloadUrl = '/download_audio/' + getClientId() + '/' + audioFilename;
+            var transcriptUrl = '/download_transcript/' + getClientId() + '/' + f;
+            return '<div class="fr-col-12 fr-col-md-4">' +
+                '<div class="fr-card fr-card--sm" style="padding:1rem; border:1px solid #3a3a3a;">' +
+                '<h4 class="fr-card__title" style="font-size:0.8rem">' + f + '</h4>' +
+                '<a href="/view/' + getClientId() + '/' + f + '" class="fr-btn fr-btn--sm fr-mt-1w">Voir</a>' +
+                '<a href="' + downloadUrl + '" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger audio</a>' +
+                '<a href="' + transcriptUrl + '" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger texte</a>' +
+                '</div></div>';
+        }).join('') || "Aucune.";
+    } catch {
+        list.innerHTML = "Erreur.";
     }
-    const downloadUrl = `/download_audio/${getClientId()}/${audioFilename}`;
-    const transcriptUrl = `/download_transcript/${getClientId()}/${f}`;
-    return `
-        <div class="fr-col-12 fr-col-md-4">
-            <div class="fr-card fr-card--sm" style="padding:1rem; border:1px solid #3a3a3a;">
-                <h4 class="fr-card__title" style="font-size:0.8rem">${f}</h4>
-                <a href="/view/${getClientId()}/${f}" class="fr-btn fr-btn--sm fr-mt-1w">Voir</a>
-                <a href="${downloadUrl}" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger audio</a>
-                <a href="${transcriptUrl}" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger texte</a>
-            </div>
-        </div>
-    `;
-}).join('') || "Aucune.";
-    } catch { list.innerHTML = "Erreur."; }
 }
 
 // ========================= CONFIGURATION MODÈLE =========================
 async function changeModel() {
     const newModel = document.getElementById('modelSelector').value;
-    const res = await fetch(`/change_model?model=${newModel}`, { method: 'POST' });
+    const res = await fetch('/change_model?model=' + newModel, { method: 'POST' });
     if (res.ok) location.reload();
 }
 
@@ -179,7 +176,6 @@ function loadS3Config() {
     document.getElementById('s3AccessKey').value = c.a || "";
     document.getElementById('s3SecretKey').value = c.s || "";
 }
-
 function toggleS3Config() {
     const cfg = document.getElementById('s3Config');
     if (cfg.style.display === 'none') {
@@ -201,29 +197,27 @@ function loadAlbertConfig() {
     }
 }
 
-// Gestionnaire global pour le bouton "Modifier les speakers"
+// ========================= GESTIONNAIRE SPEAKER =========================
 function toggleSpeakerEditor() {
     const container = document.getElementById('speakerRenameContainer');
     if (!container) return;
     if (container.style.display === 'none' || container.style.display === '') {
         container.style.display = 'block';
-        initSpeakerEditor(); // Initialise l'éditeur lorsqu'on l'ouvre
+        initSpeakerEditor();
     } else {
         container.style.display = 'none';
     }
 }
-
-// Initialise l'éditeur de speakers (utilisé pour les transcriptions batch et live)
 function initSpeakerEditor() {
     const speakerSpans = document.querySelectorAll('.segment-speaker');
     const speakers = new Set();
-    speakerSpans.forEach(function(span) {
+    speakerSpans.forEach(span => {
         const speaker = span.dataset.speaker;
         if (speaker) speakers.add(speaker);
     });
     const listDiv = document.getElementById('speakerRenameList');
     listDiv.innerHTML = '';
-    speakers.forEach(function(speaker) {
+    speakers.forEach(speaker => {
         const colDiv = document.createElement('div');
         colDiv.className = 'fr-col-12 fr-col-md-6';
         const label = document.createElement('label');
@@ -235,10 +229,10 @@ function initSpeakerEditor() {
         input.value = speaker;
         input.className = 'fr-input';
         input.dataset.currentSpeaker = speaker;
-        input.addEventListener('input', function(e) {
+        input.addEventListener('input', e => {
             const newName = e.target.value;
             const oldName = e.target.dataset.currentSpeaker;
-            document.querySelectorAll('.segment-speaker[data-speaker="' + oldName + '"]').forEach(function(span) {
+            document.querySelectorAll('.segment-speaker[data-speaker="' + oldName + '"]').forEach(span => {
                 span.textContent = newName;
                 span.dataset.speaker = newName;
             });
@@ -258,7 +252,6 @@ async function uploadFile() {
     const file = input.files[0];
     const total = Math.ceil(file.size / CHUNK_SIZE);
     const id = crypto.randomUUID();
-    // Sauvegarder l'ID du job dans localStorage
     localStorage.setItem('pending_job', id);
     document.getElementById('uploadBtn').disabled = true;
     document.getElementById('uploadProgressContainer').style.display = 'block';
@@ -276,11 +269,10 @@ async function uploadFile() {
 }
 async function pollStatus(id) {
     const interval = setInterval(async () => {
-        const res = await fetch(`/status/${id}`);
+        const res = await fetch('/status/' + id);
         const data = await res.json();
         if (data.status === "done") {
             clearInterval(interval);
-            // Nettoyer localStorage quand le job est terminé
             localStorage.removeItem('pending_job');
             document.getElementById('uploadBtn').disabled = false;
             document.getElementById('batchStatus').innerText = "✓ Terminé.";
@@ -291,58 +283,13 @@ async function pollStatus(id) {
             document.getElementById('uploadBtn').disabled = false;
         } else if (data.status.startsWith("processing:")) {
             const pct = data.progress || 0;
-            const eta = data.eta ? ` (ETA: ${data.eta}s)` : '';
-            document.getElementById('batchStatus').innerText = `⏳ ${data.status.split(":")[1]} — ${pct}%${eta}`;
+            const eta = data.eta ? " (ETA: " + data.eta + "s)" : '';
+            document.getElementById('batchStatus').innerText = "⏳ " + data.status.split(":")[1] + " — " + pct + "%" + eta;
             document.getElementById('uploadProgressFill').style.width = pct + '%';
             document.getElementById('uploadProgressContainer').style.display = 'block';
         }
     }, 2000);
 }
-
-// ========================= INITIALISATION =========================
-window.onload = () => {
-    loadHistory();
-    loadS3Config();
-loadAlbertConfig();
-// Event listeners (replacing inline attributes)
-document.getElementById('recordBtn').addEventListener('click', toggleMicrophone);
-document.getElementById('systemBtn').addEventListener('click', toggleSystemAudio);
-document.getElementById('uploadBtn').addEventListener('click', handleBatchAction);
-document.getElementById('toggleS3').addEventListener('click', toggleS3Config);
-document.getElementById('modelSelector').addEventListener('change', changeModel);
-document.getElementById('albertPartial').addEventListener('change', saveAlbertConfig);
-document.getElementById('s3Endpoint').addEventListener('change', saveS3Config);
-document.getElementById('s3Bucket').addEventListener('change', saveS3Config);
-document.getElementById('s3AccessKey').addEventListener('change', saveS3Config);
-document.getElementById('s3SecretKey').addEventListener('change', saveS3Config);
-document.getElementById('toggleSpeakerEditorBtn').addEventListener('click', toggleSpeakerEditor);
-    // Ajout du gestionnaire pour le bouton "Modifier les speakers"
-    // (déplacé en dehors de window.onload, fonction globale définie plus haut)
-    document.getElementById('uploadBtn').disabled = false;
-
-    // Reprendre un job en cours si présent
-    const pendingJob = localStorage.getItem('pending_job');
-    if (pendingJob) {
-        document.getElementById('uploadProgressContainer').style.display = 'block';
-        document.getElementById('batchStatus').innerText = '⏳ Reprise du job en cours...';
-        document.getElementById('uploadBtn').disabled = true;
-        pollStatus(pendingJob);
-    }
-
-    const noGpu = '{{no_gpu}}' === 'true';
-    const selector = document.getElementById('modelSelector');
-    if (noGpu) {
-        selector.value = 'albert';
-        selector.disabled = true;
-        document.getElementById('cpuWarning').style.display = 'block';
-        document.getElementById('albertOptions').style.display = 'block';
-        const badge = document.getElementById('currentModelDisplay');
-        badge.innerText = 'Albert API (mode CPU)';
-        badge.className = 'fr-badge fr-badge--error fr-badge--no-icon';
-    } else {
-        selector.value = '{{model_name}}';
-    }
-};
 
 // ========================= GIT STATUS CHECK =========================
 async function checkGitStatus() {
@@ -350,9 +297,8 @@ async function checkGitStatus() {
         const resp = await fetch('/git_status');
         const data = await resp.json();
         console.log('🔍 git_status:', data);
-
         if (data.behind > 0) {
-            if (confirm(`⚠️ ${data.behind} commit(s) disponible(s). Mettre à jour maintenant ?`)) {
+            if (confirm('⚠️ ' + data.behind + ' commit(s) disponible(s). Mettre à jour maintenant ?')) {
                 const updResp = await fetch('/git_update', { method: 'POST' });
                 const updData = await updResp.json();
                 alert('Mise à jour:\n' + updData.stdout);
@@ -363,4 +309,38 @@ async function checkGitStatus() {
         console.error('Erreur git status:', e);
     }
 }
-window.addEventListener('load', checkGitStatus);
+
+// ========================= INITIALISATION =========================
+window.onload = () => {
+    // Initialise les écouteurs d'événements
+    const elRecord = document.getElementById('recordBtn');
+    if (elRecord) elRecord.addEventListener('click', toggleMicrophone);
+    const elSystem = document.getElementById('systemBtn');
+    if (elSystem) elSystem.addEventListener('click', toggleSystemAudio);
+    const elUpload = document.getElementById('uploadBtn');
+    if (elUpload) elUpload.addEventListener('click', handleBatchAction);
+    const elToggleS3 = document.getElementById('toggleS3');
+    if (elToggleS3) elToggleS3.addEventListener('click', toggleS3Config);
+    const elModel = document.getElementById('modelSelector');
+    if (elModel) elModel.addEventListener('change', changeModel);
+    const elAlbert = document.getElementById('albertPartial');
+    if (elAlbert) elAlbert.addEventListener('click', saveAlbertConfig);
+    const elS3Endpoint = document.getElementById('s3Endpoint');
+    if (elS3Endpoint) elS3Endpoint.addEventListener('change', saveS3Config);
+    const elS3Bucket = document.getElementById('s3Bucket');
+    if (elS3Bucket) elS3Bucket.addEventListener('change', saveS3Config);
+    const elS3Access = document.getElementById('s3AccessKey');
+    if (elS3Access) elS3Access.addEventListener('click', saveS3Config);
+    const elS3Secret = document.getElementById('s3SecretKey');
+    if (elS3Secret) elS3Secret.addEventListener('click', saveS3Config);
+    const elToggleSpeaker = document.getElementById('toggleSpeakerEditorBtn');
+    if (elToggleSpeaker) elToggleSpeaker.addEventListener('click', toggleSpeakerEditor);
+
+    // Chargement initial des données
+    loadHistory();
+    loadS3Config();
+    loadAlbertConfig();
+
+    // Vérifier les mises à jour Git
+    checkGitStatus();
+};
