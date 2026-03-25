@@ -134,7 +134,7 @@ HTML_UI = r"""<!DOCTYPE html>
                         <div class="fr-upload-group">
                             <input class="fr-upload" type="file" id="audioFile" accept="audio/*,video/*">
                         </div>
-                        <button onclick="handleBatchAction()" id="uploadBtn" class="fr-btn fr-mt-2w">Transcrire</button>
+<button onclick="handleBatchAction()" id="uploadBtn" class="fr-btn fr-mt-2w" disabled>Transcrire</button>
                         <div id="batchStatus" class="fr-text--bold fr-mt-1w"></div>
                         <div class="fr-progress-bar fr-mt-1w" id="uploadProgressContainer" style="display:none;" role="progressbar">
                             <div class="fr-progress-bar__bar"><div class="fr-progress-bar__fill" id="uploadProgressFill" style="width: 0%"></div></div>
@@ -388,7 +388,8 @@ HTML_UI = r"""<!DOCTYPE html>
         const total = Math.ceil(file.size / CHUNK_SIZE);
         const id = crypto.randomUUID();
         // Sauvegarder l'ID du job dans localStorage
-        localStorage.setItem('pending_job', id);
+localStorage.setItem('pending_job', id);
+document.getElementById('uploadBtn').disabled = true;
         document.getElementById('uploadProgressContainer').style.display = 'block';
         for (let i = 0; i < total; i++) {
             const formData = new FormData();
@@ -406,15 +407,17 @@ HTML_UI = r"""<!DOCTYPE html>
         const interval = setInterval(async () => {
             const res = await fetch(`/status/${id}`);
             const data = await res.json();
-            if (data.status === "done") {
-                clearInterval(interval);
-                // Nettoyer localStorage quand le job est terminé
-                localStorage.removeItem('pending_job');
-                document.getElementById('batchStatus').innerText = "✓ Terminé.";
-                loadHistory();
-            } else if (data.status === "not_found") {
-                clearInterval(interval);
-                localStorage.removeItem('pending_job');
+if (data.status === "done") {
+    clearInterval(interval);
+    // Nettoyer localStorage quand le job est terminé
+    localStorage.removeItem('pending_job');
+    document.getElementById('uploadBtn').disabled = false;
+    document.getElementById('batchStatus').innerText = "✓ Terminé.";
+    loadHistory();
+} else if (data.status === "not_found") {
+    clearInterval(interval);
+    localStorage.removeItem('pending_job');
+    document.getElementById('uploadBtn').disabled = false;
             } else if (data.status.startsWith("processing:")) {
                 const pct = data.progress || 0;
                 const eta = data.eta ? ` (ETA: ${data.eta}s)` : '';
@@ -429,15 +432,17 @@ HTML_UI = r"""<!DOCTYPE html>
     window.onload = () => {
         loadHistory();
         loadS3Config();
-        loadAlbertConfig();
+loadAlbertConfig();
+document.getElementById('uploadBtn').disabled = false;
 
         // Reprendre un job en cours si présent
         const pendingJob = localStorage.getItem('pending_job');
-        if (pendingJob) {
-            document.getElementById('uploadProgressContainer').style.display = 'block';
-            document.getElementById('batchStatus').innerText = '⏳ Reprise du job en cours...';
-            pollStatus(pendingJob);
-        }
+if (pendingJob) {
+    document.getElementById('uploadProgressContainer').style.display = 'block';
+    document.getElementById('batchStatus').innerText = '⏳ Reprise du job en cours...';
+    document.getElementById('uploadBtn').disabled = true;
+    pollStatus(pendingJob);
+}
 
         const noGpu = '{{no_gpu}}' === 'true';
         const selector = document.getElementById('modelSelector');
