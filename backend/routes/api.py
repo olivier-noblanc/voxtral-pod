@@ -28,14 +28,59 @@ from backend.core.engine import SotaASR
 import backend.main as main_mod
 
 # Placeholder for batch job processing
+import os
+import asyncio
+from backend.main import asr_engine, jobs_db, TRANSCRIPTIONS_DIR, TEMP_DIR
+
 async def run_batch_job(assembled_path: str, file_id: str, client_id: str):
     """
-    Placeholder implementation for processing a batch job.
-    In a full implementation this would run the ASR model on the assembled audio file.
+    Process a batch job:
+    1. Run ASR on the assembled audio file.
+    2. Save the transcription text.
+    3. Update job status and progress.
     """
-    # Simulate processing delay
-    await asyncio.sleep(0.1)
-    # Here you would add the actual processing logic.
+    # Update status: start processing
+    jobs_db[file_id].update({"status": "processing:Transcription...", "progress": 10})
+
+    # Ensure the ASR engine is loaded
+    if not getattr(asr_engine, "_loaded", False):
+        asr_engine.load()
+
+    # Run transcription (progress callback updates jobs_db)
+    def progress_callback(step: str, pct: int):
+        # Clamp pct to 0‑100 and store
+        pct = max(0, min(100, pct))
+        jobs_db[file_id].update({"status": f"processing:{step}", "progress": pct})
+
+    # Perform the full ASR pipeline on the assembled file
+    transcript_text = await asr_engine.process_file(assembled_path, progress_callback=progress_callback)
+
+    # Save transcription to batch directory
+    batch_dir = os.path.join(TRANSCRIPTIONS_DIR, "batch_transcriptions")
+    os.makedirs(batch_dir, exist_ok=True)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    txt_filename = f"batch_{client_id}_{timestamp}.txt"
+    txt_path = os.path.join(batch_dir, txt_filename)
+    with open(txt_path, "w", encoding="utf-8") as f:
+        f.write(transcript_text)
+
+    # Update final status
+    jobs_db[file_id].update({"status": "terminé", "progress": 100, "result_file": txt_filename})
+
+    # Cleanup temporary upload directory
+    upload_dir = os.path.dirname(assembled_path)
+    try:
+        # Remove the assembled audio file
+        os.remove(assembled_path)
+        # Remove any remaining chunk files (should already be removed)
+        for entry in os.listdir(upload_dir):
+            path = os.path.join(upload_dir, entry)
+            if os.path.isfile(path):
+                os.remove(path)
+        os.rmdir(upload_dir)
+    except Exception:
+        pass
+
     return
 
 router = APIRouter()
@@ -106,7 +151,7 @@ async def batch_chunk_route(
 
     if chunk_index == total_chunks - 1:
         jobs_db[file_id] = {"status": "processing:Réassemblage...", "progress": 0}
-        assembled_path = os.path.join(upload_dir, "audio_full")
+        assembled_path = os.path.join(upload_dir, "audio_full.wav")
         with open(assembled_path, "wb") as out_f:
             for i in range(total_chunks):
                 cp = os.path.join(upload_dir, f"chunk_{i:04d}")
