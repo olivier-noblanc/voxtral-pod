@@ -359,7 +359,7 @@ async def view_transcription(client_id: str, filename: str, request: Request):
                 <div class="transcript-container">
                     <a href="/" class="fr-link back-link">← Retour à l'accueil</a>
                     <h1>{safe_filename}</h1>
-<button id="toggleSpeakerEditorBtn" class="fr-btn fr-btn--secondary">Modifier les speakers</button>
+<button id="toggleSpeakerEditorBtn" type="button" class="fr-btn fr-btn--secondary">Modifier les speakers</button>
                     <div id="speakerRenameContainer" style="display:none;" class="fr-mt-2w"><div id="speakerRenameList" class="fr-grid-row fr-grid-row--gutters"></div></div>
                     <div id="transcript">
                         {format_transcription(content)}
