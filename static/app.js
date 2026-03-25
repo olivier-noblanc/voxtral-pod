@@ -157,8 +157,7 @@ async function startRecording() {
             // Update UI with downsampled data for a responsive volume bar
             updateVolumeBar(e.data);
         };
-        source.connect(processor);
-        console.log('MediaStreamSource connected to processor');
+        // source is already connected inside the if/else block above
         processor.connect(audioContext.destination);
         console.log('Processor connected to audio context destination');
         box.innerHTML = "";
