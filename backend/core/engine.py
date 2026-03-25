@@ -27,8 +27,11 @@ class SotaASR:
             print(f"[*] Low VRAM detected ({vram:.1f}GB). Optimizing for low resources.")
 
         # 2. Strategy selection
-        # If no GPU or low VRAM AND we have Albert key, force Albert transcription
-        if self.albert_api_key and (self.low_vram or self.no_gpu or model_id == "albert"):
+        # Auto-mock if VRAM < 7GB and no Albert API key
+        if not self.albert_api_key and vram < 7.0:
+            print(f"[*] Auto-Mock: VRAM ({vram:.1f}GB) < 7GB and no Albert key. Using Mock mode.")
+            self.model_id = "mock"
+        elif self.albert_api_key and (self.low_vram or self.no_gpu or model_id == "albert"):
             print("[*] Fallback: Using Albert API for transcription (No GPU or Low VRAM).")
             self.model_id = "albert"
         else:
@@ -100,6 +103,9 @@ class SotaASR:
                 pass
 
         # 3. Diarize + Transcribe (parallel pour Albert, séquentiel sinon)
+        if self.model_id == "mock":
+            return await self.transcription_engine.transcribe(audio_np) # Return directly for mock
+        
         parallel = (self.model_id == "albert")
 
         if parallel:

@@ -2,18 +2,21 @@
 import numpy as np
 import soundfile as sf
 import tempfile, os
-from resemblyzer import VoiceEncoder, preprocess_wav
+# from resemblyzer import VoiceEncoder, preprocess_wav
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_score
 
 class LightDiarizationEngine:
     def __init__(self):
-        self.encoder = VoiceEncoder("cpu")
+        self.encoder = None
 
     def load(self):
-        pass
+        if self.encoder is None:
+            from resemblyzer import VoiceEncoder
+            self.encoder = VoiceEncoder("cpu")
 
     def diarize(self, audio_float32, hook=None):
+        from resemblyzer import preprocess_wav
         wav = preprocess_wav(audio_float32)
 
         # Embeddings sur fenêtres glissantes 1.5s / step 0.5s

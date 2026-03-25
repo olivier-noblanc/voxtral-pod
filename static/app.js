@@ -484,7 +484,7 @@ window.onload = () => {
     const deviceBadge = document.querySelector('.fr-badge.fr-badge--info');
     if (deviceBadge && deviceBadge.textContent.trim() === 'cpu') {
         const modelSelect = document.getElementById('modelSelector');
-        if (modelSelect) {
+        if (modelSelect && modelSelect.value !== 'mock') {
             modelSelect.value = 'albert';
             modelSelect.disabled = true; // desactiver la listbox en mode CPU
             // Afficher l'avertissement CPU

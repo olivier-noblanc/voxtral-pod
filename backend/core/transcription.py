@@ -33,9 +33,8 @@ class TranscriptionEngine:
         return self.model_id in _ALBERT_MODEL_IDS or bool(self.albert_api_key)
 
     def load(self):
-        if self.use_albert:
-            print("[*] Using Albert API for transcription...")
-            # Aucun modèle local à charger
+        if self.use_albert or self.model_id == "mock":
+            print(f"[*] Transcription engine in {self.model_id} mode (no local weights needed).")
             return
 
         if self.model_id == "whisper":
@@ -61,6 +60,10 @@ class TranscriptionEngine:
         """
         if self.use_albert:
             return self._transcribe_albert(audio_np, language, progress_callback)
+        
+        if self.model_id == "mock":
+            duration = len(audio_np) / 16000
+            return [{"start": 0.0, "end": duration, "word": "[MOCK] Transcription de test mélangée (Micro + Système)"}], duration
 
         if self.model is None:
             self.load()
