@@ -24,9 +24,8 @@ def setup_test_files():
     original_dir = TRANSCRIPTIONS_DIR
 
     # Override the TRANSCRIPTIONS_DIR for the duration of the test
-    # (the app uses the imported constant, so we monkey‑patch the module variable)
-    backend_main = __import__("backend.main", fromlist=["TRANSCRIPTIONS_DIR"])
-    backend_main.TRANSCRIPTIONS_DIR = temp_dir
+    from backend.routes import api as api_module
+    api_module.TRANSCRIPTIONS_DIR = temp_dir
 
     client_id = "testclient"
     # Create client transcription folder with a .txt file
@@ -65,7 +64,7 @@ def setup_test_files():
     # Cleanup
     shutil.rmtree(temp_dir)
     # Restore original constant
-    backend_main.TRANSCRIPTIONS_DIR = original_dir
+    api_module.TRANSCRIPTIONS_DIR = original_dir
 
 def test_download_live_audio(setup_test_files):
     data = setup_test_files

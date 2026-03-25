@@ -27,6 +27,11 @@ def _safe_join(base: str, *parts: str) -> str:
         raise HTTPException(status_code=400, detail="Chemin invalide.")
     return str(target)
 
+def _validate_client_id(client_id: str):
+    """Vérifie que le client_id est valide (format user_xxxxxxxx)."""
+    if not client_id or client_id == "anonymous" or not client_id.startswith("user_") or len(client_id) < 6:
+        raise HTTPException(status_code=400, detail="Identifiant client (UUID) invalide ou anonyme non autorisé.")
+
 # ---------- Helper ----------
 def _update_job_status(job_id: str, status: str, progress: int = 0, result_file: str | None = None):
     """Update a job entry in the SQLite state."""
@@ -79,6 +84,10 @@ async def get_trans(filename: str, client_id: str):
 @router.get("/download_audio/{client_id}/{filename}")
 async def download_audio(client_id: str, filename: str):
     """Download a WAV audio file."""
+    # Strict isolation: filename must contain the client_id to prevent cross-client access
+    if f"_{client_id}_" not in filename:
+        raise HTTPException(status_code=403, detail="Accès refusé : ce fichier n'appartient pas à votre session.")
+
     for subdir in ("live_audio", "batch_audio"):
         file_path = os.path.join(TRANSCRIPTIONS_DIR, subdir, filename)
         if os.path.isfile(file_path):
@@ -110,8 +119,12 @@ async def view_transcription(client_id: str, filename: str, request: Request):
         file_path = client_path
         is_temp = False
     else:
+        # Check live_audio (temporary files)
         temp_path = _safe_join(TRANSCRIPTIONS_DIR, "live_audio", filename)
         if os.path.isfile(temp_path):
+            # Strict isolation for temp files too
+            if f"_user_" in filename and f"_{client_id}_" not in filename:
+                raise HTTPException(status_code=403, detail="Accès refusé.")
             file_path = temp_path
             is_temp = True
         else:
@@ -225,12 +238,13 @@ async def change_model_route(model: str):
 async def batch_chunk_route(
     background_tasks: BackgroundTasks,
     file_id: str = Form(...),
-    client_id: str = Form("anonymous"),
+    client_id: str = Form(...),
     chunk_index: int = Form(...),
     total_chunks: int = Form(...),
     file: UploadFile = File(...),
 ):
     """Receive a chunk of a batch upload and trigger processing when complete."""
+    _validate_client_id(client_id)
     if chunk_index == 0:
         # Create a new job entry (FIFO)
         add_job(file_id, {"status": "uploading", "progress": 0})
@@ -308,6 +322,10 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
 @router.websocket("/live")
 async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", partial_albert: bool = False):
     """WebSocket endpoint for live transcription."""
+    if not client_id or client_id == "anonymous" or not client_id.startswith("user_"):
+        # On ne peut pas lever HTTPException ici, on ferme la socket
+        await websocket.close(code=4003)
+        return
     await websocket.accept()
     from backend.core.live import LiveSession
     engine = get_asr_engine(load_model=True)

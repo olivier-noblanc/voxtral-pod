@@ -130,7 +130,7 @@ class LiveSession:
         full_text = " ".join(w["word"] for w in words).strip()
 
         # Enregistrer la transcription propre dans un fichier .txt à côté du wav
-        txt_filename = f"live_{timestamp}.txt"
+        txt_filename = f"live_{self.client_id}_{timestamp}.txt"
         txt_path = os.path.join(audio_dir, txt_filename)
         with open(txt_path, "w", encoding="utf-8") as txt_file:
             txt_file.write(full_text)
