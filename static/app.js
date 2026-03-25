@@ -371,9 +371,47 @@ window.onload = () => {
     const pendingJob = localStorage.getItem('pending_job');
     if (pendingJob) {
         const uploadBtn = document.getElementById('uploadBtn');
-        if (uploadBtn) uploadBtn.disabled = true;
         const progressContainer = document.getElementById('uploadProgressContainer');
-        if (progressContainer) progressContainer.style.display = 'block';
-        pollStatus(pendingJob);
+        const statusElem = document.getElementById('batchStatus');
+
+        // Fonction de secours : réactiver le bouton après un délai si aucune réponse
+        const fallbackTimeout = setTimeout(() => {
+                if (uploadBtn && uploadBtn.disabled) {
+                    uploadBtn.disabled = false;
+                    if (statusElem) statusElem.innerText = "⚠️ Aucun statut reçu; veuillez re-revoir le processus.";
+                }
+        }, 30000); // 30 s
+
+        // Vérifier le statut immédiatement
+        fetch('/status/' + pendingJob)
+            .then(res => res.json())
+            .then(data => {
+                clearTimeout(fallbackTimeout);
+                if (data.status === "done") {
+                    localStorage.removeItem('pending_job');
+                    if (uploadBtn) uploadBtn.disabled = false;
+                    if (statusElem) statusElem.innerText = "✓ Terminé.";
+                    loadHistory();
+                } else if (data.status === "not_found") {
+                    localStorage.removeItem('pending_job');
+                    if (uploadBtn) uploadBtn.disabled = false;
+                    if (statusElem) statusElem.innerText = "";
+                } else {
+                    // statut en cours
+                    if (uploadBtn) uploadBtn.disabled = true;
+                    if (progressContainer) progressContainer.style.display = 'block';
+                    if (statusElem) {
+                        const pct = data.progress || 0;
+                        const eta = data.eta ? " (ETA: " + data.eta + "s)" : '';
+                        statusElem.innerText = "⏳ " + data.status.split(":")[1] + " — " + pct + "%" + eta;
+                    }
+                    // démarrer le polling régulier
+                    pollStatus(pendingJob);
+                }
+            })
+            .catch(() => {
+                // En cas d'erreur, démarrer le polling
+                pollStatus(pendingJob);
+            });
     }
 };
