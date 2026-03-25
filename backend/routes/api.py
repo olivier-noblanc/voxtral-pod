@@ -174,13 +174,34 @@ async def cancel_route(file_id: str):
 
 @router.post("/save_live_transcription/{client_id}")
 async def save_live_transcription_route(client_id: str, content: str = Form(...)):
+    """
+    Enregistre la transcription live dans un fichier texte « propre ».
+    - Les parties partielles (préfixées par « ... ») sont nettoyées.
+    - Les lignes vides sont ignorées.
+    - Le résultat est un texte lisible, sans marqueurs de correction.
+    """
     out_dir = os.path.join(main_mod.TRANSCRIPTIONS_DIR, client_id)
     os.makedirs(out_dir, exist_ok=True)
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"live_{ts}.txt"
     file_path = os.path.join(out_dir, filename)
+
+    # Nettoyage du texte reçu du client
+    cleaned_lines = []
+    for line in content.splitlines():
+        # Supprimer le préfixe de texte partiel « ... » s’il existe
+        line = line.lstrip()
+        if line.startswith("... "):
+            line = line[4:]
+        # Ignorer les lignes vides après nettoyage
+        if line:
+            cleaned_lines.append(line)
+
+    cleaned_content = "\n".join(cleaned_lines)
+
     with open(file_path, "w", encoding="utf-8") as f:
-        f.write(content)
+        f.write(cleaned_content)
+
     return {"status": "ok", "filename": filename}
 
 
@@ -327,13 +348,27 @@ async def download_transcript(client_id: str, filename: str):
 
 @router.get("/view/{client_id}/{filename}")
 async def view_transcription(client_id: str, filename: str, request: Request):
-    file_path = os.path.join(main_mod.TRANSCRIPTIONS_DIR, client_id, filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Fichier introuvable.")
+    # Try the cleaned transcription in the client directory first
+    client_path = os.path.join(main_mod.TRANSCRIPTIONS_DIR, client_id, filename)
+    if os.path.exists(client_path):
+        file_path = client_path
+        is_temporary = False
+    else:
+        # Fallback to the raw transcription generated in live_audio (temporary version)
+        temp_path = os.path.join(main_mod.TRANSCRIPTIONS_DIR, "live_audio", filename)
+        if os.path.exists(temp_path):
+            file_path = temp_path
+            is_temporary = True
+        else:
+            raise HTTPException(status_code=404, detail="Fichier introuvable.")
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
     safe_client_id = html.escape(client_id)
     safe_filename = html.escape(filename)
+    # Add a notice if we are serving the temporary version
+    temp_notice = ""
+    if is_temporary:
+        temp_notice = "<p><em>Version temporaire (en cours de nettoyage)</em></p>"
     return HTMLResponse(
         content=f"""
         <!DOCTYPE html>
@@ -359,10 +394,11 @@ async def view_transcription(client_id: str, filename: str, request: Request):
                 <div class="transcript-container">
                     <a href="/" class="fr-link back-link">← Retour à l'accueil</a>
                     <h1>{safe_filename}</h1>
+{temp_notice}
 <button id="toggleSpeakerEditorBtn" type="button" class="fr-btn fr-btn--secondary">Modifier les speakers</button>
                     <div id="speakerRenameContainer" style="display:none;" class="fr-mt-2w"><div id="speakerRenameList" class="fr-grid-row fr-grid-row--gutters"></div></div>
                     <div id="transcript">
-                        {format_transcription(content)}
+                        <pre>{html.escape(content)}</pre>
                     </div>
                     <form id="updateForm" method="post" action="/update_transcription/{safe_client_id}/{safe_filename}">
                         <input type="hidden" name="content" id="updatedContentInput" value="">

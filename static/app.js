@@ -45,9 +45,9 @@ function updateVolumeBar(data) {
     console.debug('Audio level:', level.toFixed(2) + '%');
 }
 
-// ========================= GESTION MICRO / SYSTÈME =========================
+// ========================= GESTION MICRO / SYSTEME =========================
 async function toggleMicrophone() {
-        console.log('toggleMicrophone clicked, isRecording:', isRecording);
+    console.log('toggleMicrophone clicked, isRecording:', isRecording);
     if (isRecording) stopRecording();
     else { captureType = "mic"; startRecording(); }
 }
@@ -57,7 +57,7 @@ async function toggleSystemAudio() {
 }
 
 async function startRecording() {
-        console.log('startRecording initiated, captureType:', captureType);
+    console.log('startRecording initiated, captureType:', captureType);
     const btnRecord = document.getElementById('recordBtn');
     const btnSystem = document.getElementById('systemBtn');
     const box = document.getElementById('liveTranscript');
@@ -80,9 +80,9 @@ async function startRecording() {
         const model = document.getElementById('modelSelector').value;
         const partial = document.getElementById('albertPartial').checked;
         if (model === 'albert' && partial) {
-            wsUrl += `?client_id=${getClientId()}&partial_albert=true`;
+            wsUrl += '?client_id=' + getClientId() + '&partial_albert=true';
         } else {
-            wsUrl += `?client_id=${getClientId()}`;
+            wsUrl += '?client_id=' + getClientId();
         }
         ws = new WebSocket(wsUrl);
         console.log('WebSocket opened to', wsUrl);
@@ -95,27 +95,27 @@ async function startRecording() {
         console.log('AudioWorklet module added');
         processor = new AudioWorkletNode(audioContext, 'audio-processor');
         console.log('AudioWorkletNode (processor) created');
-processor.port.onmessage = (e) => {
-    console.log('Audio worklet data received, length:', e.data.length);
-    // Dynamically compute down‑sampling factor based on the AudioContext sample rate
-    const targetRate = 16000;
-    const factor = Math.max(1, Math.round(audioContext.sampleRate / targetRate));
-    const downLength = Math.floor(e.data.length / factor);
-    const downsampled = new Float32Array(downLength);
-    for (let i = 0; i < downLength; i++) {
-        downsampled[i] = e.data[i * factor];
-    }
-    const pcm = new Int16Array(downsampled.length);
-    for (let i = 0; i < downsampled.length; i++) {
-        pcm[i] = Math.max(-1, Math.min(1, downsampled[i])) * 0x7FFF;
-    }
-    if (ws && ws.readyState === 1) {
-        ws.send(pcm.buffer);
-        console.log('PCM data sent (downsampled by factor', factor, ')');
-    }
-    // Update UI with downsampled data for a responsive volume bar
-    updateVolumeBar(e.data);
-};
+        processor.port.onmessage = (e) => {
+            console.log('Audio worklet data received, length:', e.data.length);
+            // Dynamically compute down-sampling factor based on the AudioContext sample rate
+            const targetRate = 16000;
+            const factor = Math.max(1, Math.round(audioContext.sampleRate / targetRate));
+            const downLength = Math.floor(e.data.length / factor);
+            const downsampled = new Float32Array(downLength);
+            for (let i = 0; i < downLength; i++) {
+                downsampled[i] = e.data[i * factor];
+            }
+            const pcm = new Int16Array(downsampled.length);
+            for (let i = 0; i < downsampled.length; i++) {
+                pcm[i] = Math.max(-1, Math.min(1, downsampled[i])) * 0x7FFF;
+            }
+            if (ws && ws.readyState === 1) {
+                ws.send(pcm.buffer);
+                console.log('PCM data sent (downsampled by factor', factor, ')');
+            }
+            // Update UI with downsampled data for a responsive volume bar
+            updateVolumeBar(e.data);
+        };
         source.connect(processor);
         console.log('MediaStreamSource connected to processor');
         processor.connect(audioContext.destination);
@@ -125,16 +125,42 @@ processor.port.onmessage = (e) => {
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (data.type === "sentence") {
-                const row = document.createElement("div");
-                row.className = "sentence-row " + (data.final ? "finalized" : "");
-                const s = document.createElement("span");
-                s.className = "speaker-label";
-                if (data.speaker !== lastSpeaker) { s.textContent = "[" + data.speaker + "] "; lastSpeaker = data.speaker; }
-                const t = document.createElement("span");
-                t.className = data.final ? "final-text" : "partial-text";
-                t.textContent = (data.final ? "" : "... ") + data.text;
-                row.append(s, t);
-                box.appendChild(row);
+                if (data.final) {
+                    // Replace last partial segment if it exists
+                    const rows = box.getElementsByClassName("sentence-row");
+                    if (rows.length > 0) {
+                        const lastRow = rows[rows.length - 1];
+                        const partialSpan = lastRow.querySelector("span.partial-text");
+                        if (partialSpan) {
+                            partialSpan.className = "final-text";
+                            partialSpan.textContent = data.text;
+                        } else {
+                            // No partial found: create a new final line
+                            const row = document.createElement("div");
+                            row.className = "sentence-row finalized";
+                            const s = document.createElement("span");
+                            s.className = "speaker-label";
+                            if (data.speaker !== lastSpeaker) { s.textContent = "[" + data.speaker + "] "; lastSpeaker = data.speaker; }
+                            const t = document.createElement("span");
+                            t.className = "final-text";
+                            t.textContent = data.text;
+                            row.append(s, t);
+                            box.appendChild(row);
+                        }
+                    }
+                } else {
+                    // Partial segment: add a new line
+                    const row = document.createElement("div");
+                    row.className = "sentence-row";
+                    const s = document.createElement("span");
+                    s.className = "speaker-label";
+                    if (data.speaker !== lastSpeaker) { s.textContent = "[" + data.speaker + "] "; lastSpeaker = data.speaker; }
+                    const t = document.createElement("span");
+                    t.className = "partial-text";
+                    t.textContent = "... " + data.text;
+                    row.append(s, t);
+                    box.appendChild(row);
+                }
                 box.scrollTop = box.scrollHeight;
             } else if (data.type === "final_done") {
                 loadHistory();
@@ -194,20 +220,20 @@ async function loadHistory() {
             }
             var downloadUrl = '/download_audio/' + getClientId() + '/' + audioFilename;
             var transcriptUrl = '/download_transcript/' + getClientId() + '/' + f;
-            return '<div class="fr-col-12 fr-col-md-4">' +
-                '<div class="fr-card fr-card--sm" style="padding:1rem; border:1px solid #3a3a3a;">' +
-                '<h4 class="fr-card__title" style="font-size:0.8rem">' + f + '</h4>' +
-                '<a href="/view/' + getClientId() + '/' + f + '" class="fr-btn fr-btn--sm fr-mt-1w">Voir</a>' +
-                '<a href="' + downloadUrl + '" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger audio</a>' +
-                '<a href="' + transcriptUrl + '" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger texte</a>' +
-                '</div></div>';
+return '<div class="fr-col-12 fr-col-md-4">' +
+    '<div class="fr-card fr-card--sm" style="padding:1rem; border:1px solid #3a3a3a;">' +
+    '<h4 class="fr-card__title" style="font-size:0.8rem">' + f + '</h4>' +
+    '<a href="/view/' + getClientId() + '/' + f + '" class="fr-btn fr-btn--sm fr-mt-1w">Voir (temporaire)</a>' +
+    '<a href="' + downloadUrl + '" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger audio</a>' +
+    '<a href="' + transcriptUrl + '" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger texte</a>' +
+    '</div></div>';
         }).join('') || "Aucune.";
     } catch {
         list.innerHTML = "Erreur.";
     }
 }
 
-// ========================= CONFIGURATION MODÈLE =========================
+// ========================= CONFIGURATION MODELE =========================
 async function changeModel() {
     const newModel = document.getElementById('modelSelector').value;
     const res = await fetch('/change_model?model=' + newModel, { method: 'POST' });
@@ -338,7 +364,7 @@ async function pollStatus(id) {
         } else if (data.status.startsWith("processing:")) {
             const pct = data.progress || 0;
             const eta = data.eta ? " (ETA: " + data.eta + "s)" : '';
-                const statusLabel = (data.status && data.status.includes(":")) ? data.status.split(":")[1] : (data.status || "unknown");
+            const statusLabel = (data.status && data.status.includes(":")) ? data.status.split(":")[1] : (data.status || "unknown");
             document.getElementById('batchStatus').innerText = "⏳ " + statusLabel + " — " + pct + "%" + eta;
             document.getElementById('uploadBtn').disabled = true;
             document.getElementById('uploadProgressFill').style.width = pct + '%';
@@ -368,7 +394,7 @@ async function checkGitStatus() {
 
 // ========================= INITIALISATION =========================
 window.onload = () => {
-    // Initialise les écouteurs d'événements
+    // Initialise les ecouteurs d'evenements
     const elRecord = document.getElementById('recordBtn');
     if (elRecord) elRecord.addEventListener('click', toggleMicrophone);
     const elSystem = document.getElementById('systemBtn');
@@ -392,78 +418,77 @@ window.onload = () => {
     const elToggleSpeaker = document.getElementById('toggleSpeakerEditorBtn');
     if (elToggleSpeaker) elToggleSpeaker.addEventListener('click', toggleSpeakerEditor);
 
-    // Chargement initial des données
+    // Chargement initial des donnees
     loadHistory();
     loadS3Config();
     loadAlbertConfig();
 
-    // Forcer Albert si aucun GPU détecté
+    // Forcer Albert si aucun GPU detecte
     const deviceBadge = document.querySelector('.fr-badge.fr-badge--info');
     if (deviceBadge && deviceBadge.textContent.trim() === 'cpu') {
         const modelSelect = document.getElementById('modelSelector');
         if (modelSelect) {
             modelSelect.value = 'albert';
-            modelSelect.disabled = true; // désactiver la listbox en mode CPU
+            modelSelect.disabled = true; // desactiver la listbox en mode CPU
             // Afficher l'avertissement CPU
             const cpuWarn = document.getElementById('cpuWarning');
             if (cpuWarn) cpuWarn.style.display = 'block';
-            // Mettre à jour l'affichage des options Albert
+            // Mettre a jour l'affichage des options Albert
             loadAlbertConfig();
         }
     }
 
-    // Vérifier les mises à jour Git
+    // Verifier les mises a jour Git
     checkGitStatus();
 
-    // Reprendre le suivi d'un batch en cours après rafraîchissement
-    const pendingJob = localStorage.getItem('pending_job');
+    // Reprendre le suivi d'un batch en cours apres rafraichissement
+    const pendingJob = localStorage.getItem('pendingJob');
     if (pendingJob) {
         const uploadBtn = document.getElementById('uploadBtn');
         const progressContainer = document.getElementById('uploadProgressContainer');
         const statusElem = document.getElementById('batchStatus');
 
-        // Désactiver le bouton et afficher le conteneur de progression
+        // Desactiver le bouton et afficher le conteneur de progression
         if (uploadBtn) uploadBtn.disabled = true;
         if (progressContainer) progressContainer.style.display = 'block';
         if (statusElem) statusElem.innerText = "⏳ Reprise du traitement...";
 
-        // Fonction de secours : réactiver le bouton après 30 s si aucune réponse
+        // Fonction de secours: reactiver le bouton apres 30 s si aucune reponse
         const fallbackTimeout = setTimeout(() => {
             if (uploadBtn) uploadBtn.disabled = false;
-            if (statusElem) statusElem.innerText = "⚠️ Aucun statut reçu, veuillez réessayer.";
+            if (statusElem) statusElem.innerText = "⚠️ Aucun statut recu, veuillez reessayer.";
             loadHistory();
         }, 30000);
 
-        // Vérifier immédiatement le statut du job
+        // Verifier immediatement le statut du job
         fetch('/status/' + pendingJob)
             .then(res => res.json())
             .then(data => {
                 clearTimeout(fallbackTimeout);
                 if (data.status === "done") {
-                    localStorage.removeItem('pending_job');
+                    localStorage.removeItem('pendingJob');
                     if (uploadBtn) uploadBtn.disabled = false;
                     if (statusElem) statusElem.innerText = "✓ Terminé.";
                     loadHistory();
                 } else if (data.status === "not_found") {
-                    localStorage.removeItem('pending_job');
+                    localStorage.removeItem('pendingJob');
                     if (uploadBtn) uploadBtn.disabled = false;
                     if (statusElem) statusElem.innerText = "";
                     loadHistory();
                 } else {
                     // Job en cours
                     if (uploadBtn) uploadBtn.disabled = true;
-                if (statusElem) {
-                    const pct = data.progress || 0;
-                    const eta = data.eta ? " (ETA: " + data.eta + "s)" : '';
-                    const statusLabel = (data.status && data.status.includes(":")) ? data.status.split(":")[1] : (data.status || "unknown");
-                    statusElem.innerText = "⏳ " + statusLabel + " — " + pct + "%" + eta;
-                }
+                    if (statusElem) {
+                        const pct = data.progress || 0;
+                        const eta = data.eta ? " (ETA: " + data.eta + "s)" : '';
+                        const statusLabel = (data.status && data.status.includes(":")) ? data.status.split(":")[1] : (data.status || "unknown");
+                        statusElem.innerText = "⏳ " + statusLabel + " — " + pct + "%" + eta;
+                    }
                     pollStatus(pendingJob);
                 }
             })
             .catch(() => {
-                clearTimeout(fallbackTimeout);
-                // En cas d'erreur réseau, démarrer le polling
+                // En cas d'erreur reseau, demarrer le polling
                 if (uploadBtn) uploadBtn.disabled = true;
                 if (progressContainer) progressContainer.style.display = 'block';
                 pollStatus(pendingJob);

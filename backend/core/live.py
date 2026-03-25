@@ -3,6 +3,7 @@ import struct
 import numpy as np
 import os
 import datetime
+import shutil
 from fastapi import WebSocket
 from backend.core.vad import VADManager, SAMPLE_RATE
 from backend.config import TRANSCRIPTIONS_DIR
@@ -94,16 +95,18 @@ class LiveSession:
                             await self._transcribe_segment(pcm_data, final=True)
 
     async def save_audio_file(self) -> str | None:
-        """Sauvegarde les données audio de la session dans un fichier WAV valide."""
+        """Sauvegarde les données audio de la session dans un fichier WAV valide,
+        puis génère une transcription complète propre du fichier audio."""
         if not self.full_session_audio:
             return None
 
+        # ---------- Enregistrement du fichier WAV ----------
         audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "live_audio")
         os.makedirs(audio_dir, exist_ok=True)
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"live_{self.client_id}_{timestamp}.wav"
-        filepath = os.path.join(audio_dir, filename)
+        wav_filename = f"live_{self.client_id}_{timestamp}.wav"
+        wav_path = os.path.join(audio_dir, wav_filename)
 
         pcm_bytes = b"".join(self.full_session_audio)
         num_channels = 1
@@ -112,7 +115,7 @@ class LiveSession:
         block_align = num_channels * bits_per_sample // 8
         data_size = len(pcm_bytes)
 
-        with open(filepath, "wb") as f:
+        with open(wav_path, "wb") as f:
             # RIFF header
             f.write(b"RIFF")
             f.write(struct.pack("<I", 36 + data_size))   # taille totale - 8
@@ -131,8 +134,30 @@ class LiveSession:
             f.write(struct.pack("<I", data_size))
             f.write(pcm_bytes)
 
-        print(f"[*] [{self.client_id}] Audio saved: {filename} ({data_size / 1024:.1f} KB)")
-        return filename
+        print(f"[*] [{self.client_id}] Audio saved: {wav_filename} ({data_size / 1024:.1f} KB)")
+
+        # ---------- Transcription complète du fichier audio ----------
+        # Convertir les octets PCM en tableau numpy float32 normalisé
+        audio_np = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+
+        # Utiliser le moteur de transcription pour obtenir le texte complet
+        words, _ = await asyncio.to_thread(self.engine.transcription_engine.transcribe, audio_np)
+        full_text = " ".join(w["word"] for w in words).strip()
+
+        # Enregistrer la transcription propre dans un fichier .txt à côté du wav
+        txt_filename = wav_filename.replace(".wav", ".txt")
+        txt_path = os.path.join(audio_dir, txt_filename)
+        with open(txt_path, "w", encoding="utf-8") as txt_file:
+            txt_file.write(full_text)
+
+        print(f"[*] [{self.client_id}] Full transcription saved: {txt_filename}")
+
+        # ---------- Copier la transcription dans le répertoire client ----------
+        client_dir = os.path.join(TRANSCRIPTIONS_DIR, self.client_id)
+        os.makedirs(client_dir, exist_ok=True)
+        shutil.copy(txt_path, client_dir)
+
+        return wav_filename
 
     async def _transcribe_segment(self, pcm_data: bytes, final: bool = True):
         """Invoke engine transcription and send via WS."""
