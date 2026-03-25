@@ -125,6 +125,8 @@ HTML_UI = r"""<!DOCTYPE html>
                         </div>
                         <div class="audio-bar-container" id="audioBarCont"><div id="audioBar"></div></div>
                         <div class="live-box" id="liveTranscript">En attente de flux audio...</div>
+                        <button class="fr-btn fr-btn--secondary" onclick="toggleSpeakerEditor()">Modifier les speakers</button>
+                        <div id="speakerRenameContainer" style="display:none;" class="fr-mt-2w"><div id="speakerRenameList" class="fr-grid-row fr-grid-row--gutters"></div></div>
                     </section>
                 </div>
 
@@ -144,8 +146,9 @@ HTML_UI = r"""<!DOCTYPE html>
                 </div>
 
                 <div class="fr-col-12 fr-mt-4w">
-                    <h3 class="fr-h6">⚙️ Configuration S3 (Optionnel)</h3>
-                    <div class="fr-grid-row fr-grid-row--gutters">
+<h3 class="fr-h6">⚙️ Configuration S3 (Optionnel)</h3>
+<button id="toggleS3" class="fr-btn fr-btn--secondary fr-mb-2w" onclick="toggleS3Config()">Afficher/masquer S3</button>
+<div id="s3Config" class="fr-grid-row fr-grid-row--gutters" style="display:none;">
                         <div class="fr-col-12 fr-col-md-6">
                             <input class="fr-input" type="text" id="s3Endpoint" placeholder="Endpoint" onchange="saveS3Config()">
                         </div>
@@ -359,13 +362,22 @@ HTML_UI = r"""<!DOCTYPE html>
             s: document.getElementById('s3SecretKey').value
         }));
     }
-    function loadS3Config() {
+function loadS3Config() {
         const c = JSON.parse(localStorage.getItem('s3_conf') || '{}');
         document.getElementById('s3Endpoint').value = c.e || "";
         document.getElementById('s3Bucket').value = c.b || "";
         document.getElementById('s3AccessKey').value = c.a || "";
         document.getElementById('s3SecretKey').value = c.s || "";
     }
+
+function toggleS3Config() {
+    const cfg = document.getElementById('s3Config');
+    if (cfg.style.display === 'none') {
+        cfg.style.display = 'flex';
+    } else {
+        cfg.style.display = 'none';
+    }
+}
 
     // ========================= OPTIONS ALBERT =========================
     function saveAlbertConfig() {
@@ -377,6 +389,55 @@ HTML_UI = r"""<!DOCTYPE html>
         if (document.getElementById('modelSelector').value === 'albert') {
             document.getElementById('albertOptions').style.display = 'block';
         }
+    }
+
+    // Gestionnaire global pour le bouton "Modifier les speakers"
+    function toggleSpeakerEditor() {
+        const container = document.getElementById('speakerRenameContainer');
+        if (!container) return;
+        if (container.style.display === 'none' || container.style.display === '') {
+            container.style.display = 'block';
+            initSpeakerEditor(); // Initialise l'éditeur lorsqu'on l'ouvre
+        } else {
+            container.style.display = 'none';
+        }
+    }
+
+    // Initialise l'éditeur de speakers (utilisé pour les transcriptions batch et live)
+    function initSpeakerEditor() {
+        const speakerSpans = document.querySelectorAll('.segment-speaker');
+        const speakers = new Set();
+        speakerSpans.forEach(function(span) {
+            const speaker = span.dataset.speaker;
+            if (speaker) speakers.add(speaker);
+        });
+        const listDiv = document.getElementById('speakerRenameList');
+        listDiv.innerHTML = '';
+        speakers.forEach(function(speaker) {
+            const colDiv = document.createElement('div');
+            colDiv.className = 'fr-col-12 fr-col-md-6';
+            const label = document.createElement('label');
+            label.htmlFor = 'speaker-input-' + speaker;
+            label.textContent = 'Speaker "' + speaker + '" :';
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.id = 'speaker-input-' + speaker;
+            input.value = speaker;
+            input.className = 'fr-input';
+            input.dataset.currentSpeaker = speaker;
+            input.addEventListener('input', function(e) {
+                const newName = e.target.value;
+                const oldName = e.target.dataset.currentSpeaker;
+                document.querySelectorAll('.segment-speaker[data-speaker="' + oldName + '"]').forEach(function(span) {
+                    span.textContent = newName;
+                    span.dataset.speaker = newName;
+                });
+                e.target.dataset.currentSpeaker = newName;
+            });
+            colDiv.appendChild(label);
+            colDiv.appendChild(input);
+            listDiv.appendChild(colDiv);
+        });
     }
 
     // ========================= BATCH UPLOAD =========================
@@ -432,7 +493,9 @@ if (data.status === "done") {
     window.onload = () => {
         loadHistory();
         loadS3Config();
-loadAlbertConfig();
+        loadAlbertConfig();
+        // Ajout du gestionnaire pour le bouton "Modifier les speakers"
+        // (déplacé en dehors de window.onload, fonction globale définie plus haut)
 document.getElementById('uploadBtn').disabled = false;
 
         // Reprendre un job en cours si présent

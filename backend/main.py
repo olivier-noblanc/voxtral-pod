@@ -199,7 +199,9 @@ def format_transcription(text: str) -> str:
     lines = text.split("\n")
     html_parts = []
     for line in lines:
-        match = re.match(r"^\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)$", line.strip())
+        stripped = line.strip()
+        # Cas 1 : [time] [speaker] texte
+        match = re.match(r"^\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)$", stripped)
         if match:
             time_str, speaker, content = match.groups()
             html_parts.append(f"""
@@ -211,8 +213,36 @@ def format_transcription(text: str) -> str:
                     <div class="segment-text">{html.escape(content)}</div>
                 </div>
             """)
-        elif line.strip():
-            html_parts.append(f"<p>{html.escape(line)}</p>")
+            continue
+        # Cas 2 : [speaker] texte (sans timestamp, typique des transcriptions live)
+        match2 = re.match(r"^\[([^\]]+)\]\s*(.*)$", stripped)
+        if match2:
+            speaker, content = match2.groups()
+            html_parts.append(f"""
+                <div class="segment">
+                    <div class="segment-header">
+                        <span class="segment-speaker" data-speaker="{html.escape(speaker)}">{html.escape(speaker)}</span>
+                    </div>
+                    <div class="segment-text">{html.escape(content)}</div>
+                </div>
+            """)
+            continue
+        # Cas 3 : speaker: texte (format possible des historiques live)
+        match3 = re.match(r"^([^:]+):\s*(.*)$", stripped)
+        if match3:
+            speaker, content = match3.groups()
+            html_parts.append(f"""
+                <div class="segment">
+                    <div class="segment-header">
+                        <span class="segment-speaker" data-speaker="{html.escape(speaker.strip())}">{html.escape(speaker.strip())}</span>
+                    </div>
+                    <div class="segment-text">{html.escape(content.strip())}</div>
+                </div>
+            """)
+            continue
+        # Autre texte brut
+        if stripped:
+            html_parts.append(f"<p>{html.escape(stripped)}</p>")
     return "\n".join(html_parts)
 
 @app.get("/view/{client_id}/{filename}")
