@@ -183,21 +183,27 @@ async function startRecording() {
 }
 
 function stopRecording() {
-    // Save live transcription if any
-    const transcriptBox = document.getElementById('liveTranscript');
-    const transcriptText = transcriptBox.innerText.trim();
-    if (transcriptText) {
-        const clientId = getClientId();
-        fetch(`/save_live_transcription/${clientId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ content: transcriptText })
-        }).then(res => {
-            if (!res.ok) console.error('Failed to save live transcription');
-            else loadHistory();
-        }).catch(err => console.error(err));
-    }
+    // La sauvegarde finale se fait de manière asynchrone côté serveur
+    // via 'save_audio_file' lors de la déconnexion de la websocket.
     if (ws) { ws.close(); ws = null; }
+    
+    // Ajout d'un indicateur visuel de l'effort de repasse en cours
+    const box = document.getElementById('liveTranscript');
+    if (box && isRecording && box.innerText.trim() !== "" && !box.innerText.includes("Repasse finale de l'IA en cours")) {
+        const row = document.createElement("div");
+        row.className = "sentence-row finalized";
+        row.style.marginTop = "1rem";
+        row.style.color = "var(--text-action-high-blue-france)";
+        row.innerHTML = "<strong>⏳ Enregistrement terminé. Repasse finale de l'IA en cours... Le fichier fiable apparaîtra dans l'historique d'ici quelques instants.</strong>";
+        box.appendChild(row);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    // On poll l'historique quelques fois pour laisser le temps au serveur 
+    // de générer le fichier texte final via Whispher.
+    setTimeout(loadHistory, 3000);
+    setTimeout(loadHistory, 8000);
+    setTimeout(loadHistory, 15000);
     if (audioContext) { audioContext.close(); audioContext = null; }
     if (audioStream) { audioStream.getTracks().forEach(track => track.stop()); audioStream = null; }
     isRecording = false;
@@ -517,7 +523,6 @@ if (window.__TEST__) {
     fetch("/git_status");
     fetch("/git_update");
     fetch("/live");
-    fetch("/save_live_transcription/{client_id}");
     fetch("/status/{file_id}");
     fetch("/transcription/{filename}");
     fetch("/transcriptions");

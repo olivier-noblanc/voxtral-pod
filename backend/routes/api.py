@@ -219,22 +219,6 @@ async def change_model_route(model: str):
     get_asr_engine(load_model=True)
     return {"status": "ok"}
 
-@router.post("/save_live_transcription/{client_id}")
-async def save_live_transcription_route(client_id: str, content: str = Form(...)):
-    """Save live transcription text to a clean file."""
-    out_dir = os.path.join(backend_main.TRANSCRIPTIONS_DIR, client_id)
-    os.makedirs(out_dir, exist_ok=True)
-    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"live_{ts}.txt"
-    file_path = os.path.join(out_dir, filename)
-    cleaned = "\n".join(
-        line.lstrip()[4:] if line.lstrip().startswith("... ") else line.lstrip()
-        for line in content.splitlines()
-        if line.strip()
-    )
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(cleaned)
-    return {"status": "ok", "filename": filename}
 
 @router.post("/batch_chunk")
 async def batch_chunk_route(
@@ -320,8 +304,6 @@ async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", part
         await session.audio_queue.put(None)
         await processor
         if session.full_session_audio:
-            await session.save_audio_file()
-            try:
-                await websocket.send_json({"type": "final_done"})
-            except Exception:
-                pass
+            # Lancement de la transcription finale de manière asynchrone
+            # pour qu'elle puisse se terminer même si la socket est coupée
+            asyncio.create_task(session.save_audio_file())
