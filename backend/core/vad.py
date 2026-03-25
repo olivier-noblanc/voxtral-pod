@@ -9,7 +9,7 @@ with warnings.catch_warnings():
     warnings.filterwarnings("ignore", category=UserWarning, module="pkg_resources")
 # Attempt to import webrtcvad; if unavailable, provide a fallback stub.
 try:
-    import webrtcvad
+    import webrtcvad  # type: ignore
 except ImportError:  # pragma: no cover
     class webrtcvad:
         """Fallback VAD implementation used when the real webrtcvad package is not installed."""
