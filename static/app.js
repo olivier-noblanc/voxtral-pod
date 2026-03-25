@@ -16,13 +16,23 @@ function getClientId() {
 }
 
 function updateVolumeBar(data) {
+    // Safety check: ensure the audio bar element exists
+    const bar = document.getElementById('audioBar');
+    if (!bar) {
+        console.warn('updateVolumeBar: audioBar element not found');
+        return;
+    }
     let sum = 0;
     for (let i = 0; i < data.length; i++) sum += data[i] ** 2;
-    document.getElementById('audioBar').style.width = Math.min(100, Math.sqrt(sum / data.length) * 400) + '%';
+    const level = Math.min(100, Math.sqrt(sum / data.length) * 400);
+    bar.style.width = level + '%';
+    // Optional debug output (can be removed later)
+    console.debug('Audio level:', level.toFixed(2) + '%');
 }
 
 // ========================= GESTION MICRO / SYSTÈME =========================
 async function toggleMicrophone() {
+        console.log('toggleMicrophone clicked, isRecording:', isRecording);
     if (isRecording) stopRecording();
     else { captureType = "mic"; startRecording(); }
 }
@@ -32,6 +42,7 @@ async function toggleSystemAudio() {
 }
 
 async function startRecording() {
+        console.log('startRecording initiated, captureType:', captureType);
     const btnRecord = document.getElementById('recordBtn');
     const btnSystem = document.getElementById('systemBtn');
     const box = document.getElementById('liveTranscript');
@@ -41,6 +52,7 @@ async function startRecording() {
             audioStream = await navigator.mediaDevices.getDisplayMedia({ video:true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
         } else {
             audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            console.log('Audio stream obtained (mic), tracks:', audioStream.getTracks().length);
         }
         isRecording = true;
         btnRecord.innerText = (captureType === "mic") ? "⏹️ Arrêter" : "🎤 Micro";
@@ -58,21 +70,28 @@ async function startRecording() {
             wsUrl += `?client_id=${getClientId()}`;
         }
         ws = new WebSocket(wsUrl);
+        console.log('WebSocket opened to', wsUrl);
         ws.binaryType = 'arraybuffer';
         audioContext = new AudioContext({ sampleRate: 16000 });
+        console.log('AudioContext created with sampleRate 16000');
         source = audioContext.createMediaStreamSource(audioStream);
         await audioContext.audioWorklet.addModule('data:text/javascript;base64,' + btoa(workletCode));
+        console.log('AudioWorklet module added');
         processor = new AudioWorkletNode(audioContext, 'audio-processor');
-        processor.port.onmessage = (e) => {
-            if (ws && ws.readyState === 1) {
-                const pcm = new Int16Array(e.data.length);
-                for (let i = 0; i < e.data.length; i++) pcm[i] = Math.max(-1, Math.min(1, e.data[i])) * 0x7FFF;
-                ws.send(pcm.buffer);
-            }
-            updateVolumeBar(e.data);
-        };
+        console.log('AudioWorkletNode (processor) created');
+processor.port.onmessage = (e) => {
+    console.log('Audio worklet data received, length:', e.data.length);
+    if (ws && ws.readyState === 1) {
+        const pcm = new Int16Array(e.data.length);
+        for (let i = 0; i < e.data.length; i++) pcm[i] = Math.max(-1, Math.min(1, e.data[i])) * 0x7FFF;
+        ws.send(pcm.buffer);
+    }
+    updateVolumeBar(e.data);
+};
         source.connect(processor);
+        console.log('MediaStreamSource connected to processor');
         processor.connect(audioContext.destination);
+        console.log('Processor connected to audio context destination');
         box.innerHTML = "";
         let lastSpeaker = "";
         ws.onmessage = (event) => {
@@ -291,7 +310,7 @@ async function pollStatus(id) {
         } else if (data.status.startsWith("processing:")) {
             const pct = data.progress || 0;
             const eta = data.eta ? " (ETA: " + data.eta + "s)" : '';
-            const statusLabel = data.status.includes(":") ? data.status.split(":")[1] : data.status;
+                const statusLabel = (data.status && data.status.includes(":")) ? data.status.split(":")[1] : (data.status || "unknown");
             document.getElementById('batchStatus').innerText = "⏳ " + statusLabel + " — " + pct + "%" + eta;
             document.getElementById('uploadBtn').disabled = true;
             document.getElementById('uploadProgressFill').style.width = pct + '%';
@@ -408,7 +427,7 @@ window.onload = () => {
                 if (statusElem) {
                     const pct = data.progress || 0;
                     const eta = data.eta ? " (ETA: " + data.eta + "s)" : '';
-                    const statusLabel = data.status.includes(":") ? data.status.split(":")[1] : data.status;
+                    const statusLabel = (data.status && data.status.includes(":")) ? data.status.split(":")[1] : (data.status || "unknown");
                     statusElem.innerText = "⏳ " + statusLabel + " — " + pct + "%" + eta;
                 }
                     pollStatus(pendingJob);
