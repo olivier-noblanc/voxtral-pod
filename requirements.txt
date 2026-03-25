@@ -3,7 +3,14 @@ torch>=2.0.0
 faster-whisper>=1.0.0
 pyannote.audio>=3.1.0
 silero-vad>=5.0.0
-webrtcvad-wheels>=2.0.14
+webrtcvad>=2.0.10
+accelerate
+bitsandbytes
+lightning>=2.4
+transformers>=4.45.0
+mistral-common[audio]>=1.9.0
+vosk
+resemblyzer
 
 # Always required (CPU ok)
 librosa>=0.10.0
@@ -12,19 +19,12 @@ numpy>=1.24.0
 fastapi>=0.100.0
 uvicorn>=0.23.0
 requests>=2.31.0
-ffmpeg-python
+python-multipart
 scipy
 pandas
 numba
-accelerate
-bitsandbytes
-lightning>=2.4
-transformers>=4.45.0
-mistral-common[audio]>=1.9.0
 soxr
 boto3
 matplotlib
-vosk
-resemblyzer
 scikit-learn
 dulwich

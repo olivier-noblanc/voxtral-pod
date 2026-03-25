@@ -1,6 +1,4 @@
-import torch
 import numpy as np
-from pyannote.audio import Pipeline
 from backend.config import setup_gpu
 
 class DiarizationEngine:
@@ -15,6 +13,10 @@ class DiarizationEngine:
         if not self.hf_token:
             print("[!] Warning: No HF_TOKEN provided for Diarization.")
             return
+
+        # Lazy import of pyannote.audio
+        from pyannote.audio import Pipeline
+        import torch
 
         print(f"[*] Loading Pyannote pipeline: {self.model_id}")
         self.pipeline = Pipeline.from_pretrained(
@@ -32,6 +34,9 @@ class DiarizationEngine:
     def diarize(self, audio_float32, hook=None):
         if self.pipeline is None:
             return []
+
+        # Lazy import of torch
+        import torch
 
         # Ensure TF32 is enabled
         setup_gpu()

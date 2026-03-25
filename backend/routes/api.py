@@ -4,11 +4,7 @@ import asyncio
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, FileResponse, Response
 from html import escape as html_escape
-# import sys  # Removed unused import
 from backend.html_ui import HTML_UI
-from backend.core.live import LiveSession
-from dulwich.repo import Repo
-from dulwich import porcelain
 
 # Import shared state (no import of server_asr_ref)
 from backend.state import jobs_db, add_job, asr_engine, model_name, JOBS_DB_MAX_SIZE
@@ -31,12 +27,14 @@ def _update_job_status(job_id: str, status: str, progress: int = 0, result_file:
 async def home(request: Request):
     """Render the main HTML UI."""
     try:
+        from dulwich.repo import Repo
         repo = Repo(".")
         commit = repo.head().decode()
     except Exception:
         commit = "unknown"
     protocol = "wss" if request.url.scheme == "https" else "ws"
     host = request.headers.get("host")
+    from backend.core.engine import SotaASR
     ws_url = f"{protocol}://{host}/live?client_id={{getClientId()}}&partial_albert={{no_gpu}}"
     return HTMLResponse(
         content=HTML_UI
@@ -143,6 +141,8 @@ async def status_route(file_id: str):
 async def git_status():
     """Return git status (behind count)."""
     try:
+        from dulwich.repo import Repo
+        from dulwich import porcelain
         repo = Repo(".")
         local_commit = repo.head().decode()
         try:
@@ -174,6 +174,8 @@ async def git_status():
 async def git_update():
     """Pull latest git changes and restart."""
     try:
+        from dulwich.repo import Repo
+        from dulwich import porcelain
         repo = Repo(".")
         porcelain.fetch(repo, "origin")
         refs = repo.get_refs()
@@ -289,6 +291,7 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
 async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", partial_albert: bool = False):
     """WebSocket endpoint for live transcription."""
     await websocket.accept()
+    from backend.core.live import LiveSession
     session = LiveSession(asr_engine, websocket, client_id, partial_albert=partial_albert)
     processor = asyncio.create_task(session.process_audio_queue())
     try:

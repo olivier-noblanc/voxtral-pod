@@ -3,28 +3,20 @@ import numpy as np
 import threading
 from typing import Optional
 
-# Suppress pkg_resources deprecation warning from webrtcvad
-with warnings.catch_warnings():
-    warnings.filterwarnings("ignore", category=UserWarning, module="pkg_resources")
-# Attempt to import webrtcvad; if unavailable, provide a fallback stub.
-try:
-    import webrtcvad  # type: ignore
-except ImportError:  # pragma: no cover
-    class webrtcvad:
-        """Fallback VAD implementation used when the real webrtcvad package is not installed."""
-        class Vad:
-            def __init__(self, *args, **kwargs):
-                pass
-
-            def set_mode(self, mode):
-                pass
-
-            def is_speech(self, frame_bytes, sample_rate):
-                # Simple heuristic: treat any non‑empty frame as speech.
-                return bool(frame_bytes)
-
-            def __call__(self, *args, **kwargs):
-                return self.is_speech(*args, **kwargs)
+# Lazy import helper for webrtcvad
+def _lazy_get_webrtcvad():
+    """Attempt to import webrtcvad; if unavailable, provide a fallback stub."""
+    try:
+        import webrtcvad
+        return webrtcvad
+    except ImportError:
+        class FakeVad:
+            def __init__(self, *args, **kwargs): pass
+            def set_mode(self, mode): pass
+            def is_speech(self, frame_bytes, sample_rate): return bool(frame_bytes)
+        class FakeModule:
+            Vad = FakeVad
+        return FakeModule()
 
 # Lazy import of silero_vad
 def _lazy_load_silero_vad(onnx: bool = True):
@@ -55,6 +47,7 @@ class VADManager:
         silero_use_onnx: bool = True,
     ):
         # --- WebRTC VAD (fast gate) ---
+        webrtcvad = _lazy_get_webrtcvad()
         self.webrtc_vad = webrtcvad.Vad()
         self.webrtc_vad.set_mode(webrtc_sensitivity)
         print(f"[*] WebRTC VAD initialized (sensitivity={webrtc_sensitivity})")

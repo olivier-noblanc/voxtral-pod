@@ -1,0 +1,67 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.11, pytest-9.0.2, pluggy-1.5.0
+rootdir: C:\Users\raver\.gemini\antigravity\scratch\voxtral_pod
+plugins: anyio-4.12.1
+collected 24 items
+
+tests\test_audio.py .F.                                                  [ 12%]
+tests\test_dom_contract.py ...                                           [ 25%]
+tests\test_download_routes.py ...                                        [ 37%]
+tests\test_format_transcription.py .x..                                  [ 54%]
+tests\test_merger.py ......                                              [ 79%]
+tests\test_pylint_errors.py .                                            [ 83%]
+tests\test_routes_contract.py ..                                         [ 91%]
+tests\test_state_jobs_db.py ..                                           [100%]
+
+================================== FAILURES ===================================
+______________________ test_pcm_to_float32_normalization ______________________
+
+    def test_pcm_to_float32_normalization():
+        """
+        Verify that the conversion from int16 PCM to float32 normalizes correctly.
+        """
+        max_int16 = np.int16(32767)
+        min_int16 = np.int16(-32768)
+    
+        max_float = pcm_to_float32(np.array([max_int16], dtype=np.int16))
+        min_float = pcm_to_float32(np.array([min_int16], dtype=np.int16))
+    
+        # Expected values are approximately 1.0 and -1.0
+        assert np.isclose(max_float[0], 1.0, atol=1e-5)
+>       assert np.isclose(min_float[0], -1.0, atol=1e-5)
+E       assert np.False_
+E        +  where np.False_ = <function isclose at 0x000001915AF24F30>(np.float32(-1.0000305), -1.0, atol=1e-05)
+E        +    where <function isclose at 0x000001915AF24F30> = np.isclose
+
+tests\test_audio.py:64: AssertionError
+============================== warnings summary ===============================
+backend\main.py:71
+  C:\Users\raver\.gemini\antigravity\scratch\voxtral_pod\backend\main.py:71: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+..\..\..\..\scoop\apps\miniconda3\current\Lib\site-packages\fastapi\applications.py:4598
+  C:\Users\raver\scoop\apps\miniconda3\current\Lib\site-packages\fastapi\applications.py:4598: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+tests/test_audio.py::test_decode_audio_returns_float32
+  C:\Users\raver\scoop\apps\miniconda3\current\Lib\site-packages\audioread\rawread.py:16: DeprecationWarning: aifc was removed in Python 3.13. Please be aware that you are currently NOT using standard 'aifc', but instead a separately installed 'standard-aifc'.
+    import aifc
+
+tests/test_audio.py::test_decode_audio_returns_float32
+  C:\Users\raver\scoop\apps\miniconda3\current\Lib\site-packages\audioread\rawread.py:19: DeprecationWarning: sunau was removed in Python 3.13. Please be aware that you are currently NOT using standard 'sunau', but instead a separately installed 'standard-sunau'.
+    import sunau
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_audio.py::test_pcm_to_float32_normalization - assert np.False_
+============= 1 failed, 22 passed, 1 xfailed, 4 warnings in 6.85s =============

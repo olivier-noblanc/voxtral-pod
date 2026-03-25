@@ -41,14 +41,14 @@ else:
 
         if self.model_id == "whisper":
             print(f"[*] Loading Faster-Whisper (large-v3) on {self.device}...")
-        compute_type = "float16" if self.device == "cuda" else "int8"
-        # Lazy import of faster_whisper
-        import faster_whisper
-        self.model = faster_whisper.WhisperModel(
-            "large-v3",
-            device=self.device,
-            compute_type=compute_type,
-        )
+            compute_type = "float16" if self.device == "cuda" else "int8"
+            # Lazy import of faster_whisper
+            import faster_whisper
+            self.model = faster_whisper.WhisperModel(
+                "large-v3",
+                device=self.device,
+                compute_type=compute_type,
+            )
         else:
             # Import Vosk uniquement quand nécessaire (lib lourde)
             # Lazy import of vosk
@@ -113,10 +113,13 @@ else:
         if progress_callback:
             progress_callback("Préparation audio pour Albert...", 46)
 
-        # Lazy import of soundfile for WAV buffer creation
+        # Lazy import of soundfile for optimized WAV buffer creation
         import soundfile as sf
+        import requests
+
         buffer = io.BytesIO()
-        sf.write(buffer, (audio_np * 32767).astype(np.int16), 16000, format='WAV')
+        # soundfile handles float32 -> PCM_16 conversion automatically
+        sf.write(buffer, audio_np, 16000, format='WAV', subtype='PCM_16')
         buffer.seek(0)
 
         try:

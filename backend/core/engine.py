@@ -1,11 +1,8 @@
 import os
 import asyncio
-import torch
 import numpy as np
 from backend.config import setup_warnings, get_vram_gb, setup_gpu
 from backend.core.audio import decode_audio
-from backend.core.diarization import DiarizationEngine
-from backend.core.transcription import TranscriptionEngine
 from backend.core.merger import assign_speakers_to_words, smooth_micro_turns, build_speaker_segments
 
 # Appel unique à setup_warnings au chargement du module
@@ -17,6 +14,8 @@ class SotaASR:
         self.albert_api_key = os.getenv("ALBERT_API_KEY")
 
         # 1. Hardware detection
+        # Lazy import torch for hardware detection
+        import torch
         cuda_available = torch.cuda.is_available()
         vram = get_vram_gb()
         self.no_gpu = not cuda_available
@@ -42,8 +41,10 @@ class SotaASR:
             from backend.core.diarization_cpu import LightDiarizationEngine
             self.diarization_engine = LightDiarizationEngine()
         else:
+            from backend.core.diarization import DiarizationEngine
             self.diarization_engine = DiarizationEngine(hf_token=hf_token, use_cpu=False)
 
+        from backend.core.transcription import TranscriptionEngine
         self.transcription_engine = TranscriptionEngine(model_id=self.model_id)
 
         self._loaded = False
