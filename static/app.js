@@ -354,6 +354,7 @@ window.onload = () => {
         const modelSelect = document.getElementById('modelSelector');
         if (modelSelect) {
             modelSelect.value = 'albert';
+            modelSelect.disabled = true; // désactiver la listbox en mode CPU
             // Afficher l'avertissement CPU
             const cpuWarn = document.getElementById('cpuWarning');
             if (cpuWarn) cpuWarn.style.display = 'block';
