@@ -83,7 +83,7 @@ HTML_UI = r"""<!DOCTYPE html>
                         <div class="fr-upséi-group">
                             <input class="fr-upload" type="file" id="audioFile" accept="audio/*,video/*">
                         </div>
-<button id="uploadBtn" class="fr-btn fr-mt-2w" disabled>Transcrire</button>
+<button id="uploadBtn" class="fr-btn fr-mt-2w">Transcrire</button>
                         <div id="batchStatus" class="fr-text--bold fr-mt-1w"></div>
                         <div class="fr-progress-bar fr-mt-1w" id="uploadProgressContainer" style="display:none;" role="progressbar">
                             <div class="fr-progress-bar__bar"><div class="fr-progress-bar__fill" id="uploadProgressFill" style="width: 0%"></div></div>

@@ -292,6 +292,7 @@ async function pollStatus(id) {
             const pct = data.progress || 0;
             const eta = data.eta ? " (ETA: " + data.eta + "s)" : '';
             document.getElementById('batchStatus').innerText = "⏳ " + data.status.split(":")[1] + " — " + pct + "%" + eta;
+            document.getElementById('uploadBtn').disabled = true;
             document.getElementById('uploadProgressFill').style.width = pct + '%';
             document.getElementById('uploadProgressContainer').style.display = 'block';
         }
