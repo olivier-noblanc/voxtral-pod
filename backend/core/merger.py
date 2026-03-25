@@ -43,7 +43,7 @@ def assign_speakers_to_words(words, diarization_segments):
             elif w_mid > de: dist = w_mid - de
             else: dist = 0.0
 
-            if dist <= 0.120: # 120ms fallback
+            if dist <= 0.120:  # 120ms fallback
                 if nearest_distance is None or dist < nearest_distance:
                     nearest_distance = dist
                     nearest_speaker = dspk
@@ -62,12 +62,14 @@ def assign_speakers_to_words(words, diarization_segments):
 
     return result
 
+
 def smooth_micro_turns(words, max_run_length=1):
     """
     Relabel isolated micro-turns (single word flips) to surrounding speaker.
     Code from TranscriptionSuite.
     """
-    if len(words) < 3: return words
+    if len(words) < 3:
+        return words
 
     # Build runs: [speaker, start_idx, length]
     runs = []
@@ -83,7 +85,8 @@ def smooth_micro_turns(words, max_run_length=1):
     # Identify runs to relabel
     for r_idx in range(1, len(runs) - 1):
         spk, start_idx, length = runs[r_idx]
-        if length > max_run_length: continue
+        if length > max_run_length:
+            continue
         prev_spk = runs[r_idx - 1][0]
         next_spk = runs[r_idx + 1][0]
         if prev_spk == next_spk and prev_spk != spk:
@@ -91,6 +94,7 @@ def smooth_micro_turns(words, max_run_length=1):
                 words[wi]["speaker"] = prev_spk
 
     return words
+
 
 def build_speaker_segments(words_with_speakers):
     """
@@ -103,30 +107,31 @@ def build_speaker_segments(words_with_speakers):
     current_speaker = words_with_speakers[0]["speaker"]
     current_start = words_with_speakers[0]["start"]
     current_words = [words_with_speakers[0]["word"]]
-    
+
     for i in range(1, len(words_with_speakers)):
         w = words_with_speakers[i]
         if w["speaker"] == current_speaker:
             current_words.append(w["word"])
         else:
-            text = "".join(current_words).strip()
+            # Fix : " ".join() au lieu de "".join() pour éviter les mots collés
+            text = " ".join(current_words).strip()
             segments.append({
                 "speaker": current_speaker,
                 "start": current_start,
-                "end": words_with_speakers[i-1]["end"],
+                "end": words_with_speakers[i - 1]["end"],
                 "text": text
             })
             current_speaker = w["speaker"]
             current_start = w["start"]
             current_words = [w["word"]]
-    
+
     # Final flush
-    text = "".join(current_words).strip()
+    text = " ".join(current_words).strip()
     segments.append({
         "speaker": current_speaker,
         "start": current_start,
         "end": words_with_speakers[-1]["end"],
         "text": text
     })
-    
+
     return segments

@@ -1,16 +1,15 @@
 import os
-import uuid
+import sys
+import re
+import html
+import codecs
+import shutil
 import asyncio
 import datetime
+
 import torch
-import re
-import json
-import html
-import threading
-import sys
-import boto3 # pyright: ignore[reportMissingImports]
-import dulwich  # noqa: F401
-from dulwich.repo import Repo # pyright: ignore[reportMissingImports]
+import boto3  # pyright: ignore[reportMissingImports]
+from dulwich.repo import Repo  # pyright: ignore[reportMissingImports]
 from dulwich import porcelain
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Form, BackgroundTasks, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
@@ -19,18 +18,14 @@ from backend.config import setup_gpu, setup_warnings, TRANSCRIPTIONS_DIR, TEMP_D
 from backend.html_ui import HTML_UI
 from backend.core.engine import SotaASR
 from backend.core.live import LiveSession
-# Optional import of boto3 for S3 uploads. Wrapped in try/except to avoid import errors if boto3 is not installed.
-
-
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 app = FastAPI(title="SOTA ASR Server", version="4.0.0")
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
-app.add_middleware(HTTPSRedirectMiddleware)
 app.add_middleware(ProxyHeadersMiddleware)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Taille maximale du dictionnaire des jobs en mémoire (évite le memory leak)
+JOBS_DB_MAX_SIZE = 500
 
 # Global state
 model_name = os.getenv("ASR_MODEL", "whisper").lower()
@@ -57,8 +52,6 @@ def home(request: Request):
     except Exception as e:
         print(f"[ERROR] home() – erreur lors de la récupération du commit : {e}")
         commit = "unknown"
-    ws_protocol = "wss:" if request.url.scheme == "https" else "ws:"
-    # Calcul de l'URL WebSocket
     protocol = "wss" if request.url.scheme == "https" else "ws"
     host = request.headers.get("host")
     ws_url = f"{protocol}://{host}/live?client_id={{getClientId()}}&partial_albert={{partialAlbert}}"
@@ -68,7 +61,6 @@ def home(request: Request):
             .replace("{{device}}", device)
             .replace("{{no_gpu}}", no_gpu)
             .replace("{{commit}}", commit)
-            .replace("{{ws_protocol}}", ws_protocol)
             .replace("{{ws_url}}", ws_url)
     )
 
@@ -88,10 +80,7 @@ async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", part
         await session.audio_queue.put(None)
         await processor_task
         if session.full_session_audio:
-            # Sauvegarder les données audio
-            audio_filename = await session.save_audio_file()
-            # Final pass can be added here if needed, reused from run_batch_job logic
-            pass
+            await session.save_audio_file()
 
 @app.get("/transcriptions")
 async def list_trans(client_id: str):
@@ -123,10 +112,15 @@ async def batch_chunk_route(
 ):
     if chunk_index == 0:
         jobs_db[file_id] = {"status": "uploading", "progress": 0}
-    
+        # Nettoyage préventif : limiter la taille du dictionnaire jobs_db
+        if len(jobs_db) > JOBS_DB_MAX_SIZE:
+            oldest_keys = list(jobs_db.keys())[: len(jobs_db) - JOBS_DB_MAX_SIZE]
+            for k in oldest_keys:
+                jobs_db.pop(k, None)
+
     upload_dir = os.path.join(TEMP_DIR, file_id)
     os.makedirs(upload_dir, exist_ok=True)
-    
+
     chunk_path = os.path.join(upload_dir, f"chunk_{chunk_index:04d}")
     with open(chunk_path, "wb") as f:
         f.write(await file.read())
@@ -140,7 +134,7 @@ async def batch_chunk_route(
                 cp = os.path.join(upload_dir, f"chunk_{i:04d}")
                 with open(cp, "rb") as in_f: out_f.write(in_f.read())
                 if os.path.exists(cp): os.remove(cp)
-        
+
         # Launch background job
         background_tasks.add_task(run_batch_job, assembled_path, file_id, client_id)
 
@@ -158,10 +152,9 @@ async def run_batch_job(path, file_id, client_id):
         def update_progress(status, pct):
             elapsed = (datetime.datetime.now() - start_time).total_seconds()
             eta = 0
-            if pct > 5 and pct < 100:
-                # Simple linear estimation: (elapsed / pct) * (100 - pct)
+            if 5 < pct < 100:
                 eta = int((elapsed / pct) * (100 - pct))
-            
+
             jobs_db[file_id] = {
                 "status": f"processing:{status}",
                 "progress": pct,
@@ -169,24 +162,22 @@ async def run_batch_job(path, file_id, client_id):
             }
 
         transcript = await asr_engine.process_file(path, progress_callback=update_progress)
-        
-        # Save
+
+        # Save transcription
         out_dir = os.path.join(TRANSCRIPTIONS_DIR, client_id)
         os.makedirs(out_dir, exist_ok=True)
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         txt_path = os.path.join(out_dir, f"batch_{ts}.txt")
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(transcript)
-        
+
         # Sauvegarder le fichier audio original pour le téléchargement
         audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "batch_audio")
         os.makedirs(audio_dir, exist_ok=True)
         audio_filename = f"batch_{client_id}_{ts}.wav"
         audio_path = os.path.join(audio_dir, audio_filename)
-        # Copier le fichier audio original
-        import shutil
         shutil.copy2(path, audio_path)
-        
+
         jobs_db[file_id] = {"status": "done", "result": transcript[:500] + "..."}
     except Exception as e:
         print(f"[!] Batch error: {e}")
@@ -195,14 +186,14 @@ async def run_batch_job(path, file_id, client_id):
 def format_transcription(text: str) -> str:
     # Décoder les séquences \uXXXX littérales si présentes
     try:
-        text = codecs.decode(text, 'unicode_escape').encode('latin-1').decode('utf-8')
+        text = codecs.decode(text, "unicode_escape").encode("latin-1").decode("utf-8")
     except Exception:
         pass  # Si le texte est déjà propre, on ignore
-    
-    lines = text.split('\n')
+
+    lines = text.split("\n")
     html_parts = []
     for line in lines:
-        match = re.match(r'^\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)$', line.strip())
+        match = re.match(r"^\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)$", line.strip())
         if match:
             time_str, speaker, content = match.groups()
             html_parts.append(f"""
@@ -225,14 +216,16 @@ async def view_transcription(client_id: str, filename: str, request: Request):
         raise HTTPException(status_code=404, detail="Fichier introuvable.")
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
-    # On peut éventuellement parser le contenu pour le structurer
+    # Échapper les valeurs injectées dans le HTML pour prévenir les XSS
+    safe_client_id = html.escape(client_id)
+    safe_filename = html.escape(filename)
     return HTMLResponse(content=f"""
         <!DOCTYPE html>
         <html lang="fr">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{filename} – Voxtral Pod</title>
+            <title>{safe_filename} – Voxtral Pod</title>
             <link rel="stylesheet" href="/static/dsfr.min.css">
             <style>
                 body {{
@@ -281,7 +274,7 @@ async def view_transcription(client_id: str, filename: str, request: Request):
             <div class="fr-container">
                 <div class="transcript-container">
                     <a href="/" class="fr-link back-link">← Retour à l'accueil</a>
-                    <h1>{filename}</h1>
+                    <h1>{safe_filename}</h1>
                     <button class="fr-btn fr-btn--secondary" onclick="toggleSpeakerEditor()">Modifier les speakers</button>
                     <div id="speakerRenameContainer" style="display:none;" class="fr-mt-2w"><div id="speakerRenameList" class="fr-grid-row fr-grid-row--gutters"></div></div>
                     <div id="transcript">
@@ -354,8 +347,8 @@ async def view_transcription(client_id: str, filename: str, request: Request):
                     }}
                     async function saveChanges() {{
                         const updated = getUpdatedContent();
-                        const client_id = "{client_id}";
-                        const filename = "{filename}";
+                        const client_id = "{safe_client_id}";
+                        const filename = "{safe_filename}";
                         const res = await fetch('/update_transcription/' + client_id + '/' + filename, {{
                             method: 'POST',
                             headers: {{'Content-Type': 'application/x-www-form-urlencoded'}},
@@ -385,22 +378,12 @@ async def update_transcription_route(client_id: str, filename: str, content: str
 
 @app.get("/download_audio/{client_id}/{filename}")
 async def download_audio(client_id: str, filename: str):
-    # Chemin vers les fichiers audio enregistrés
-    # Essayer d'abord dans le répertoire live_audio
-    audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "live_audio")
-    file_path = os.path.join(audio_dir, filename)
-    
-    # Si le fichier n'existe pas dans live_audio, essayer dans batch_audio
-    if not os.path.exists(file_path):
-        audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "batch_audio")
-        file_path = os.path.join(audio_dir, filename)
-    
-    # Vérifier si le fichier existe
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Fichier audio non trouvé.")
-    
-    # Retourner le fichier
-    return FileResponse(file_path, media_type="audio/wav", filename=filename)
+    # Chercher d'abord dans live_audio, puis batch_audio
+    for subdir in ("live_audio", "batch_audio"):
+        file_path = os.path.join(TRANSCRIPTIONS_DIR, subdir, filename)
+        if os.path.exists(file_path):
+            return FileResponse(file_path, media_type="audio/wav", filename=filename)
+    raise HTTPException(status_code=404, detail="Fichier audio non trouvé.")
 
 @app.post("/save_live_transcription/{client_id}")
 async def save_live_transcription_route(client_id: str, content: str = Form(...)):
@@ -423,16 +406,13 @@ async def git_status():
         repo = Repo(".")
         local_commit = repo.head().decode()
 
-        # 1. Fetch réseau — on ignore le retour, il ne contient pas les remotes/origin/*
         try:
             porcelain.fetch(repo, "origin")
         except Exception as e:
             print(f"[WARNING] fetch failed: {e}")
 
-        # 2. APRÈS le fetch, lire les refs locales du repo — elles sont maintenant à jour
         all_refs = repo.get_refs()
 
-        # 3. La clé correcte après porcelain.fetch() est refs/remotes/origin/main
         remote_branch_ref = b"refs/remotes/origin/main"
         if remote_branch_ref not in all_refs:
             remote_branch_ref = b"refs/remotes/origin/master"
@@ -441,7 +421,6 @@ async def git_status():
 
         remote_commit_sha = all_refs[remote_branch_ref].decode()
 
-        # 4. Compter les commits en retard
         local_commits = set()
         c = repo.get_object(local_commit.encode())
         while True:
@@ -462,22 +441,13 @@ async def git_status():
     except Exception as e:
         return {"commit": "unknown", "behind": -1, "error": str(e)}
 
-async def restart_after_delay():
-    # Attendre 1 seconde avant de redémarrer
-    await asyncio.sleep(1)
-    # Exécuter le processus actuel à nouveau
-    os.execv(sys.executable, [sys.executable] + sys.argv)
-
 @app.post("/git_update")
 async def git_update():
-    import sys
     try:
         repo = Repo(".")
 
-        # 1. Fetch
         porcelain.fetch(repo, "origin")
 
-        # 2. Lire les refs après fetch
         all_refs = repo.get_refs()
         remote_branch_ref = b"refs/remotes/origin/main"
         if remote_branch_ref not in all_refs:
@@ -485,13 +455,11 @@ async def git_update():
 
         remote_sha = all_refs[remote_branch_ref]
 
-        # 3. Avancer la branche locale
         local_ref = b"refs/heads/main"
         if local_ref not in repo.refs:
             local_ref = b"refs/heads/master"
         repo.refs[local_ref] = remote_sha
 
-        # 4. Restart différé
         async def _restart():
             await asyncio.sleep(1)
             os.execv(sys.executable, [sys.executable] + sys.argv)
@@ -509,10 +477,15 @@ async def upload_s3_route(
     access_key: str = Form(...), secret_key: str = Form(...)
 ):
     if boto3 is None:
-        raise HTTPException(status_code=500, detail="Le module boto3 n'est pas installé. Veuillez l'installer pour pouvoir télécharger sur S3.")
+        raise HTTPException(status_code=500, detail="Le module boto3 n'est pas installé.")
     try:
-        s3 = boto3.client('s3', endpoint_url=endpoint, aws_access_key_id=access_key, aws_secret_access_key=secret_key)
-        s3.put_object(Bucket=bucket, Key=filename, Body=content.encode("utf-8"), ContentType='text/plain; charset=utf-8')
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=endpoint,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+        )
+        s3.put_object(Bucket=bucket, Key=filename, Body=content.encode("utf-8"), ContentType="text/plain; charset=utf-8")
         return {"status": "ok"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

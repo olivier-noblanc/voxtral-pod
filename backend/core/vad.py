@@ -2,7 +2,7 @@ import torch
 import warnings
 import numpy as np
 import threading
-from typing import Optional, Union
+from typing import Optional
 
 # Suppress pkg_resources deprecation warning from webrtcvad
 with warnings.catch_warnings():
@@ -14,6 +14,7 @@ from silero_vad import load_silero_vad
 # Mathematical constant for 16-bit audio normalization
 INT16_MAX_ABS_VALUE = 32768.0
 SAMPLE_RATE = 16000
+_SILERO_CHUNK_SIZE = 512
 
 
 class VADManager:
@@ -82,32 +83,33 @@ class VADManager:
         return False
 
     # ------------------------------------------------------------------
-    # Stage 2 — Silero (accurate, runs in background thread)
+    # Stage 2 — Silero (accurate)
     # ------------------------------------------------------------------
+    def _run_silero(self, chunk_pcm: bytes) -> float:
+        """
+        Calcule la probabilité maximale de parole sur le chunk via Silero.
+        Factorisation : utilisée à la fois par `_check_silero` (thread) et `is_speech` (sync).
+        """
+        audio_np = (
+            np.frombuffer(chunk_pcm, dtype=np.int16)
+            .astype(np.float32) / INT16_MAX_ABS_VALUE
+        )
+        max_vad_prob = 0.0
+        for i in range(0, len(audio_np), _SILERO_CHUNK_SIZE):
+            piece = audio_np[i : i + _SILERO_CHUNK_SIZE]
+            if len(piece) < _SILERO_CHUNK_SIZE:
+                piece = np.pad(piece, (0, _SILERO_CHUNK_SIZE - len(piece)))
+            prob = self.silero_model(torch.from_numpy(piece), SAMPLE_RATE).item()
+            if prob > max_vad_prob:
+                max_vad_prob = prob
+        return max_vad_prob
+
     def _check_silero(self, chunk_pcm: bytes) -> None:
         """Run Silero VAD on the full chunk (called from background thread)."""
         with self._lock:
             self._silero_working = True
             try:
-                audio_np = (
-                    np.frombuffer(chunk_pcm, dtype=np.int16)
-                    .astype(np.float32) / INT16_MAX_ABS_VALUE
-                )
-                
-                chunk_size = 512
-                # Get max VAD probability across all 512-sample chunks
-                max_vad_prob = 0.0
-                for i in range(0, len(audio_np), chunk_size):
-                    piece = audio_np[i : i + chunk_size]
-                    if len(piece) < chunk_size:
-                        piece = np.pad(piece, (0, chunk_size - len(piece)))
-                        
-                    prob = self.silero_model(
-                        torch.from_numpy(piece), SAMPLE_RATE
-                    ).item()
-                    if prob > max_vad_prob:
-                        max_vad_prob = prob
-
+                max_vad_prob = self._run_silero(chunk_pcm)
                 self.is_silero_speech_active = max_vad_prob > (1 - self.silero_sensitivity)
             finally:
                 self._silero_working = False
@@ -122,10 +124,9 @@ class VADManager:
         Call this for every incoming chunk, then read `is_voice_active()`
         to get the combined result.
         """
-        # Fast gate
         self._check_webrtc(chunk_pcm)
 
-        # If WebRTC says speech, launch Silero in background (if not already running)
+        # Si WebRTC détecte de la parole, lancer Silero en arrière-plan (si pas déjà en cours)
         if self.is_webrtc_speech_active and not self._silero_working:
             threading.Thread(
                 target=self._check_silero,
@@ -142,29 +143,11 @@ class VADManager:
         """Synchronous dual-gate check (blocks on Silero). Used to detect speech onset."""
         if not self._check_webrtc(chunk_pcm, all_frames_must_be_true=False):
             return False
-        # Full Silero check synchronously
+        # Full Silero check synchronously (réutilise _run_silero)
         with self._lock:
             self._silero_working = True
             try:
-                audio_np = (
-                    np.frombuffer(chunk_pcm, dtype=np.int16)
-                    .astype(np.float32) / INT16_MAX_ABS_VALUE
-                )
-                
-                chunk_size = 512
-                # Get max VAD probability across all 512-sample chunks
-                max_vad_prob = 0.0
-                for i in range(0, len(audio_np), chunk_size):
-                    piece = audio_np[i : i + chunk_size]
-                    if len(piece) < chunk_size:
-                        piece = np.pad(piece, (0, chunk_size - len(piece)))
-                        
-                    prob = self.silero_model(
-                        torch.from_numpy(piece), SAMPLE_RATE
-                    ).item()
-                    if prob > max_vad_prob:
-                        max_vad_prob = prob
-
+                max_vad_prob = self._run_silero(chunk_pcm)
                 result = max_vad_prob > (1 - self.silero_sensitivity)
                 self.is_silero_speech_active = result
                 return result
@@ -174,8 +157,6 @@ class VADManager:
     def check_deactivation(self, chunk_pcm: bytes) -> bool:
         """Strict check for end of speech to aggressively cut off silence.
         Matches TranscriptionSuite behavior where ANY silence frame causes WebRTC to drop."""
-        # Use strict WebRTC matching
         if not self._check_webrtc(chunk_pcm, all_frames_must_be_true=True):
             return False
-            
         return self.is_speech(chunk_pcm)

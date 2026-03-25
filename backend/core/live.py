@@ -1,4 +1,5 @@
 import asyncio
+import struct
 import numpy as np
 import os
 import datetime
@@ -6,8 +7,6 @@ from fastapi import WebSocket
 from backend.core.vad import VADManager, SAMPLE_RATE
 from backend.config import TRANSCRIPTIONS_DIR
 
-# Diarization batch interval (seconds of audio accumulated before running Pyannote)
-DIAR_BATCH_INTERVAL_SEC = 300  # 5 minutes
 
 class LiveSession:
     """Isolated per-connection live transcription with VAD."""
@@ -28,13 +27,13 @@ class LiveSession:
 
         # Sentence tracking
         self._sentence_index = 0
-        self._sentences = []  
+        self._sentences = []
         self._total_bytes_received = 0
 
         # VAD constants from engine or hardcoded
-        self.pre_recording_size = int(SAMPLE_RATE * 2 * 1.0) # 1s
-        self.min_segment_bytes = int(SAMPLE_RATE * 2 * 0.5) # 0.5s
-        self.silence_chunks_threshold = 9 # ~1.5s
+        self.pre_recording_size = int(SAMPLE_RATE * 2 * 1.0)   # 1s de pré-buffer
+        self.min_segment_bytes = int(SAMPLE_RATE * 2 * 0.5)    # segment minimum : 0.5s
+        self.silence_chunks_threshold = 9                        # ~1.5s de silence
 
         self.vad = VADManager(silero_sensitivity=0.4)
 
@@ -44,13 +43,14 @@ class LiveSession:
         partial_str = " [Partials ON]" if self.partial_albert else " [Partials OFF]"
         print(f"[*] [{self.client_id}] Live Audio processor started{mode_str}{partial_str}.")
         self.vad.reset_states()
-        
+
         partial_interval_bytes = int(SAMPLE_RATE * 2 * 2.0)
         last_partial_bytes = 0
 
         while True:
             audio_bytes = await self.audio_queue.get()
-            if audio_bytes is None: break
+            if audio_bytes is None:
+                break
 
             self.full_session_audio.append(audio_bytes)
             self._total_bytes_received += len(audio_bytes)
@@ -74,11 +74,10 @@ class LiveSession:
                 else:
                     self.sentence_buffer.extend(audio_bytes)
                 self.silence_chunks_count = 0
-                
+
                 # Partial transcription
                 if len(self.sentence_buffer) - last_partial_bytes >= partial_interval_bytes:
                     last_partial_bytes = len(self.sentence_buffer)
-                    # Optimization: Skip partials for Albert unless forced by UI
                     is_albert = self.engine.model_id == "albert"
                     if not is_albert or self.partial_albert:
                         await self._transcribe_segment(bytes(self.sentence_buffer), final=False)
@@ -94,50 +93,62 @@ class LiveSession:
                         if len(pcm_data) >= self.min_segment_bytes:
                             await self._transcribe_segment(pcm_data, final=True)
 
-    async def save_audio_file(self):
-        """Sauvegarde les données audio dans un fichier WAV."""
+    async def save_audio_file(self) -> str | None:
+        """Sauvegarde les données audio de la session dans un fichier WAV valide."""
         if not self.full_session_audio:
             return None
-            
-        # Créer le répertoire pour les fichiers audio
+
         audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "live_audio")
         os.makedirs(audio_dir, exist_ok=True)
-        
-        # Générer le nom de fichier basé sur client_id et timestamp
+
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"live_{self.client_id}_{timestamp}.wav"
         filepath = os.path.join(audio_dir, filename)
-        
-        # Convertir les données audio en format WAV
-        # Pour cela, nous devons reconstruire les données audio complètes
-        audio_bytes = b''.join(self.full_session_audio)
-        
-        # Sauvegarder le fichier audio brut (format PCM)
-        with open(filepath, 'wb') as f:
-            f.write(audio_bytes)
-            
+
+        pcm_bytes = b"".join(self.full_session_audio)
+        num_channels = 1
+        bits_per_sample = 16
+        byte_rate = SAMPLE_RATE * num_channels * bits_per_sample // 8
+        block_align = num_channels * bits_per_sample // 8
+        data_size = len(pcm_bytes)
+
+        with open(filepath, "wb") as f:
+            # RIFF header
+            f.write(b"RIFF")
+            f.write(struct.pack("<I", 36 + data_size))   # taille totale - 8
+            f.write(b"WAVE")
+            # fmt chunk
+            f.write(b"fmt ")
+            f.write(struct.pack("<I", 16))               # taille du chunk fmt
+            f.write(struct.pack("<H", 1))                # PCM = 1
+            f.write(struct.pack("<H", num_channels))
+            f.write(struct.pack("<I", SAMPLE_RATE))
+            f.write(struct.pack("<I", byte_rate))
+            f.write(struct.pack("<H", block_align))
+            f.write(struct.pack("<H", bits_per_sample))
+            # data chunk
+            f.write(b"data")
+            f.write(struct.pack("<I", data_size))
+            f.write(pcm_bytes)
+
+        print(f"[*] [{self.client_id}] Audio saved: {filename} ({data_size / 1024:.1f} KB)")
         return filename
 
-    async def _transcribe_segment(self, pcm_data, final=True):
+    async def _transcribe_segment(self, pcm_data: bytes, final: bool = True):
         """Invoke engine transcription and send via WS."""
         try:
-            # We need a small conversion utility or just use the engine one
             audio_np = np.frombuffer(pcm_data, dtype=np.int16).astype(np.float32) / 32768.0
-            
-            # Simple transcription for live (not necessarily word-level diarization yet)
-            # In live mode, we usually want text quickly.
-            # For now, we reuse the engine's transcription logic
+
             words, _ = await asyncio.to_thread(self.engine.transcription_engine.transcribe, audio_np)
             text = " ".join(w["word"] for w in words).strip()
-            
+
             if text:
                 await self.websocket.send_json({
                     "type": "sentence",
                     "text": text if final else f"{text} ...",
-                    "speaker": "Speaker", # Placeholder for now, batch diarization will group later
-                    "final": final
+                    "speaker": "Speaker",  # Placeholder — la diarisation par lot viendra plus tard
+                    "final": final,
                 })
         except Exception as e:
-            # We catch all exceptions here to prevent the live session worker from crashing
-            # but we log it for debugging.
+            # On capture toutes les exceptions pour ne pas faire crasher le worker live
             print(f"[!] [{self.client_id}] Live Inference error: {e}")

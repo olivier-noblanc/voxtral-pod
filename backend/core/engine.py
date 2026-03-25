@@ -2,24 +2,26 @@ import os
 import asyncio
 import torch
 import numpy as np
-from backend.config import setup_warnings, get_vram_gb
+from backend.config import setup_warnings, get_vram_gb, setup_gpu
 from backend.core.audio import decode_audio
 from backend.core.diarization import DiarizationEngine
 from backend.core.transcription import TranscriptionEngine
 from backend.core.merger import assign_speakers_to_words, smooth_micro_turns, build_speaker_segments
-from backend.config import setup_warnings
+
+# Appel unique à setup_warnings au chargement du module
+setup_warnings()
+
 
 class SotaASR:
     def __init__(self, model_id="whisper", hf_token=None):
-        setup_warnings()
         self.albert_api_key = os.getenv("ALBERT_API_KEY")
-        
+
         # 1. Hardware detection
         cuda_available = torch.cuda.is_available()
         vram = get_vram_gb()
         self.no_gpu = not cuda_available
         self.low_vram = (vram < 4.0) if cuda_available else True
-        
+
         if self.no_gpu:
             print("[*] No compatible CUDA device found. Using CPU optimized mode.")
         elif self.low_vram:
@@ -32,22 +34,23 @@ class SotaASR:
             self.model_id = "albert"
         else:
             self.model_id = model_id
-            
+
         self.hf_token = hf_token
-        
+
         # Diarization on CPU if no GPU or low VRAM
         if self.no_gpu or self.low_vram:
             from backend.core.diarization_cpu import LightDiarizationEngine
             self.diarization_engine = LightDiarizationEngine()
         else:
             self.diarization_engine = DiarizationEngine(hf_token=hf_token, use_cpu=False)
-    
+
         self.transcription_engine = TranscriptionEngine(model_id=self.model_id)
-        
+
         self._loaded = False
 
     def load(self):
-        if self._loaded: return
+        if self._loaded:
+            return
         self.diarization_engine.load()
         self.transcription_engine.load()
         self._loaded = True
@@ -60,22 +63,18 @@ class SotaASR:
             self.load()
 
         # 1. Decode
-        if progress_callback: progress_callback("Décodage audio...", 2)
+        if progress_callback:
+            progress_callback("Décodage audio...", 2)
         audio_np = await asyncio.to_thread(decode_audio, audio_path)
-        duration = len(audio_np) / 16000
 
-        # 2. Diarize
-        if progress_callback: progress_callback("Diarisation...", 5)
-        
+        # 2. Build diarization progress hook
         def diar_hook(step_name, *args, **kwargs):
             if not progress_callback:
                 return
-            
             try:
-                # Extract raw values
-                c_raw = args[0] if len(args) > 0 else kwargs.get('completed', 0)
-                t_raw = args[1] if len(args) > 1 else kwargs.get('total')
-                
+                c_raw = args[0] if len(args) > 0 else kwargs.get("completed", 0)
+                t_raw = args[1] if len(args) > 1 else kwargs.get("total")
+
                 def to_scalar(v):
                     if v is None: return 0.0
                     if hasattr(v, "item"): return float(v.item())
@@ -85,13 +84,13 @@ class SotaASR:
                 c_val = to_scalar(c_raw)
                 t_val = to_scalar(t_raw)
 
-                # Map Pyannote steps to human readable stages
                 display_step = step_name
-                if "segmentation" in step_name.lower(): display_step = "Détéction voix"
-                elif "embedding" in step_name.lower(): display_step = "Identification speakers"
-                
+                if "segmentation" in step_name.lower():
+                    display_step = "Détection voix"
+                elif "embedding" in step_name.lower():
+                    display_step = "Identification speakers"
+
                 if t_val > 0:
-                    # Diarization is about 40% of the total process (5-45%)
                     sub_pct = int((c_val / t_val) * 40)
                     progress_callback(f"Diarisation : {display_step}", 5 + sub_pct)
                 else:
@@ -99,11 +98,10 @@ class SotaASR:
             except Exception:
                 pass
 
-        # Déterminer si on doit paralléliser (uniquement pour Albert)
+        # 3. Diarize + Transcribe (parallel pour Albert, séquentiel sinon)
         parallel = (self.model_id == "albert")
 
         if parallel:
-            # Lancement concurrent sans callbacks pour éviter les conflits
             if progress_callback:
                 progress_callback("Diarisation et transcription en parallèle...", 10)
             diar_task = asyncio.to_thread(self.diarization_engine.diarize, audio_np, hook=None)
@@ -112,23 +110,25 @@ class SotaASR:
             if progress_callback:
                 progress_callback("Fusion des résultats...", 80)
         else:
-            # Mode séquentiel original (avec progression détaillée)
             if progress_callback:
                 progress_callback("Diarisation...", 5)
-            diar_segments = await asyncio.to_thread(self.diarization_engine.diarize, audio_np, hook=None)
+            diar_segments = await asyncio.to_thread(
+                self.diarization_engine.diarize, audio_np, hook=diar_hook
+            )
             if progress_callback:
                 progress_callback("Transcription...", 45)
-            words, _ = await asyncio.to_thread(self.transcription_engine.transcribe, audio_np, progress_callback=progress_callback)
+            words, _ = await asyncio.to_thread(
+                self.transcription_engine.transcribe, audio_np, progress_callback=progress_callback
+            )
 
-        # 4. Merge (TranscriptionSuite Reference)
+        # 4. Merge
         words_with_speakers = assign_speakers_to_words(words, diar_segments)
         words_with_speakers = smooth_micro_turns(words_with_speakers)
-        
         segments = build_speaker_segments(words_with_speakers)
 
         # 5. Format final text
         output_lines = []
         for s in segments:
             output_lines.append(f"[{s['start']:.2f}s -> {s['end']:.2f}s] [{s['speaker']}] {s['text']}")
-        
+
         return "\n".join(output_lines)

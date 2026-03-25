@@ -31,7 +31,7 @@ if ! command -v ffmpeg &> /dev/null; then
 fi
 
 
-# 1. Code sync
+# 1. Initialisation du dépôt git local si nécessaire
 git config --global --add safe.directory "$PWD"
 if [ ! -d ".git" ]; then
     echo "[*] Init code..."
@@ -40,7 +40,7 @@ if [ ! -d ".git" ]; then
 fi
 git remote set-url origin "$REPO_URL"
 
-# 1. Sync from Remote Repo
+# 2. Sync from Remote Repo
 if [ "$SKIP_GIT_RESET" = "true" ]; then
     echo "[*] Local modifications preserved (SKIP_GIT_RESET=true)."
 else
