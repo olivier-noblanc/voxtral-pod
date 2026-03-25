@@ -366,4 +366,14 @@ window.onload = () => {
 
     // Vérifier les mises à jour Git
     checkGitStatus();
+
+    // Reprendre le suivi d'un batch en cours après rafraîchissement
+    const pendingJob = localStorage.getItem('pending_job');
+    if (pendingJob) {
+        const uploadBtn = document.getElementById('uploadBtn');
+        if (uploadBtn) uploadBtn.disabled = true;
+        const progressContainer = document.getElementById('uploadProgressContainer');
+        if (progressContainer) progressContainer.style.display = 'block';
+        pollStatus(pendingJob);
+    }
 };
