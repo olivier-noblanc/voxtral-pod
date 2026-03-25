@@ -61,11 +61,16 @@ class LiveSession:
             if len(self.pre_speech_buffer) > self.pre_recording_size:
                 self.pre_speech_buffer = self.pre_speech_buffer[-self.pre_recording_size:]
 
-            # VAD logic
-            if self.is_speaking:
-                has_speech = self.vad.check_deactivation(audio_bytes)
-            else:
-                has_speech = self.vad.is_speech(audio_bytes)
+            # VAD logic – protect against VAD failures
+            try:
+                if self.is_speaking:
+                    has_speech = self.vad.check_deactivation(audio_bytes)
+                else:
+                    has_speech = self.vad.is_speech(audio_bytes)
+            except Exception as e:
+                # En cas d’erreur du VAD, on considère qu’il y a de la parole
+                print(f"[!] [{self.client_id}] VAD error: {e} – assuming speech")
+                has_speech = True
 
             if has_speech:
                 if not self.is_speaking:

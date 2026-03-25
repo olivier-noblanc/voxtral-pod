@@ -297,6 +297,11 @@ async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", part
         await processor_task
         if session.full_session_audio:
             await session.save_audio_file()
+            # Notify the client that the live session is finished and the transcript is saved
+            try:
+                await websocket.send_json({"type": "final_done"})
+            except Exception as e:
+                print(f"[!] [{client_id}] Error sending final_done message: {e}")
 
 
 @router.get("/transcriptions")

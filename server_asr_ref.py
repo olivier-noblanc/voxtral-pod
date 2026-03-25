@@ -10,8 +10,10 @@ import numpy as np
 import threading
 from fastapi import (
     FastAPI, WebSocket, WebSocketDisconnect,
-    File, UploadFile, Form, BackgroundTasks
+    File, UploadFile, Form, BackgroundTasks,
 )
+from fastapi.staticfiles import StaticFiles
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse, PlainTextResponse
 from backend.core.vad import VADManager, SAMPLE_RATE
 
@@ -28,6 +30,8 @@ for _k, _v in [
     os.environ[_k] = _v
 
 app = FastAPI(title="SOTA ASR Server", version="2.6.0")
+app.add_middleware(ProxyHeadersMiddleware)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 model_name = os.getenv("ASR_MODEL", "voxtral").lower()
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -424,3 +428,7 @@ async def status_route(file_id: str): return jobs_db.get(file_id, {"status": "no
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+# Include API routes
+from backend.routes import api as api_module
+app.include_router(api_module.router)

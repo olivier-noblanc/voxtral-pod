@@ -3,6 +3,15 @@ let ws, audioContext, source, processor, isRecording = false;
 let audioStream = null;
 let captureType = "mic";
 const CHUNK_SIZE = 4 * 1024 * 1024;
+
+// DEBUG — à retirer en prod
+const _getElementById = document.getElementById.bind(document);
+document.getElementById = (id) => {
+    const el = _getElementById(id);
+    if (!el) console.warn(`[DOM MISSING] #${id}`);
+    return el;
+};
+
 const workletCode = `class AudioProcessor extends AudioWorkletProcessor {
     constructor() { super(); this.buffer = new Float32Array(2560); this.offset = 0; }
     process(inputs) {
