@@ -323,8 +323,9 @@ HTML_UI = r"""<!DOCTYPE html>
             const ts = f.replace('batch_', '').replace('.txt', '');
             audioFilename = `batch_${getClientId()}_${ts}.wav`;
         } else {
-            // Pour les transcriptions live, le fichier audio porte le même nom que le .txt
-            audioFilename = f.replace('.txt', '.wav');
+            // Pour les transcriptions live, le fichier audio inclut l'ID client
+            const ts = f.replace('live_', '').replace('.txt', '');
+            audioFilename = `live_${getClientId()}_${ts}.wav`;
         }
         const downloadUrl = `/download_audio/${getClientId()}/${audioFilename}`;
         const transcriptUrl = `/download_transcript/${getClientId()}/${f}`;

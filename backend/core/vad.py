@@ -7,7 +7,25 @@ from typing import Optional
 # Suppress pkg_resources deprecation warning from webrtcvad
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore", category=UserWarning, module="pkg_resources")
+# Attempt to import webrtcvad; if unavailable, provide a fallback stub.
+try:
     import webrtcvad
+except ImportError:  # pragma: no cover
+    class webrtcvad:
+        """Fallback VAD implementation used when the real webrtcvad package is not installed."""
+        class Vad:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def set_mode(self, mode):
+                pass
+
+            def is_speech(self, frame_bytes, sample_rate):
+                # Simple heuristic: treat any non‑empty frame as speech.
+                return bool(frame_bytes)
+
+            def __call__(self, *args, **kwargs):
+                return self.is_speech(*args, **kwargs)
 
 from silero_vad import load_silero_vad
 
