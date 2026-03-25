@@ -367,7 +367,7 @@ async function pollStatus(id) {
     const interval = setInterval(async () => {
         const res = await fetch(`/status/${id}`);
         const data = await res.json();
-        if (data.status === "done") {
+        if (data.status === "terminé") {
             clearInterval(interval);
             localStorage.removeItem('pending_job');
             document.getElementById('uploadBtn').disabled = false;
@@ -481,7 +481,7 @@ window.onload = () => {
             .then(res => res.json())
             .then(data => {
                 clearTimeout(fallbackTimeout);
-                if (data.status === "done") {
+                if (data.status === "terminé") {
                     localStorage.removeItem('pending_job');
                     if (uploadBtn) uploadBtn.disabled = false;
                     if (statusElem) statusElem.innerText = "✓ Terminé.";

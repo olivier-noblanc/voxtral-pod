@@ -2,6 +2,7 @@ import os
 import pathlib
 import datetime
 import asyncio
+import shutil
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, FileResponse, Response
 from html import escape as html_escape
@@ -9,8 +10,8 @@ from backend.html_ui import HTML_UI
 
 # Import shared state (no import of server_asr_ref)
 from backend.state import get_job, update_job, add_job, JOBS_DB_MAX_SIZE, get_asr_engine, get_current_model, set_current_model
-from backend.config import TEMP_DIR
-import backend.main as backend_main  # pylint: disable=no-member
+from backend.config import TEMP_DIR, TRANSCRIPTIONS_DIR
+# import backend.main as backend_main  # Retiré pour éviter circular import
 
 router = APIRouter()
 
@@ -61,8 +62,8 @@ async def home(request: Request):
 @router.get("/transcriptions")
 async def list_trans(client_id: str):
     """List transcription files for a client."""
-    base = pathlib.Path(backend_main.TRANSCRIPTIONS_DIR).resolve()
-    p = _safe_join(backend_main.TRANSCRIPTIONS_DIR, client_id)
+    base = pathlib.Path(TRANSCRIPTIONS_DIR).resolve()
+    p = _safe_join(TRANSCRIPTIONS_DIR, client_id)
     if not os.path.isdir(p):
         return []
     return sorted([f for f in os.listdir(p) if f.endswith(".txt")], reverse=True)
@@ -70,7 +71,7 @@ async def list_trans(client_id: str):
 @router.get("/transcription/{filename}")
 async def get_trans(filename: str, client_id: str):
     """Return a transcription file."""
-    p = _safe_join(backend_main.TRANSCRIPTIONS_DIR, client_id, filename)
+    p = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(p):
         raise HTTPException(status_code=404, detail="Fichier introuvable.")
     return FileResponse(p, media_type="text/plain", filename=filename)
@@ -79,7 +80,7 @@ async def get_trans(filename: str, client_id: str):
 async def download_audio(client_id: str, filename: str):
     """Download a WAV audio file."""
     for subdir in ("live_audio", "batch_audio"):
-        file_path = os.path.join(backend_main.TRANSCRIPTIONS_DIR, subdir, filename)
+        file_path = os.path.join(TRANSCRIPTIONS_DIR, subdir, filename)
         if os.path.isfile(file_path):
             return FileResponse(file_path, media_type="audio/wav", filename=filename)
     raise HTTPException(status_code=404, detail="Fichier audio non trouvé.")
@@ -87,7 +88,7 @@ async def download_audio(client_id: str, filename: str):
 @router.get("/download_transcript/{client_id}/{filename}")
 async def download_transcript(client_id: str, filename: str):
     """Download a transcript text file."""
-    file_path = _safe_join(backend_main.TRANSCRIPTIONS_DIR, client_id, filename)
+    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Fichier transcript introuvable.")
     with open(file_path, "rb") as f:
@@ -104,12 +105,12 @@ async def download_transcript(client_id: str, filename: str):
 @router.get("/view/{client_id}/{filename}")
 async def view_transcription(client_id: str, filename: str, request: Request):
     """Render a transcription in HTML."""
-    client_path = _safe_join(backend_main.TRANSCRIPTIONS_DIR, client_id, filename)
+    client_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if os.path.isfile(client_path):
         file_path = client_path
         is_temp = False
     else:
-        temp_path = _safe_join(backend_main.TRANSCRIPTIONS_DIR, "live_audio", filename)
+        temp_path = _safe_join(TRANSCRIPTIONS_DIR, "live_audio", filename)
         if os.path.isfile(temp_path):
             file_path = temp_path
             is_temp = True
@@ -269,7 +270,7 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
     # Run the ASR processing pipeline
     transcript = await engine.process_file(assembled_path, progress_callback=progress_callback)
     # Save transcript in client‑specific directory
-    client_dir = os.path.join(backend_main.TRANSCRIPTIONS_DIR, client_id)
+    client_dir = os.path.join(TRANSCRIPTIONS_DIR, client_id)
     os.makedirs(client_dir, exist_ok=True)
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     txt_name = f"batch_{ts}.txt"
@@ -278,6 +279,22 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
         f.write(transcript)
     # Update job entry using add_job (replace existing entry)
     add_job(file_id, {"status": "terminé", "progress": 100, "result_file": txt_name})
+    
+    # Save audio for history before cleanup
+    try:
+        batch_audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "batch_audio")
+        os.makedirs(batch_audio_dir, exist_ok=True)
+        # Expected filename format for frontend: batch_{client_id}_{ts}.wav
+        # Wait, the frontend code (loadHistory) says:
+        # audioFilename = 'batch_' + getClientId() + '_' + ts + '.wav';
+        # where ts = f.replace('batch_', '').replace('.txt', '');
+        # So we use the same 'ts' as the txt file.
+        archived_audio_name = f"batch_{client_id}_{ts}.wav"
+        archived_audio_path = os.path.join(batch_audio_dir, archived_audio_name)
+        shutil.copy2(assembled_path, archived_audio_path)
+    except Exception:
+        pass
+
     # Cleanup temporary files
     try:
         os.remove(assembled_path)

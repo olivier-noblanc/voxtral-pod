@@ -59,4 +59,6 @@ TRANSCRIPTIONS_DIR = "transcriptions_terminees"
 TEMP_DIR = "temp_batch"
 
 os.makedirs(TRANSCRIPTIONS_DIR, exist_ok=True)
+os.makedirs(os.path.join(TRANSCRIPTIONS_DIR, "live_audio"), exist_ok=True)
+os.makedirs(os.path.join(TRANSCRIPTIONS_DIR, "batch_audio"), exist_ok=True)
 os.makedirs(TEMP_DIR, exist_ok=True)
