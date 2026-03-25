@@ -291,7 +291,8 @@ async function pollStatus(id) {
         } else if (data.status.startsWith("processing:")) {
             const pct = data.progress || 0;
             const eta = data.eta ? " (ETA: " + data.eta + "s)" : '';
-            document.getElementById('batchStatus').innerText = "⏳ " + data.status.split(":")[1] + " — " + pct + "%" + eta;
+            const statusLabel = data.status.includes(":") ? data.status.split(":")[1] : data.status;
+            document.getElementById('batchStatus').innerText = "⏳ " + statusLabel + " — " + pct + "%" + eta;
             document.getElementById('uploadBtn').disabled = true;
             document.getElementById('uploadProgressFill').style.width = pct + '%';
             document.getElementById('uploadProgressContainer').style.display = 'block';
@@ -404,11 +405,12 @@ window.onload = () => {
                 } else {
                     // Job en cours
                     if (uploadBtn) uploadBtn.disabled = true;
-                    if (statusElem) {
-                        const pct = data.progress || 0;
-                        const eta = data.eta ? " (ETA: " + data.eta + "s)" : '';
-                        statusElem.innerText = "⏳ " + data.status.split(":")[1] + " — " + pct + "%" + eta;
-                    }
+                if (statusElem) {
+                    const pct = data.progress || 0;
+                    const eta = data.eta ? " (ETA: " + data.eta + "s)" : '';
+                    const statusLabel = data.status.includes(":") ? data.status.split(":")[1] : data.status;
+                    statusElem.innerText = "⏳ " + statusLabel + " — " + pct + "%" + eta;
+                }
                     pollStatus(pendingJob);
                 }
             })
