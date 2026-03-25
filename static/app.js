@@ -87,8 +87,8 @@ async function startRecording() {
         ws = new WebSocket(wsUrl);
         console.log('WebSocket opened to', wsUrl);
         ws.binaryType = 'arraybuffer';
-        // Use 16 kHz sample rate as in the original working commit
-        audioContext = new AudioContext({ sampleRate: 16000 });
+        // Use default sample rate to avoid mismatch with MediaStream source
+        audioContext = new AudioContext();
         console.log('AudioContext created with sampleRate', audioContext.sampleRate);
         source = audioContext.createMediaStreamSource(audioStream);
         await audioContext.audioWorklet.addModule('data:text/javascript;base64,' + btoa(workletCode));
@@ -98,14 +98,23 @@ async function startRecording() {
 processor.port.onmessage = (e) => {
     console.log('Audio worklet data received, length:', e.data.length);
     if (ws && ws.readyState === 1) {
-        const pcm = new Int16Array(e.data.length);
-        for (let i = 0; i < e.data.length; i++) {
-            pcm[i] = Math.max(-1, Math.min(1, e.data[i])) * 0x7FFF;
+        // Downsample from 48 kHz to 16 kHz (factor 3)
+        const factor = 3;
+        const downLength = Math.floor(e.data.length / factor);
+        const downsampled = new Float32Array(downLength);
+        for (let i = 0; i < downLength; i++) {
+            downsampled[i] = e.data[i * factor];
+        }
+        const pcm = new Int16Array(downsampled.length);
+        for (let i = 0; i < downsampled.length; i++) {
+            pcm[i] = Math.max(-1, Math.min(1, downsampled[i])) * 0x7FFF;
         }
         ws.send(pcm.buffer);
         console.log('PCM data sent');
-        updateVolumeBar(e.data);
+        // Update UI with downsampled data for a responsive volume bar
+        updateVolumeBar(downsampled);
     } else {
+        // Still update UI even if the socket is not ready
         updateVolumeBar(e.data);
     }
 };
