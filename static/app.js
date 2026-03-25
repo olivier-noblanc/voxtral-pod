@@ -3,7 +3,22 @@ let ws, audioContext, source, processor, isRecording = false;
 let audioStream = null;
 let captureType = "mic";
 const CHUNK_SIZE = 4 * 1024 * 1024;
-const workletCode = "class AudioProcessor extends AudioWorkletProcessor { constructor() { super(); } process(inputs, outputs, parameters) { const input = inputs[0]; if (input && input[0]) { this.port.postMessage(input[0]); } return true; } } registerProcessor('audio-processor', AudioProcessor);"; // AudioWorklet processor
+const workletCode = `class AudioProcessor extends AudioWorkletProcessor {
+    constructor() { super(); this.buffer = new Float32Array(2560); this.offset = 0; }
+    process(inputs) {
+        const input = inputs[0][0];
+        if (!input) return true;
+        for (let i = 0; i < input.length; i++) {
+            this.buffer[this.offset++] = input[i];
+            if (this.offset >= 2560) {
+                this.port.postMessage(this.buffer);
+                this.offset = 0;
+            }
+        }
+        return true;
+    }
+}
+registerProcessor('audio-processor', AudioProcessor);`; // AudioWorklet processor
 
 // ========================= UTILITAIRES =========================
 function getClientId() {
@@ -73,7 +88,7 @@ async function startRecording() {
         console.log('WebSocket opened to', wsUrl);
         ws.binaryType = 'arraybuffer';
         // Use default sample rate to avoid mismatch with MediaStream source
-        audioContext = new AudioContext({ sampleRate: 16000 });
+        audioContext = new AudioContext();
         console.log('AudioContext created with sampleRate', audioContext.sampleRate);
         source = audioContext.createMediaStreamSource(audioStream);
         await audioContext.audioWorklet.addModule('data:text/javascript;base64,' + btoa(workletCode));
@@ -83,14 +98,23 @@ async function startRecording() {
 processor.port.onmessage = (e) => {
     console.log('Audio worklet data received, length:', e.data.length);
     if (ws && ws.readyState === 1) {
-        const pcm = new Int16Array(e.data.length);
-        for (let i = 0; i < e.data.length; i++) {
-            pcm[i] = Math.max(-1, Math.min(1, e.data[i])) * 0x7FFF;
+        // Downsample from 48 kHz to 16 kHz (factor 3)
+        const factor = 3;
+        const downLength = Math.floor(e.data.length / factor);
+        const downsampled = new Float32Array(downLength);
+        for (let i = 0; i < downLength; i++) {
+            downsampled[i] = e.data[i * factor];
+        }
+        const pcm = new Int16Array(downsampled.length);
+        for (let i = 0; i < downsampled.length; i++) {
+            pcm[i] = Math.max(-1, Math.min(1, downsampled[i])) * 0x7FFF;
         }
         ws.send(pcm.buffer);
         console.log('PCM data sent');
-        updateVolumeBar(e.data);
+        // Update UI with downsampled data for a responsive volume bar
+        updateVolumeBar(downsampled);
     } else {
+        // Still update UI even if the socket is not ready
         updateVolumeBar(e.data);
     }
 };
