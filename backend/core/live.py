@@ -123,8 +123,7 @@ class LiveSession:
         print(f"[*] [{self.client_id}] Audio saved: {wav_filename} ({len(pcm_bytes) / 1024:.1f} KB)")
 
         # ---------- Transcription complète du fichier audio ----------
-        # Convertir les octets PCM en tableau numpy float32 normalisé
-        audio_np = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+        # audio_np déjà calculé ci-dessus — pas besoin de le recalculer
 
         # Utiliser le moteur de transcription pour obtenir le texte complet
         words, _ = await asyncio.to_thread(self.engine.transcription_engine.transcribe, audio_np)

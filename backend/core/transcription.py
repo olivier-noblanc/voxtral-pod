@@ -12,16 +12,15 @@ class TranscriptionEngine:
     def __init__(self, model_id="whisper", device=None):
         self.model_id = model_id
 
-        # Automatic device detection
-if device:
-    self.device = device
-else:
-    # Lazy import of torch for device detection
-    try:
-        import torch
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-    except ImportError:
-        self.device = "cpu"
+        # Automatic device detection (lazy import de torch)
+        if device:
+            self.device = device
+        else:
+            try:
+                import torch
+                self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            except ImportError:
+                self.device = "cpu"
 
         self.model = None
         self.albert_api_key = os.getenv("ALBERT_API_KEY")

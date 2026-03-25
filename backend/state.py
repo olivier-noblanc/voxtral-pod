@@ -32,7 +32,6 @@ def init_db():
             conn.execute("INSERT INTO config (key, value) VALUES ('current_model', ?)", (default_model,))
         conn.commit()
 
-init_db()
 
 def get_current_model():
     with get_db() as conn:

@@ -1,5 +1,4 @@
 import os
-import torch
 import warnings
 
 _CPU_THREADS_CONFIGURED = False
@@ -20,7 +19,7 @@ for _k, _v in [
 # === GPU PERFORMANCE OPTIMIZATION (Ampere+) ===
 def setup_gpu():
     global _CPU_THREADS_CONFIGURED
-    # NNPACK can be disabled explicitly via env (set by run.sh in CPU mode).
+    import torch  # lazy
     disable_nnpack = os.getenv("DISABLE_NNPACK", "0").lower() in ("1", "true", "yes", "on")
     if disable_nnpack and hasattr(torch.backends, "nnpack") and hasattr(torch.backends.nnpack, "enabled"):
         torch.backends.nnpack.enabled = False
@@ -36,6 +35,7 @@ def setup_gpu():
 
 def get_vram_gb():
     """Returns the total VRAM of the primary GPU in GB. 0 if no GPU."""
+    import torch  # lazy
     if not torch.cuda.is_available():
         return 0
     try:

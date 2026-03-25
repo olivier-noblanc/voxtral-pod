@@ -1,4 +1,5 @@
 import os
+import pathlib
 import datetime
 import asyncio
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
@@ -12,6 +13,18 @@ from backend.config import TEMP_DIR
 import backend.main as backend_main  # pylint: disable=no-member
 
 router = APIRouter()
+
+# ---------- Sécurité : anti path traversal ----------
+def _safe_join(base: str, *parts: str) -> str:
+    """
+    Résout le chemin final et vérifie qu'il reste sous `base`.
+    Lève HTTPException 400 en cas de tentative de path traversal.
+    """
+    base_resolved = pathlib.Path(base).resolve()
+    target = (base_resolved / pathlib.Path(*parts)).resolve()
+    if not str(target).startswith(str(base_resolved)):
+        raise HTTPException(status_code=400, detail="Chemin invalide.")
+    return str(target)
 
 # ---------- Helper ----------
 def _update_job_status(job_id: str, status: str, progress: int = 0, result_file: str | None = None):
@@ -33,10 +46,10 @@ async def home(request: Request):
         commit = "unknown"
     protocol = "wss" if request.url.scheme == "https" else "ws"
     host = request.headers.get("host")
-    from backend.core.engine import SotaASR
-    ws_url = f"{protocol}://{host}/live?client_id={{getClientId()}}&partial_albert={{no_gpu}}"
     current_model = get_current_model()
     engine = get_asr_engine(load_model=False)
+    no_gpu_str = str(engine.no_gpu).lower()
+    ws_url = f"{protocol}://{host}/live?client_id={{getClientId()}}&partial_albert={no_gpu_str}"
     return HTMLResponse(
         content=HTML_UI
         .replace("{{model_name}}", current_model)
@@ -48,7 +61,8 @@ async def home(request: Request):
 @router.get("/transcriptions")
 async def list_trans(client_id: str):
     """List transcription files for a client."""
-    p = os.path.join(backend_main.TRANSCRIPTIONS_DIR, client_id)
+    base = pathlib.Path(backend_main.TRANSCRIPTIONS_DIR).resolve()
+    p = _safe_join(backend_main.TRANSCRIPTIONS_DIR, client_id)
     if not os.path.isdir(p):
         return []
     return sorted([f for f in os.listdir(p) if f.endswith(".txt")], reverse=True)
@@ -56,7 +70,7 @@ async def list_trans(client_id: str):
 @router.get("/transcription/{filename}")
 async def get_trans(filename: str, client_id: str):
     """Return a transcription file."""
-    p = os.path.join(backend_main.TRANSCRIPTIONS_DIR, client_id, filename)
+    p = _safe_join(backend_main.TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(p):
         raise HTTPException(status_code=404, detail="Fichier introuvable.")
     return FileResponse(p, media_type="text/plain", filename=filename)
@@ -73,12 +87,11 @@ async def download_audio(client_id: str, filename: str):
 @router.get("/download_transcript/{client_id}/{filename}")
 async def download_transcript(client_id: str, filename: str):
     """Download a transcript text file."""
-    file_path = os.path.join(backend_main.TRANSCRIPTIONS_DIR, client_id, filename)
+    file_path = _safe_join(backend_main.TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Fichier transcript introuvable.")
     with open(file_path, "rb") as f:
         content = f.read()
-    # Explicitly set Content-Type without charset to satisfy tests
     return Response(
         content,
         media_type="text/plain",
@@ -91,12 +104,12 @@ async def download_transcript(client_id: str, filename: str):
 @router.get("/view/{client_id}/{filename}")
 async def view_transcription(client_id: str, filename: str, request: Request):
     """Render a transcription in HTML."""
-    client_path = os.path.join(backend_main.TRANSCRIPTIONS_DIR, client_id, filename)
+    client_path = _safe_join(backend_main.TRANSCRIPTIONS_DIR, client_id, filename)
     if os.path.isfile(client_path):
         file_path = client_path
         is_temp = False
     else:
-        temp_path = os.path.join(backend_main.TRANSCRIPTIONS_DIR, "live_audio", filename)
+        temp_path = _safe_join(backend_main.TRANSCRIPTIONS_DIR, "live_audio", filename)
         if os.path.isfile(temp_path):
             file_path = temp_path
             is_temp = True
@@ -245,16 +258,20 @@ async def batch_chunk_route(
         # All chunks received – assemble and process
         _update_job_status(file_id, "processing:Réassemblage...", 0)
         assembled_path = os.path.join(upload_dir, "audio_full.wav")
-        with open(assembled_path, "wb") as out_f:
-            for i in range(total_chunks):
-                part = os.path.join(upload_dir, f"chunk_{i:04d}")
-                with open(part, "rb") as in_f:
-                    out_f.write(in_f.read())
-                os.remove(part)
+        await asyncio.to_thread(_assemble_chunks, assembled_path, total_chunks, upload_dir)
         background_tasks.add_task(_gpu_job, assembled_path, file_id, client_id)
     return {"status": "ok"}
 
-# ---------- Background processing ----------
+# ---------- Helper I/O (sync, appelé via asyncio.to_thread) ----------
+def _assemble_chunks(assembled_path: str, total_chunks: int, upload_dir: str) -> None:
+    """Concatène les chunks en un seul fichier, puis les supprime."""
+    with open(assembled_path, "wb") as out_f:
+        for i in range(total_chunks):
+            part = os.path.join(upload_dir, f"chunk_{i:04d}")
+            with open(part, "rb") as in_f:
+                out_f.write(in_f.read())
+            os.remove(part)
+
 async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
     """Process a batch audio file, store transcript, and update job status."""
     # Update status to indicate transcription start
