@@ -13,7 +13,7 @@ from dulwich.repo import Repo  # pyright: ignore[reportMissingImports]
 from dulwich import porcelain
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Form, BackgroundTasks, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse, RedirectResponse
 from backend.config import setup_gpu, setup_warnings, TRANSCRIPTIONS_DIR, TEMP_DIR
 from backend.html_ui import HTML_UI
 from backend.core.engine import SotaASR
@@ -93,7 +93,6 @@ async def get_trans(filename: str, client_id: str):
     p = os.path.join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.exists(p):
         raise HTTPException(status_code=404, detail="Fichier introuvable.")
-    # Retourner le fichier texte avec un en‑tête de téléchargement explicite
     return FileResponse(
         p,
         media_type="text/plain",
@@ -101,149 +100,25 @@ async def get_trans(filename: str, client_id: str):
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
-@app.post("/change_model")
-async def change_model_route(model: str):
-    global asr_engine, model_name
-    model_name = model
-    asr_engine = SotaASR(model_id=model, hf_token=os.environ.get("HF_TOKEN"))
-    asr_engine.load()
-    return {"status": "ok"}
+@app.get("/download_audio/{client_id}/{filename}")
+async def download_audio(client_id: str, filename: str):
+    for subdir in ("live_audio", "batch_audio"):
+        file_path = os.path.join(TRANSCRIPTIONS_DIR, subdir, filename)
+        if os.path.exists(file_path):
+            return FileResponse(file_path, media_type="audio/wav", filename=filename)
+    raise HTTPException(status_code=404, detail="Fichier audio non trouvé.")
 
-@app.post("/batch_chunk")
-async def batch_chunk_route(
-    background_tasks: BackgroundTasks,
-    file_id: str = Form(...), client_id: str = Form("anonymous"),
-    chunk_index: int = Form(...), total_chunks: int = Form(...),
-    file: UploadFile = File(...)
-):
-    if chunk_index == 0:
-        jobs_db[file_id] = {"status": "uploading", "progress": 0}
-        # Nettoyage préventif : limiter la taille du dictionnaire jobs_db
-        if len(jobs_db) > JOBS_DB_MAX_SIZE:
-            oldest_keys = list(jobs_db.keys())[: len(jobs_db) - JOBS_DB_MAX_SIZE]
-            for k in oldest_keys:
-                jobs_db.pop(k, None)
-
-    upload_dir = os.path.join(TEMP_DIR, file_id)
-    os.makedirs(upload_dir, exist_ok=True)
-
-    chunk_path = os.path.join(upload_dir, f"chunk_{chunk_index:04d}")
-    with open(chunk_path, "wb") as f:
-        f.write(await file.read())
-
-    if chunk_index == total_chunks - 1:
-        # Reassemble
-        jobs_db[file_id] = {"status": "processing:Réassemblage...", "progress": 0}
-        assembled_path = os.path.join(upload_dir, "audio_full")
-        with open(assembled_path, "wb") as out_f:
-            for i in range(total_chunks):
-                cp = os.path.join(upload_dir, f"chunk_{i:04d}")
-                with open(cp, "rb") as in_f: out_f.write(in_f.read())
-                if os.path.exists(cp): os.remove(cp)
-
-        # Launch background job
-        background_tasks.add_task(run_batch_job, assembled_path, file_id, client_id)
-
-    return {"status": "ok"}
-
-@app.post("/cancel/{file_id}")
-async def cancel_route(file_id: str):
-    if file_id in jobs_db:
-        jobs_db[file_id] = {"status": "cancelled"}
-    return {"status": "ok"}
-
-async def run_batch_job(path, file_id, client_id):
-    start_time = datetime.datetime.now()
-    try:
-        def update_progress(status, pct):
-            elapsed = (datetime.datetime.now() - start_time).total_seconds()
-            eta = 0
-            if 5 < pct < 100:
-                eta = int((elapsed / pct) * (100 - pct))
-
-            jobs_db[file_id] = {
-                "status": f"processing:{status}",
-                "progress": pct,
-                "eta": eta
-            }
-
-        transcript = await asr_engine.process_file(path, progress_callback=update_progress)
-
-        # Save transcription
-        out_dir = os.path.join(TRANSCRIPTIONS_DIR, client_id)
-        os.makedirs(out_dir, exist_ok=True)
-        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        txt_path = os.path.join(out_dir, f"batch_{ts}.txt")
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write(transcript)
-
-        # Sauvegarder le fichier audio original pour le téléchargement
-        audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "batch_audio")
-        os.makedirs(audio_dir, exist_ok=True)
-        audio_filename = f"batch_{client_id}_{ts}.wav"
-        audio_path = os.path.join(audio_dir, audio_filename)
-        shutil.copy2(path, audio_path)
-
-        jobs_db[file_id] = {"status": "done", "result": transcript[:500] + "..."}
-    except Exception as e:
-        print(f"[!] Batch error: {e}")
-        jobs_db[file_id] = {"status": "error", "error": str(e)}
-
-def format_transcription(text: str) -> str:
-    # Décoder les séquences \uXXXX littérales si présentes
-    try:
-        text = codecs.decode(text, "unicode_escape").encode("latin-1").decode("utf-8")
-    except Exception:
-        pass  # Si le texte est déjà propre, on ignore
-
-    lines = text.split("\n")
-    html_parts = []
-    for line in lines:
-        stripped = line.strip()
-        # Cas 1 : [time] [speaker] texte
-        match = re.match(r"^\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)$", stripped)
-        if match:
-            time_str, speaker, content = match.groups()
-            html_parts.append(f"""
-                <div class="segment">
-                    <div class="segment-header">
-                        <span class="segment-time">{html.escape(time_str)}</span>
-                        <span class="segment-speaker" data-speaker="{html.escape(speaker)}">{html.escape(speaker)}</span>
-                    </div>
-                    <div class="segment-text">{html.escape(content)}</div>
-                </div>
-            """)
-            continue
-        # Cas 2 : [speaker] texte (sans timestamp, typique des transcriptions live)
-        match2 = re.match(r"^\[([^\]]+)\]\s*(.*)$", stripped)
-        if match2:
-            speaker, content = match2.groups()
-            html_parts.append(f"""
-                <div class="segment">
-                    <div class="segment-header">
-                        <span class="segment-speaker" data-speaker="{html.escape(speaker)}">{html.escape(speaker)}</span>
-                    </div>
-                    <div class="segment-text">{html.escape(content)}</div>
-                </div>
-            """)
-            continue
-        # Cas 3 : speaker: texte (format possible des historiques live)
-        match3 = re.match(r"^([^:]+):\s*(.*)$", stripped)
-        if match3:
-            speaker, content = match3.groups()
-            html_parts.append(f"""
-                <div class="segment">
-                    <div class="segment-header">
-                        <span class="segment-speaker" data-speaker="{html.escape(speaker.strip())}">{html.escape(speaker.strip())}</span>
-                    </div>
-                    <div class="segment-text">{html.escape(content.strip())}</div>
-                </div>
-            """)
-            continue
-        # Autre texte brut
-        if stripped:
-            html_parts.append(f"<p>{html.escape(stripped)}</p>")
-    return "\n".join(html_parts)
+@app.get("/download_transcript/{client_id}/{filename}")
+async def download_transcript(client_id: str, filename: str):
+    file_path = os.path.join(TRANSCRIPTIONS_DIR, client_id, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Fichier transcript introuvable.")
+    return FileResponse(
+        file_path,
+        media_type="text/plain",
+        filename=filename,
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 @app.get("/view/{client_id}/{filename}")
 async def view_transcription(client_id: str, filename: str, request: Request):
@@ -252,7 +127,6 @@ async def view_transcription(client_id: str, filename: str, request: Request):
         raise HTTPException(status_code=404, detail="Fichier introuvable.")
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
-    # Échapper les valeurs injectées dans le HTML pour prévenir les XSS
     safe_client_id = html.escape(client_id)
     safe_filename = html.escape(filename)
     return HTMLResponse(content=f"""
@@ -264,46 +138,14 @@ async def view_transcription(client_id: str, filename: str, request: Request):
             <title>{safe_filename} – Voxtral Pod</title>
             <link rel="stylesheet" href="/static/dsfr.min.css">
             <style>
-                body {{
-                    background: var(--background-alt-grey);
-                }}
-                .transcript-container {{
-                    max-width: 900px;
-                    margin: 2rem auto;
-                    padding: 1rem;
-                }}
-                .segment {{
-                    margin-bottom: 1.5rem;
-                    padding: 1rem;
-                    background: #fff;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }}
-                .segment-header {{
-                    display: flex;
-                    gap: 1rem;
-                    align-items: baseline;
-                    flex-wrap: wrap;
-                    margin-bottom: 0.5rem;
-                }}
-                .segment-time {{
-                    font-family: monospace;
-                    font-size: 0.8rem;
-                    color: #666;
-                }}
-                .segment-speaker {{
-                    font-weight: bold;
-                    background: #e5e5e5;
-                    padding: 0.2rem 0.5rem;
-                    border-radius: 4px;
-                }}
-                .segment-text {{
-                    line-height: 1.5;
-                }}
-                .back-link {{
-                    margin-bottom: 1rem;
-                    display: inline-block;
-                }}
+                body {{ background: var(--background-alt-grey); }}
+                .transcript-container {{ max-width: 900px; margin: 2rem auto; padding: 1rem; }}
+                .segment {{ margin-bottom: 1.5rem; padding: 1rem; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+                .segment-header {{ display: flex; gap: 1rem; align-items: baseline; flex-wrap: wrap; margin-bottom: 0.5rem; }}
+                .segment-time {{ font-family: monospace; font-size: 0.8rem; color: #666; }}
+                .segment-speaker {{ font-weight: bold; background: #e5e5e5; padding: 0.2rem 0.5rem; border-radius: 4px; }}
+                .segment-text {{ line-height: 1.5; }}
+                .back-link {{ margin-bottom: 1rem; display: inline-block; }}
             </style>
         </head>
         <body>
@@ -398,54 +240,6 @@ async def view_transcription(client_id: str, filename: str, request: Request):
         </html>
     """)
 
-from fastapi.responses import RedirectResponse
-
-@app.post("/update_transcription/{client_id}/{filename}")
-async def update_transcription_route(client_id: str, filename: str, content: str = Form(...)):
-    file_path = os.path.join(TRANSCRIPTIONS_DIR, client_id, filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Fichier introuvable.")
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(content)
-    # Rediriger vers la page de visualisation mise à jour (SSR)
-    return RedirectResponse(url=f"/view/{client_id}/{filename}", status_code=303)
-
-@app.get("/download_audio/{client_id}/{filename}")
-async def download_audio(client_id: str, filename: str):
-    # Chercher d'abord dans live_audio, puis batch_audio
-    for subdir in ("live_audio", "batch_audio"):
-        file_path = os.path.join(TRANSCRIPTIONS_DIR, subdir, filename)
-        if os.path.exists(file_path):
-            return FileResponse(file_path, media_type="audio/wav", filename=filename)
-    raise HTTPException(status_code=404, detail="Fichier audio non trouvé.")
-
-# Nouvelle route pour télécharger le transcript au format texte
-@app.get("/download_transcript/{client_id}/{filename}")
-async def download_transcript(client_id: str, filename: str):
-    """
-    Retourne le fichier de transcription (.txt) avec un en‑tête de téléchargement.
-    """
-    file_path = os.path.join(TRANSCRIPTIONS_DIR, client_id, filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Fichier transcript introuvable.")
-    return FileResponse(
-        file_path,
-        media_type="text/plain",
-        filename=filename,
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
-
-@app.post("/save_live_transcription/{client_id}")
-async def save_live_transcription_route(client_id: str, content: str = Form(...)):
-    out_dir = os.path.join(TRANSCRIPTIONS_DIR, client_id)
-    os.makedirs(out_dir, exist_ok=True)
-    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"live_{ts}.txt"
-    file_path = os.path.join(out_dir, filename)
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(content)
-    return {"status": "ok", "filename": filename}
-
 @app.get("/status/{file_id}")
 async def status_route(file_id: str):
     return jobs_db.get(file_id, {"status": "not_found"})
@@ -455,29 +249,23 @@ async def git_status():
     try:
         repo = Repo(".")
         local_commit = repo.head().decode()
-
         try:
             porcelain.fetch(repo, "origin")
         except Exception as e:
             print(f"[WARNING] fetch failed: {e}")
-
         all_refs = repo.get_refs()
-
         remote_branch_ref = b"refs/remotes/origin/main"
         if remote_branch_ref not in all_refs:
             remote_branch_ref = b"refs/remotes/origin/master"
         if remote_branch_ref not in all_refs:
             return {"commit": local_commit, "behind": -1, "error": "remote ref introuvable"}
-
         remote_commit_sha = all_refs[remote_branch_ref].decode()
-
         local_commits = set()
         c = repo.get_object(local_commit.encode())
         while True:
             local_commits.add(c.id.decode())
             if not c.parents: break
             c = repo.get_object(c.parents[0])
-
         behind = 0
         c = repo.get_object(remote_commit_sha.encode())
         while True:
@@ -485,60 +273,13 @@ async def git_status():
             behind += 1
             if not c.parents: break
             c = repo.get_object(c.parents[0])
-
         return {"commit": local_commit, "behind": behind}
-
     except Exception as e:
         return {"commit": "unknown", "behind": -1, "error": str(e)}
 
-@app.post("/git_update")
-async def git_update():
-    try:
-        repo = Repo(".")
-
-        porcelain.fetch(repo, "origin")
-
-        all_refs = repo.get_refs()
-        remote_branch_ref = b"refs/remotes/origin/main"
-        if remote_branch_ref not in all_refs:
-            remote_branch_ref = b"refs/remotes/origin/master"
-
-        remote_sha = all_refs[remote_branch_ref]
-
-        local_ref = b"refs/heads/main"
-        if local_ref not in repo.refs:
-            local_ref = b"refs/heads/master"
-        repo.refs[local_ref] = remote_sha
-
-        async def _restart():
-            await asyncio.sleep(1)
-            os.execv(sys.executable, [sys.executable] + sys.argv)
-
-        asyncio.create_task(_restart())
-        return {"stdout": "Mise à jour OK, redémarrage...", "stderr": ""}
-
-    except Exception as e:
-        return {"stdout": f"Erreur: {str(e)}", "stderr": ""}
-
-@app.post("/upload_s3")
-async def upload_s3_route(
-    filename: str = Form(...), content: str = Form(...),
-    endpoint: str = Form(...), bucket: str = Form(...),
-    access_key: str = Form(...), secret_key: str = Form(...)
-):
-    if boto3 is None:
-        raise HTTPException(status_code=500, detail="Le module boto3 n'est pas installé.")
-    try:
-        s3 = boto3.client(
-            "s3",
-            endpoint_url=endpoint,
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-        )
-        s3.put_object(Bucket=bucket, Key=filename, Body=content.encode("utf-8"), ContentType="text/plain; charset=utf-8")
-        return {"status": "ok"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# Inclusion du router contenant toutes les routes POST
+from backend.routes.api import router as api_router
+app.include_router(api_router)
 
 if __name__ == "__main__":
     import uvicorn
