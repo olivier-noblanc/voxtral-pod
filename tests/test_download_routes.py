@@ -12,7 +12,8 @@ except ImportError:
 # Import the FastAPI app (adjust sys.path for relative import)
 import sys, os as _os
 sys.path.append(_os.path.abspath(_os.path.join(_os.path.dirname(__file__), '..')))
-from backend.main import app, TRANSCRIPTIONS_DIR
+from backend.main import app
+from backend.config import TRANSCRIPTIONS_DIR
 
 client = TestClient(app)
 

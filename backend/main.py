@@ -9,6 +9,8 @@ from backend.state import asr_engine, model_name
 from backend.core.engine import SotaASR
 # Import API router
 from backend.routes import api as api_module
+# Expose TRANSCRIPTIONS_DIR for external monkey‑patching (tests modify backend.main.TRANSCRIPTIONS_DIR)
+from backend.config import TRANSCRIPTIONS_DIR
 
 # ----------------------------------------------------------------------
 # Helper: format_transcription

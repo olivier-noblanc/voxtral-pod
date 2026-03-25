@@ -12,7 +12,8 @@ from dulwich import porcelain
 
 # Import shared state (no import of server_asr_ref)
 from backend.state import jobs_db, add_job, asr_engine, model_name, JOBS_DB_MAX_SIZE
-from backend.config import TRANSCRIPTIONS_DIR, TEMP_DIR
+from backend.config import TEMP_DIR
+import backend.main as backend_main  # pylint: disable=no-member
 
 router = APIRouter()
 
@@ -48,7 +49,7 @@ async def home(request: Request):
 @router.get("/transcriptions")
 async def list_trans(client_id: str):
     """List transcription files for a client."""
-    p = os.path.join(TRANSCRIPTIONS_DIR, client_id)
+    p = os.path.join(backend_main.TRANSCRIPTIONS_DIR, client_id)
     if not os.path.isdir(p):
         return []
     return sorted([f for f in os.listdir(p) if f.endswith(".txt")], reverse=True)
@@ -56,7 +57,7 @@ async def list_trans(client_id: str):
 @router.get("/transcription/{filename}")
 async def get_trans(filename: str, client_id: str):
     """Return a transcription file."""
-    p = os.path.join(TRANSCRIPTIONS_DIR, client_id, filename)
+    p = os.path.join(backend_main.TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(p):
         raise HTTPException(status_code=404, detail="Fichier introuvable.")
     return FileResponse(p, media_type="text/plain", filename=filename)
@@ -65,7 +66,7 @@ async def get_trans(filename: str, client_id: str):
 async def download_audio(client_id: str, filename: str):
     """Download a WAV audio file."""
     for subdir in ("live_audio", "batch_audio"):
-        file_path = os.path.join(TRANSCRIPTIONS_DIR, subdir, filename)
+        file_path = os.path.join(backend_main.TRANSCRIPTIONS_DIR, subdir, filename)
         if os.path.isfile(file_path):
             return FileResponse(file_path, media_type="audio/wav", filename=filename)
     raise HTTPException(status_code=404, detail="Fichier audio non trouvé.")
@@ -73,26 +74,30 @@ async def download_audio(client_id: str, filename: str):
 @router.get("/download_transcript/{client_id}/{filename}")
 async def download_transcript(client_id: str, filename: str):
     """Download a transcript text file."""
-    file_path = os.path.join(TRANSCRIPTIONS_DIR, client_id, filename)
+    file_path = os.path.join(backend_main.TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Fichier transcript introuvable.")
     with open(file_path, "rb") as f:
         content = f.read()
+    # Explicitly set Content-Type without charset to satisfy tests
     return Response(
         content,
         media_type="text/plain",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={
+            "Content-Type": "text/plain",
+            "Content-Disposition": f"attachment; filename={filename}",
+        },
     )
 
 @router.get("/view/{client_id}/{filename}")
 async def view_transcription(client_id: str, filename: str, request: Request):
     """Render a transcription in HTML."""
-    client_path = os.path.join(TRANSCRIPTIONS_DIR, client_id, filename)
+    client_path = os.path.join(backend_main.TRANSCRIPTIONS_DIR, client_id, filename)
     if os.path.isfile(client_path):
         file_path = client_path
         is_temp = False
     else:
-        temp_path = os.path.join(TRANSCRIPTIONS_DIR, "live_audio", filename)
+        temp_path = os.path.join(backend_main.TRANSCRIPTIONS_DIR, "live_audio", filename)
         if os.path.isfile(temp_path):
             file_path = temp_path
             is_temp = True
@@ -203,7 +208,7 @@ async def change_model_route(model: str):
 @router.post("/save_live_transcription/{client_id}")
 async def save_live_transcription_route(client_id: str, content: str = Form(...)):
     """Save live transcription text to a clean file."""
-    out_dir = os.path.join(TRANSCRIPTIONS_DIR, client_id)
+    out_dir = os.path.join(backend_main.TRANSCRIPTIONS_DIR, client_id)
     os.makedirs(out_dir, exist_ok=True)
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"live_{ts}.txt"
@@ -263,7 +268,7 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
     # Run the ASR processing pipeline
     transcript = await asr_engine.process_file(assembled_path, progress_callback=progress_callback)
     # Save transcript in client‑specific directory
-    client_dir = os.path.join(TRANSCRIPTIONS_DIR, client_id)
+    client_dir = os.path.join(backend_main.TRANSCRIPTIONS_DIR, client_id)
     os.makedirs(client_dir, exist_ok=True)
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     txt_name = f"batch_{ts}.txt"

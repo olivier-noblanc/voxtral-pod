@@ -1,10 +1,7 @@
 import os
 import io
 
-import torch
 import numpy as np
-import faster_whisper
-import requests
 
 
 # Propriété utilitaire : nom des modèles qui utilisent l'API Albert
@@ -16,10 +13,15 @@ class TranscriptionEngine:
         self.model_id = model_id
 
         # Automatic device detection
-        if device:
-            self.device = device
-        else:
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+if device:
+    self.device = device
+else:
+    # Lazy import of torch for device detection
+    try:
+        import torch
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+    except ImportError:
+        self.device = "cpu"
 
         self.model = None
         self.albert_api_key = os.getenv("ALBERT_API_KEY")
@@ -39,14 +41,17 @@ class TranscriptionEngine:
 
         if self.model_id == "whisper":
             print(f"[*] Loading Faster-Whisper (large-v3) on {self.device}...")
-            compute_type = "float16" if self.device == "cuda" else "int8"
-            self.model = faster_whisper.WhisperModel(
-                "large-v3",
-                device=self.device,
-                compute_type=compute_type,
-            )
+        compute_type = "float16" if self.device == "cuda" else "int8"
+        # Lazy import of faster_whisper
+        import faster_whisper
+        self.model = faster_whisper.WhisperModel(
+            "large-v3",
+            device=self.device,
+            compute_type=compute_type,
+        )
         else:
             # Import Vosk uniquement quand nécessaire (lib lourde)
+            # Lazy import of vosk
             import vosk  # noqa: PLC0415
             print(f"[*] Loading Vosk model: {self.model_id}...")
             self.model = vosk.Model(f"models/{self.model_id}")
@@ -108,9 +113,10 @@ class TranscriptionEngine:
         if progress_callback:
             progress_callback("Préparation audio pour Albert...", 46)
 
+        # Lazy import of soundfile for WAV buffer creation
+        import soundfile as sf
         buffer = io.BytesIO()
-        import scipy.io.wavfile as wavfile
-        wavfile.write(buffer, 16000, (audio_np * 32767).astype(np.int16))
+        sf.write(buffer, (audio_np * 32767).astype(np.int16), 16000, format='WAV')
         buffer.seek(0)
 
         try:

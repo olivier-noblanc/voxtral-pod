@@ -1,11 +1,14 @@
 import asyncio
-import struct
+# import struct  # Removed: manual WAV header construction; using soundfile instead
 import numpy as np
 import os
 import datetime
 import shutil
 from fastapi import WebSocket
-from backend.core.vad import VADManager, SAMPLE_RATE
+# Lazy import of heavy ML libraries
+def _lazy_vad_manager():
+    from backend.core.vad import VADManager, SAMPLE_RATE
+    return VADManager, SAMPLE_RATE
 from backend.config import TRANSCRIPTIONS_DIR
 
 
@@ -100,6 +103,9 @@ class LiveSession:
                             await self._transcribe_segment(pcm_data, final=True)
 
     async def save_audio_file(self) -> str | None:
+        # Lazy import of soundfile for WAV writing
+        import soundfile as sf
+        # Lazy import of numpy if needed (already imported at top)
         """Sauvegarde les données audio de la session dans un fichier WAV valide,
         puis génère une transcription complète propre du fichier audio."""
         if not self.full_session_audio:
@@ -120,24 +126,9 @@ class LiveSession:
         block_align = num_channels * bits_per_sample // 8
         data_size = len(pcm_bytes)
 
-        with open(wav_path, "wb") as f:
-            # RIFF header
-            f.write(b"RIFF")
-            f.write(struct.pack("<I", 36 + data_size))   # taille totale - 8
-            f.write(b"WAVE")
-            # fmt chunk
-            f.write(b"fmt ")
-            f.write(struct.pack("<I", 16))               # taille du chunk fmt
-            f.write(struct.pack("<H", 1))                # PCM = 1
-            f.write(struct.pack("<H", num_channels))
-            f.write(struct.pack("<I", SAMPLE_RATE))
-            f.write(struct.pack("<I", byte_rate))
-            f.write(struct.pack("<H", block_align))
-            f.write(struct.pack("<H", bits_per_sample))
-            # data chunk
-            f.write(b"data")
-            f.write(struct.pack("<I", data_size))
-            f.write(pcm_bytes)
+        # Write WAV using soundfile (handles header automatically)
+        sf.write(wav_path, np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0,
+                 SAMPLE_RATE, subtype='PCM_16')
 
         print(f"[*] [{self.client_id}] Audio saved: {wav_filename} ({data_size / 1024:.1f} KB)")
 

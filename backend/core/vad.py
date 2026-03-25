@@ -1,4 +1,3 @@
-import torch
 import warnings
 import numpy as np
 import threading
@@ -27,7 +26,10 @@ except ImportError:  # pragma: no cover
             def __call__(self, *args, **kwargs):
                 return self.is_speech(*args, **kwargs)
 
-from silero_vad import load_silero_vad
+# Lazy import of silero_vad
+def _lazy_load_silero_vad(onnx: bool = True):
+    from silero_vad import load_silero_vad
+    return load_silero_vad(onnx=onnx)
 
 # Mathematical constant for 16-bit audio normalization
 INT16_MAX_ABS_VALUE = 32768.0
@@ -58,7 +60,8 @@ class VADManager:
         print(f"[*] WebRTC VAD initialized (sensitivity={webrtc_sensitivity})")
 
         # --- Silero VAD (accurate confirmation) ---
-        self.silero_model = load_silero_vad(onnx=silero_use_onnx)
+        # Lazy load silero VAD model
+        self.silero_model = _lazy_load_silero_vad(onnx=silero_use_onnx)
         self.silero_sensitivity = silero_sensitivity
         print(f"[*] Silero VAD initialized (sensitivity={silero_sensitivity}, onnx={silero_use_onnx})")
 
@@ -113,10 +116,16 @@ class VADManager:
             .astype(np.float32) / INT16_MAX_ABS_VALUE
         )
         max_vad_prob = 0.0
-        for i in range(0, len(audio_np), _SILERO_CHUNK_SIZE):
-            piece = audio_np[i : i + _SILERO_CHUNK_SIZE]
+        # Split audio into chunks using numpy array_split for clarity
+        chunks = np.array_split(
+            audio_np,
+            max(1, len(audio_np) // _SILERO_CHUNK_SIZE)
+        )
+        for piece in chunks:
             if len(piece) < _SILERO_CHUNK_SIZE:
                 piece = np.pad(piece, (0, _SILERO_CHUNK_SIZE - len(piece)))
+            # Lazy import torch only when needed
+            import torch
             prob = self.silero_model(torch.from_numpy(piece), SAMPLE_RATE).item()
             if prob > max_vad_prob:
                 max_vad_prob = prob
