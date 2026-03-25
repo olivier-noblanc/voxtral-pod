@@ -48,11 +48,14 @@ async def home(request: Request):
         from dulwich.repo import Repo
         repo = Repo(".")
         commit = repo.head().decode()
-    except Exception:
+    except (Exception, ImportError):
         commit = "unknown"
     protocol = "wss" if request.url.scheme == "https" else "ws"
     host = request.headers.get("host")
     current_model = get_current_model()
+    # Force mock if TESTING is set
+    if os.getenv("TESTING") == "1":
+        current_model = "mock"
     engine = get_asr_engine(load_model=False)
     no_gpu_str = str(engine.no_gpu).lower()
     ws_url = f"{protocol}://{host}/live?client_id={{getClientId()}}&partial_albert={no_gpu_str}"

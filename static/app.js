@@ -136,6 +136,7 @@ async function startRecording() {
         }
 
         processor.port.onmessage = (e) => {
+            if (!audioContext) return;
             console.log('Audio worklet data received, length:', e.data.length);
             // Dynamically compute down-sampling factor based on the AudioContext sample rate
             const targetRate = 16000;
@@ -479,6 +480,16 @@ window.onload = () => {
     loadHistory();
     loadS3Config();
     loadAlbertConfig();
+
+    // Initialiser le sélecteur avec le modèle actuel envoyé par le serveur
+    const modelDisplay = document.getElementById('currentModelDisplay');
+    const modelSelect = document.getElementById('modelSelector');
+    if (modelDisplay && modelSelect) {
+        const currentModel = modelDisplay.textContent.trim().toLowerCase();
+        if (['whisper', 'voxtral', 'albert', 'mock'].includes(currentModel)) {
+            modelSelect.value = currentModel;
+        }
+    }
 
     // Forcer Albert si aucun GPU detecte
     const deviceBadge = document.querySelector('.fr-badge.fr-badge--info');
