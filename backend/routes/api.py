@@ -99,7 +99,12 @@ async def download_audio(client_id: str, filename: str):
         try:
             file_path = _safe_join(TRANSCRIPTIONS_DIR, subdir, filename)
             if os.path.isfile(file_path):
-                return FileResponse(file_path, media_type="audio/wav", filename=filename)
+                return FileResponse(
+                    file_path,
+                    media_type="audio/wav",
+                    filename=filename,
+                    headers={"Content-Disposition": f"attachment; filename={filename}"}
+                )
         except HTTPException:
             # Si _safe_join lève une erreur pour un sous-répertoire, on continue
             continue
