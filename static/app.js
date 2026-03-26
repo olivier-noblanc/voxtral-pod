@@ -111,8 +111,9 @@ async function startRecording() {
         const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
         let wsUrl = wsProtocol + '//' + location.host + '/live';
         wsUrl += '?client_id=' + getClientId();
-        // Always enable partial transcription for live feedback (especially Albert/CPU)
-        wsUrl += '&partial_albert=true';
+        const partialCheckbox = document.getElementById('albertPartial');
+        const usePartial = partialCheckbox ? partialCheckbox.checked : true;
+        wsUrl += '&partial_albert=' + usePartial;
         // Add audio device information to WebSocket URL
         if (selectedAudioDeviceId && selectedAudioDeviceId !== "default") {
             wsUrl += `&device_id=${encodeURIComponent(selectedAudioDeviceId)}`;
@@ -334,6 +335,10 @@ return '<div class="fr-col-12 fr-col-md-4">' +
         '<button class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" data-filename="' + f + '" onclick="deleteTranscription(this)" style="color:#c00;">&#x2716;</button>' +
     '<a href="' + downloadUrl + '" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger audio</a>' +
     '<a href="' + transcriptUrl + '" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger texte</a>' +
+    '<br>' +
+    '<button class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w" data-filename="' + f + '" onclick="generateSummary(this)">📄 Compte Rendu (Albert)</button>' +
+    '<button class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w" data-filename="' + f + '" onclick="generateActions(this)">📝 Actions (Albert)</button>' +
+    '<button class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" data-filename="' + f + '" onclick="cleanText(this)">✨ Nettoyer (Albert)</button>' +
     '</div></div>';
         }).join('') || "Aucune.";
     } catch {
@@ -353,8 +358,107 @@ const res = await fetch('/transcriptions/' + encodeURIComponent(filename) + '?cl
 }
 window.deleteTranscription = deleteTranscription;
 
+async function generateSummary(btn) {
+    const filename = btn.getAttribute('data-filename');
+    const clientId = getClientId();
+    const originalText = btn.innerText;
+    btn.innerText = "⏳ Génération...";
+    btn.disabled = true;
+    try {
+        const urlPath = "/summary/" + encodeURIComponent(filename) + "?client_id=" + clientId;
+        const res = await fetch(urlPath, { method: 'POST' });
+        if (!res.ok) throw new Error("Erreur serveur lors de la génération");
+        const data = await res.json();
+        
+        // Créer un fichier téléchargeable avec le contenu du compte-rendu
+        const blob = new Blob([data.summary], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "Compte_Rendu_" + filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        btn.innerText = "✓ Terminé";
+    } catch (err) {
+        alert(err.message);
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
+window.generateSummary = generateSummary;
+
+async function generateActions(btn) {
+    const filename = btn.getAttribute('data-filename');
+    const clientId = getClientId();
+    const originalText = btn.innerText;
+    btn.innerText = "⏳ Extraction...";
+    btn.disabled = true;
+    try {
+        const urlPath = "/actions/" + encodeURIComponent(filename) + "?client_id=" + clientId;
+        const res = await fetch(urlPath, { method: 'POST' });
+        if (!res.ok) throw new Error("Erreur serveur lors de la génération");
+        const data = await res.json();
+        const blob = new Blob([data.actions], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "Actions_" + filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        btn.innerText = "✓ Terminé";
+    } catch (err) {
+        alert(err.message);
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
+window.generateActions = generateActions;
+
+async function cleanText(btn) {
+    const filename = btn.getAttribute('data-filename');
+    const clientId = getClientId();
+    const originalText = btn.innerText;
+    btn.innerText = "⏳ Nettoyage...";
+    btn.disabled = true;
+    try {
+        const urlPath = "/cleanup/" + encodeURIComponent(filename) + "?client_id=" + clientId;
+        const res = await fetch(urlPath, { method: 'POST' });
+        if (!res.ok) throw new Error("Erreur serveur lors de la génération");
+        const data = await res.json();
+        const blob = new Blob([data.cleanup], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "Nettoye_" + filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        btn.innerText = "✓ Terminé";
+    } catch (err) {
+        alert(err.message);
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
+window.cleanText = cleanText;
+
  // ========================= CONFIGURATION MODELE =========================
- // Model selection now handled server‑side; function removed.
+ function changeModel(e) {
+     const model = e.target.value;
+     if (!model) return;
+     // Appelle l'API sans authentification forte (le endpoint requiert X-Admin-Key si configuré, sinon ouvert)
+     fetch('/change_model?model=' + encodeURIComponent(model), { method: 'POST' })
+        .then(res => {
+            if (!res.ok) alert("Erreur ou accès refusé lors du changement de modèle");
+            else console.log("Modèle changé avec succès.");
+        })
+        .catch(err => console.error(err));
+ }
 
 // ========================= CONFIGURATION S3 =========================
 function saveS3Config() {
@@ -525,7 +629,6 @@ window.onload = () => {
     if (elUpload) elUpload.addEventListener('click', handleBatchAction);
     const elToggleS3 = document.getElementById('toggleS3');
     if (elToggleS3) elToggleS3.addEventListener('click', toggleS3Config);
-    // Model selector event listener removed (handled server‑side)
     // Albert partial checkbox listener removed
     const elS3Endpoint = document.getElementById('s3Endpoint');
     if (elS3Endpoint) elS3Endpoint.addEventListener('change', saveS3Config);
@@ -537,6 +640,9 @@ window.onload = () => {
     if (elS3Secret) elS3Secret.addEventListener('click', saveS3Config);
         const elToggleSpeaker = document.getElementById('toggleSpeakerEditorBtn');
         if (elToggleSpeaker) elToggleSpeaker.addEventListener('click', toggleSpeakerEditor);
+
+    const elModelSelector = document.getElementById('modelSelector');
+    if (elModelSelector) elModelSelector.addEventListener('change', changeModel);
 
         // Add event listener for audio device selection
         const elAudioDeviceSelect = document.getElementById('audioDeviceSelect');
@@ -693,6 +799,9 @@ if (window.__TEST__) {
     fetch("/git_update");
     fetch("/live");
     fetch("/status/{file_id}");
+    fetch("/actions/{filename}");
+    fetch("/cleanup/{filename}");
+    fetch("/summary/{filename}");
     fetch("/transcription/{filename}");
     fetch("/transcriptions");
     fetch("/transcriptions/{filename}");

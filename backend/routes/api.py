@@ -143,6 +143,58 @@ async def get_trans(filename: str, client_id: str):
         raise HTTPException(status_code=404, detail="Fichier introuvable.")
     return FileResponse(p, media_type="text/plain", filename=filename)
 
+@router.post("/summary/{filename}")
+async def generate_summary(filename: str, client_id: str):
+    """Générer un compte-rendu avec l'API Albert depuis une transcription."""
+    _validate_client_id(client_id)
+    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Transcription introuvable.")
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    
+    from backend.core.postprocess import summarize_text
+    try:
+        summary = await asyncio.to_thread(summarize_text, content)
+        return {"status": "ok", "summary": summary}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/actions/{filename}")
+async def generate_actions(filename: str, client_id: str):
+    """Extraire les décisions et TODOs avec l'API Albert depuis une transcription."""
+    _validate_client_id(client_id)
+    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Transcription introuvable.")
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    
+    from backend.core.postprocess import extract_actions_text
+    try:
+        actions_list = await asyncio.to_thread(extract_actions_text, content)
+        actions_text = "\n".join(f"- {a}" for a in actions_list)
+        return {"status": "ok", "actions": actions_text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/cleanup/{filename}")
+async def generate_cleanup(filename: str, client_id: str):
+    """Nettoyer les tics de langage d'une transcription avec l'API Albert."""
+    _validate_client_id(client_id)
+    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Transcription introuvable.")
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    
+    from backend.core.postprocess import clean_text
+    try:
+        cleaned = await asyncio.to_thread(clean_text, content)
+        return {"status": "ok", "cleanup": cleaned}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/download_audio/{client_id}/{filename}")
 async def download_audio(client_id: str, filename: str):
     """Download a WAV audio file from the local filesystem."""
@@ -328,8 +380,33 @@ async def upsert_speaker_profile(payload: dict) -> Union[dict, None]:
     speaker_profiles.save_profile(speaker_id, name, emb_array)
     return {"status": "ok"}
 
+def _extract_and_save_profile_sync(audio_path: str, start_s: float, end_s: float, speaker_id: str):
+    import os
+    if not os.path.isfile(audio_path):
+        print(f"[!] Audio file {audio_path} not found for embedding extraction.")
+        return
+    try:
+        from resemblyzer import preprocess_wav, VoiceEncoder
+        wav = preprocess_wav(audio_path)
+        sample_rate = 16000
+        start_idx = int(start_s * sample_rate)
+        end_idx = int(end_s * sample_rate)
+        segment_audio = wav[start_idx:end_idx]
+        
+        if len(segment_audio) < 16000 * 0.5:
+            print("[!] Audio segment too short to extract reliable voice profile.")
+            return
+
+        encoder = VoiceEncoder("cpu")
+        emb = encoder.embed_utterance(segment_audio)
+        import backend.core.speaker_profiles as speaker_profiles
+        speaker_profiles.save_profile(speaker_id=speaker_id, name=speaker_id, embedding=emb)
+        print(f"[*] Saved voice profile for speaker: {speaker_id}")
+    except Exception as e:
+        print(f"[!] Warning: Failed to extract speaker embedding for {speaker_id}: {e}")
+
 @router.post("/segment_update")
-async def update_segment_speaker(payload: dict):
+async def update_segment_speaker(payload: dict, background_tasks: BackgroundTasks):
     """
     Update the speaker label of a specific segment in a transcription.
     Expected payload:
@@ -356,6 +433,23 @@ async def update_segment_speaker(payload: dict):
         lines = f.readlines()
     if segment_index < 0 or segment_index >= len(lines):
         raise HTTPException(status_code=400, detail="segment_index out of range.")
+    
+    # Extract times for profile generation
+    match = re.search(r'\[([\d.]+)s\s*->\s*([\d.]+)s\]', lines[segment_index])
+    if match:
+        start_s = float(match.group(1))
+        end_s = float(match.group(2))
+        if filename.startswith("batch_"):
+            ts = filename.replace("batch_", "").replace(".txt", "")
+            audio_name = f"batch_{client_id}_{ts}.wav"
+            audio_dir = "batch_audio"
+        else:
+            ts = filename.replace("live_", "").replace(".txt", "")
+            audio_name = f"live_{client_id}_{ts}.wav"
+            audio_dir = "live_audio"
+        audio_path = os.path.join(TRANSCRIPTIONS_DIR, audio_dir, audio_name)
+        background_tasks.add_task(_extract_and_save_profile_sync, audio_path, start_s, end_s, new_speaker)
+
     # Format réel : [0.10s -> 1.20s] [SPEAKER_00] texte...
     # On remplace uniquement le bloc [SPEAKER_XX] en préservant le timestamp et le texte.
     new_line = re.sub(
@@ -370,6 +464,7 @@ async def update_segment_speaker(payload: dict):
     with open(file_path, "w", encoding="utf-8") as f:
         f.writelines(lines)
     return {"status": "ok"}
+
 
 # ---------- POST routes ----------
 @router.post("/git_update")

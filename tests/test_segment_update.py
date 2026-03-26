@@ -67,6 +67,32 @@ def test_segment_update_preserves_timestamp(_transcript_file):
     # La ligne 2 ne doit pas être touchée
     assert "[SPEAKER_01]" in lines[1], f"Ligne 2 corrompue: {lines[1]}"
 
+def test_segment_update_triggers_profile_extraction(_transcript_file, monkeypatch):
+    """Vérifier que modifier un speaker déclenche bien l'extraction de l'empreinte biométrique en tâche de fond."""
+    import backend.routes.api as api_module
+    
+    called_args = []
+    def dummy_extract_and_save(*args, **kwargs):
+        called_args.append((args, kwargs))
+        
+    monkeypatch.setattr(api_module, "_extract_and_save_profile_sync", dummy_extract_and_save)
+
+    resp = client.post("/segment_update", json={
+        "client_id": _CLIENT_ID,
+        "filename": "live_20260101_000000.txt",
+        "segment_index": 0,
+        "new_speaker": "Julie"
+    })
+    assert resp.status_code == 200
+
+    assert len(called_args) == 1, "Régression: La routine d'extraction du profil n'a pas été appelée."
+    args, kwargs = called_args[0]
+    
+    assert args[1] == 0.10, "start_s n'est pas le bon"
+    assert args[2] == 1.20, "end_s n'est pas le bon"
+    assert args[3] == "Julie", "Le new_speaker n'a pas été passé correctement"
+    assert "live_user_testsg_20260101_000000.wav" in args[0], "Le chemin audio généré est incorrect"
+
 
 def test_segment_update_second_line(_transcript_file):
     """La modification d'une ligne différente de la première doit aussi fonctionner."""
