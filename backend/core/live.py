@@ -34,7 +34,7 @@ class LiveSession:
         # VAD constants from engine or hardcoded
         self.pre_recording_size = int(SAMPLE_RATE * 2 * 1.0)   # 1s de pré-buffer
         self.min_segment_bytes = int(SAMPLE_RATE * 2 * 0.5)    # segment minimum : 0.5s
-        self.silence_chunks_threshold = 9                        # ~1.5s de silence
+        self.silence_chunks_threshold = 5                        # ~0.8s de silence
 
         self.vad = VADManager(silero_sensitivity=0.4)
 
