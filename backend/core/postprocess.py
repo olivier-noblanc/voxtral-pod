@@ -1,6 +1,8 @@
 import os
 import json
 import requests
+import asyncio
+from backend.core.assistant import AlbertAssistant
 
 # ----------------------------------------------------------------------
 # Helper to call Albert API (compatible with the existing usage in the project)
@@ -73,13 +75,13 @@ def summarize_text(text):
 
 def extract_actions_text(text):
     """Demande à Albert d’extraire les décisions et les tâches (TODO)."""
+    assistant = AlbertAssistant()
     prompt = (
         "Liste les décisions, actions et points à faire (TODO) mentionnés dans le texte "
         "ci‑dessous, sous forme de puces, en français :\n\n"
         f"{text}"
     )
-    raw = _call_albert(prompt)
-    # Retour sous forme de texte brut – on le découpe en lignes non vides
+    raw = asyncio.run(assistant.get_completion(prompt))
     return [line.strip("- ").strip() for line in raw.splitlines() if line.strip()]
 
 
@@ -107,9 +109,12 @@ def process_text(text):
     Orchestration à partir d’un texte brut.
     Retourne un dict avec les trois champs attendus.
     """
-    summary = summarize_text(text)
+    # Utilise AlbertAssistant pour le résumé
+    assistant = AlbertAssistant()
+    summary = asyncio.run(assistant.summarize(text))
     actions = extract_actions_text(text)
-    cleaned = clean_text(text)
+    # Utilise AlbertAssistant pour le nettoyage du texte
+    cleaned = asyncio.run(assistant.cleanup_text(text))
     return {
         "summary": summary,
         "action_points": actions,

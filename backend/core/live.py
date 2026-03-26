@@ -154,12 +154,20 @@ class LiveSession:
             text = " ".join(w["word"] for w in words).strip()
 
             if text:
-                await self.websocket.send_json({
-                    "type": "sentence",
-                    "text": text if final else f"{text} ...",
-                    "speaker": "Speaker",  # Placeholder — la diarisation par lot viendra plus tard
-                    "final": final,
-                })
+                if text:
+                    # Stocker la phrase finalisée et mettre à jour l'index
+                    if final:
+                        self._sentences.append(text)
+                        self._sentence_index += 1
+
+                    await self.websocket.send_json({
+                        "type": "sentence",
+                        "text": text if final else f"{text} ...",
+                        "speaker": "Speaker",  # Placeholder — la diarisation par lot viendra plus tard
+                        "final": final,
+                        "sentence_index": self._sentence_index,
+                        "total_bytes_received": self._total_bytes_received,
+                    })
         except Exception as e:
             # On capture toutes les exceptions pour ne pas faire crasher le worker live
             print(f"[!] [{self.client_id}] Live Inference error: {e}")

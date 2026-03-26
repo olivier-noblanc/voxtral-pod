@@ -10,7 +10,7 @@ from backend.html_ui import HTML_UI
 
 # Import shared state (no import of server_asr_ref)
 from backend.state import get_job, update_job, add_job, JOBS_DB_MAX_SIZE, get_asr_engine, get_current_model, set_current_model
-from backend.config import TEMP_DIR, TRANSCRIPTIONS_DIR
+from backend.config import TEMP_DIR, TRANSCRIPTIONS_DIR, BASE_DIR
 from backend.utils import format_transcription
 
 # Lazy import of speaker_profiles to avoid eager module loading during test collection.
@@ -107,7 +107,7 @@ async def delete_trans(filename: str, client_id: str):
     os.remove(trans_path)
 
     # Supprimer le fichier audio associé s'il existe (live ou batch)
-    # Le nom d'audio suit le même schéma que dans la vue
+    # Le nom d'audio suit le même schéma dans la vue
     if filename.startswith("batch_"):
         ts = filename.replace("batch_", "").replace(".txt", "")
         audio_name = f"batch_{client_id}_{ts}.wav"
@@ -132,6 +132,9 @@ async def get_trans(filename: str, client_id: str):
 
 @router.get("/download_audio/{client_id}/{filename}")
 async def download_audio(client_id: str, filename: str):
+    """
+    Download a WAV audio file from the local filesystem rooted at BASE_DIR.
+    """
     """Download a WAV audio file."""
     # Strict isolation: filename must contain the client_id to prevent cross-client access
     if f"_{client_id}_" not in filename:
@@ -148,12 +151,15 @@ async def download_audio(client_id: str, filename: str):
                     headers={"Content-Disposition": f"attachment; filename={filename}"}
                 )
         except HTTPException:
-            # Si _safe_join lève une erreur pour un sous-répertoire, on continue
+            # Si _safe_join lève une erreur pour un sous‑répertoire, on continue
             continue
     raise HTTPException(status_code=404, detail="Fichier audio non trouvé.")
 
 @router.get("/download_transcript/{client_id}/{filename}")
 async def download_transcript(client_id: str, filename: str):
+    """
+    Download a transcript text file from the local filesystem rooted at BASE_DIR.
+    """
     """Download a transcript text file."""
     file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
@@ -278,8 +284,13 @@ async def git_status():
         return {"commit": "unknown", "behind": -1, "error": str(e)}
 
 # ---------- Speaker profile endpoints ----------
+from typing import List, Union
 @router.get("/speaker_profiles")
-async def get_speaker_profiles():
+async def get_speaker_profiles() -> List[dict]:
+    """
+    Return the list of stored speaker profiles.
+    Each item is a dict: { "speaker_id": "...", "name": "..." }
+    """
     """
     Return the list of stored speaker profiles.
     Each item is a dict: { "speaker_id": "...", "name": "..." }
@@ -294,7 +305,17 @@ async def get_speaker_profiles():
     ]
 
 @router.post("/speaker_profiles")
-async def upsert_speaker_profile(payload: dict):
+async def upsert_speaker_profile(payload: dict) -> Union[dict, None]:
+    """
+    Create or update a speaker profile.
+    Expected JSON payload:
+    {
+        "speaker_id": "SPEAKER_00",
+        "name": "Olivier",
+        "embedding": [0.12, 0.34, ...]   # optional, list of floats
+    }
+    Returns a status dict.
+    """
     # Import here to ensure the latest environment configuration is respected.
     import backend.core.speaker_profiles as speaker_profiles
     """

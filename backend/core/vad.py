@@ -11,17 +11,26 @@ def _lazy_get_webrtcvad():
         return webrtcvad
     except ImportError:
         class FakeVad:
-            def __init__(self, *args, **kwargs): pass
-            def set_mode(self, mode): pass
-            def is_speech(self, frame_bytes, sample_rate): return bool(frame_bytes)
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def set_mode(self, mode):
+                pass
+
+            def is_speech(self, frame_bytes, sample_rate):
+                return bool(frame_bytes)
+
         class FakeModule:
             Vad = FakeVad
+
         return FakeModule()
+
 
 # Lazy import of silero_vad
 def _lazy_load_silero_vad(onnx: bool = True):
     from silero_vad import load_silero_vad
     return load_silero_vad(onnx=onnx)
+
 
 # Mathematical constant for 16-bit audio normalization
 INT16_MAX_ABS_VALUE = 32768.0
@@ -44,6 +53,7 @@ class VADManager:
         self,
         silero_sensitivity: float = 0.4,
         webrtc_sensitivity: int = 3,
+        aggressive: bool = False,
         silero_use_onnx: bool = True,
     ):
         # --- WebRTC VAD (fast gate) ---
@@ -53,10 +63,14 @@ class VADManager:
         print(f"[*] WebRTC VAD initialized (sensitivity={webrtc_sensitivity})")
 
         # --- Silero VAD (accurate confirmation) ---
-        # Lazy load silero VAD model
         self.silero_model = _lazy_load_silero_vad(onnx=silero_use_onnx)
         self.silero_sensitivity = silero_sensitivity
-        print(f"[*] Silero VAD initialized (sensitivity={silero_sensitivity}, onnx={silero_use_onnx})")
+        print(
+            f"[*] Silero VAD initialized (sensitivity={silero_sensitivity}, onnx={silero_use_onnx})"
+        )
+
+        # Store aggressive mode flag
+        self.aggressive = aggressive
 
         # State tracking (read by the caller between calls)
         self.is_webrtc_speech_active = False
@@ -106,7 +120,8 @@ class VADManager:
         """
         audio_np = (
             np.frombuffer(chunk_pcm, dtype=np.int16)
-            .astype(np.float32) / INT16_MAX_ABS_VALUE
+            .astype(np.float32)
+            / INT16_MAX_ABS_VALUE
         )
         max_vad_prob = 0.0
         # Process audio in fixed-size chunks to avoid padding issues
@@ -116,6 +131,7 @@ class VADManager:
                 piece = np.pad(piece, (0, _SILERO_CHUNK_SIZE - len(piece)))
             # Lazy import torch only when needed
             import torch
+
             prob = self.silero_model(torch.from_numpy(piece), SAMPLE_RATE).item()
             if prob > max_vad_prob:
                 max_vad_prob = prob
@@ -127,7 +143,9 @@ class VADManager:
             self._silero_working = True
             try:
                 max_vad_prob = self._run_silero(chunk_pcm)
-                self.is_silero_speech_active = max_vad_prob > (1 - self.silero_sensitivity)
+                self.is_silero_speech_active = max_vad_prob > (
+                    1 - self.silero_sensitivity
+                )
             finally:
                 self._silero_working = False
 
@@ -172,8 +190,20 @@ class VADManager:
                 self._silero_working = False
 
     def check_deactivation(self, chunk_pcm: bytes) -> bool:
-        """Strict check for end of speech to aggressively cut off silence.
-        Matches TranscriptionSuite behavior where ANY silence frame causes WebRTC to drop."""
-        if not self._check_webrtc(chunk_pcm, all_frames_must_be_true=True):
-            return False
-        return self.is_speech(chunk_pcm)
+        """
+        Check for end‑of‑speech.
+        If aggressive mode is enabled, we combine WebRTC and Silero results to minimise
+        latency: a single silence frame detected by WebRTC will immediately signal
+        deactivation, otherwise we fall back to the full Silero check.
+        """
+        if self.aggressive:
+            # Aggressive: any silence frame from WebRTC stops speech quickly.
+            if not self._check_webrtc(chunk_pcm, all_frames_must_be_true=False):
+                return False
+            # Still run Silero to confirm speech continuity when WebRTC still sees speech.
+            return self.is_speech(chunk_pcm)
+        else:
+            # Legacy behaviour: require *all* frames to be speech before considering deactivation.
+            if not self._check_webrtc(chunk_pcm, all_frames_must_be_true=True):
+                return False
+            return self.is_speech(chunk_pcm)
