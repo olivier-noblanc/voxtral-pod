@@ -4,6 +4,9 @@ import wave
 import numpy as np
 import pytest
 
+# Skip the entire test module if ffmpeg is not installed
+pytest.importorskip("ffmpeg")
+
 # Functions under test are defined in backend.core.audio
 from backend.core.audio import decode_audio, pcm_to_float32, float32_to_pcm16
 

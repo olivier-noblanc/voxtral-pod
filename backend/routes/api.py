@@ -37,6 +37,19 @@ def _validate_client_id(client_id: str):
     if not client_id or client_id == "anonymous" or not client_id.startswith("user_") or len(client_id) < 6:
         raise HTTPException(status_code=400, detail="Identifiant client (UUID) invalide ou anonyme non autorisé.")
 
+def _require_admin_key(request: Request):
+    """
+    Vérifie la clé admin dans le header X-Admin-Key.
+    Si ADMIN_API_KEY n'est pas définie dans l'environnement, l'accès est libre (rétro-compat).
+    Si elle est définie, le header doit correspondre exactement.
+    """
+    admin_key = os.getenv("ADMIN_API_KEY")
+    if not admin_key:
+        return  # Pas de clé configurée → accès libre
+    provided = request.headers.get("X-Admin-Key", "")
+    if provided != admin_key:
+        raise HTTPException(status_code=403, detail="Clé admin invalide ou manquante.")
+
 # ---------- Helper ----------
 def _update_job_status(job_id: str, status: str, progress: int = 0, result_file: str | None = None):
     """Update a job entry in the SQLite state."""
@@ -132,10 +145,7 @@ async def get_trans(filename: str, client_id: str):
 
 @router.get("/download_audio/{client_id}/{filename}")
 async def download_audio(client_id: str, filename: str):
-    """
-    Download a WAV audio file from the local filesystem rooted at BASE_DIR.
-    """
-    """Download a WAV audio file."""
+    """Download a WAV audio file from the local filesystem."""
     # Strict isolation: filename must contain the client_id to prevent cross-client access
     if f"_{client_id}_" not in filename:
         raise HTTPException(status_code=403, detail="Accès refusé : ce fichier n'appartient pas à votre session.")
@@ -157,10 +167,7 @@ async def download_audio(client_id: str, filename: str):
 
 @router.get("/download_transcript/{client_id}/{filename}")
 async def download_transcript(client_id: str, filename: str):
-    """
-    Download a transcript text file from the local filesystem rooted at BASE_DIR.
-    """
-    """Download a transcript text file."""
+    """Download a transcript text file from the local filesystem."""
     file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Fichier transcript introuvable.")
@@ -287,14 +294,7 @@ async def git_status():
 from typing import List, Union
 @router.get("/speaker_profiles")
 async def get_speaker_profiles() -> List[dict]:
-    """
-    Return the list of stored speaker profiles.
-    Each item is a dict: { "speaker_id": "...", "name": "..." }
-    """
-    """
-    Return the list of stored speaker profiles.
-    Each item is a dict: { "speaker_id": "...", "name": "..." }
-    """
+    """Return the list of stored speaker profiles. Each item: { speaker_id, name }"""
     # Import here to ensure the latest environment configuration is respected.
     import backend.core.speaker_profiles as speaker_profiles
     profiles = speaker_profiles.load_profiles()
@@ -308,25 +308,10 @@ async def get_speaker_profiles() -> List[dict]:
 async def upsert_speaker_profile(payload: dict) -> Union[dict, None]:
     """
     Create or update a speaker profile.
-    Expected JSON payload:
-    {
-        "speaker_id": "SPEAKER_00",
-        "name": "Olivier",
-        "embedding": [0.12, 0.34, ...]   # optional, list of floats
-    }
-    Returns a status dict.
+    Expected JSON: { "speaker_id": str, "name": str, "embedding": list[float] (optional) }
     """
     # Import here to ensure the latest environment configuration is respected.
     import backend.core.speaker_profiles as speaker_profiles
-    """
-    Create or update a speaker profile.
-    Expected JSON payload:
-    {
-        "speaker_id": "SPEAKER_00",
-        "name": "Olivier",
-        "embedding": [0.12, 0.34, ...]   # optional, list of floats
-    }
-    """
     speaker_id = payload.get("speaker_id")
     name = payload.get("name")
     embedding = payload.get("embedding")
@@ -356,6 +341,7 @@ async def update_segment_speaker(payload: dict):
     }
     The server rewrites the transcript file with the new speaker label.
     """
+    import re
     client_id = payload.get("client_id")
     filename = payload.get("filename")
     segment_index = payload.get("segment_index")
@@ -368,16 +354,18 @@ async def update_segment_speaker(payload: dict):
         raise HTTPException(status_code=404, detail="Transcription not found.")
     with open(file_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
-    # Simple format: each line is "start end speaker text"
-    # We replace the third token (speaker) for the given index
     if segment_index < 0 or segment_index >= len(lines):
         raise HTTPException(status_code=400, detail="segment_index out of range.")
-    parts = lines[segment_index].split(maxsplit=2)
-    if len(parts) < 3:
-        raise HTTPException(status_code=400, detail="Malformed transcription line.")
-    # Rebuild line with new speaker
-    parts[2] = new_speaker
-    lines[segment_index] = " ".join(parts) + "\n"
+    # Format réel : [0.10s -> 1.20s] [SPEAKER_00] texte...
+    # On remplace uniquement le bloc [SPEAKER_XX] en préservant le timestamp et le texte.
+    new_line = re.sub(
+        r'(\[[^\]]*s\s*->\s*[^\]]*s\]\s*)\[[^\]]*\]',
+        rf'\1[{new_speaker}]',
+        lines[segment_index]
+    )
+    if new_line == lines[segment_index]:
+        raise HTTPException(status_code=400, detail="Format de ligne non reconnu (timestamp+speaker attendus).")
+    lines[segment_index] = new_line
     # Write back
     with open(file_path, "w", encoding="utf-8") as f:
         f.writelines(lines)
@@ -385,8 +373,9 @@ async def update_segment_speaker(payload: dict):
 
 # ---------- POST routes ----------
 @router.post("/git_update")
-async def git_update():
+async def git_update(request: Request):
     """Pull & Reset using Git CLI and restart the container."""
+    _require_admin_key(request)
     try:
         import subprocess
         # Force sync with origin/main (consistent with run.sh)
@@ -404,8 +393,9 @@ async def git_update():
         return {"stdout": "", "stderr": str(e)}
 
 @router.post("/change_model")
-async def change_model_route(model: str):
+async def change_model_route(model: str, request: Request):
     """Change the ASR model at runtime."""
+    _require_admin_key(request)
     set_current_model(model.lower())
     # Pre-warm the model in this worker
     get_asr_engine(load_model=True)

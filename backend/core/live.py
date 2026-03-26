@@ -128,9 +128,23 @@ class LiveSession:
         # ---------- Transcription complète du fichier audio ----------
         # audio_np déjà calculé ci-dessus — pas besoin de le recalculer
 
-        # Utiliser le moteur de transcription pour obtenir le texte complet
-        words, _ = await asyncio.to_thread(self.engine.transcription_engine.transcribe, audio_np)
-        full_text = " ".join(w["word"] for w in words).strip()
+        # Utiliser le moteur de transcription pour obtenir le texte complet.
+        # transcribe() peut retourner :
+        #   - (list[dict{"word":...}], metadata)  → whisper/voxtral
+        #   - (str, metadata)                      → albert text-only
+        #   - str                                  → mock direct
+        result = await asyncio.to_thread(self.engine.transcription_engine.transcribe, audio_np)
+        if isinstance(result, tuple):
+            words_or_text, _ = result
+        else:
+            words_or_text = result
+
+        if isinstance(words_or_text, str):
+            full_text = words_or_text.strip()
+        elif isinstance(words_or_text, list) and words_or_text and isinstance(words_or_text[0], dict):
+            full_text = " ".join(w.get("word", "") for w in words_or_text).strip()
+        else:
+            full_text = str(words_or_text).strip()
 
         # Enregistrer la transcription propre dans un fichier .txt à côté du wav
         txt_filename = f"live_{self.client_id}_{timestamp}.txt"

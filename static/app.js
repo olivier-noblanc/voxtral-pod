@@ -10,13 +10,8 @@ let segmentCounter = 0;
 let audioDeviceCount;
 fetch("/speaker_profiles");
 
-// DEBUG — à retirer en prod
-const _getElementById = document.getElementById.bind(document);
-document.getElementById = (id) => {
-    const el = _getElementById(id);
-    if (!el) console.warn(`[DOM MISSING] #${id}`);
-    return el;
-};
+
+
 
 const workletCode = `class AudioProcessor extends AudioWorkletProcessor {
     constructor() { super(); this.buffer = new Float32Array(2560); this.offset = 0; }

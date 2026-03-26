@@ -1,5 +1,8 @@
 import re
+import pytest
 from fastapi.testclient import TestClient
+
+pytest.importorskip("ffmpeg")
 
 def test_model_selector_has_selected_option():
     """
