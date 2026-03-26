@@ -5,6 +5,7 @@ import tempfile, os
 # from resemblyzer import VoiceEncoder, preprocess_wav
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_score
+import backend.core.speaker_profiles as speaker_profiles
 
 class LightDiarizationEngine:
     def __init__(self):
@@ -35,7 +36,33 @@ class LightDiarizationEngine:
         n = self._estimate_speakers(X)
         labels = AgglomerativeClustering(n_clusters=n).fit_predict(X)
 
+        # ------------------------------------------------------------------
+        # Associate clusters with speaker profiles (SQLite)
+        # ------------------------------------------------------------------
+        # Compute mean embedding per cluster
+        cluster_means = {}
+        for idx, lbl in enumerate(labels):
+            cluster_means.setdefault(lbl, []).append(embeddings[idx])
+        cluster_mean_vectors = {lbl: np.mean(vecs, axis=0) for lbl, vecs in cluster_means.items()}
+
+        # Match each cluster mean to a stored profile
+        cluster_label_map = {}
+        for lbl, mean_vec in cluster_mean_vectors.items():
+            match = speaker_profiles.match_embedding(mean_vec)
+            if match:
+                _, name = match
+                cluster_label_map[lbl] = name
+            else:
+                cluster_label_map[lbl] = f"SPEAKER_{lbl:02d}"
+
         segments = self._labels_to_segments(times, labels, step / sr)
+
+        # Replace generic speaker labels with matched names where applicable
+        segments = [
+            (s, e, cluster_label_map.get(int(label.split('_')[-1]), label))
+            for (s, e, label) in segments
+        ]
+
         return self._inject_overlaps(audio_float32, segments)
 
     def _estimate_speakers(self, X, max_spk=6):

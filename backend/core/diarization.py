@@ -1,6 +1,9 @@
 import numpy as np
 from backend.config import setup_gpu
 
+import backend.core.speaker_profiles as speaker_profiles
+from resemblyzer import preprocess_wav, VoiceEncoder
+
 class DiarizationEngine:
     def __init__(self, model_id="pyannote/speaker-diarization-3.1", hf_token=None, use_cpu=False):
         self.model_id = model_id
@@ -8,6 +11,14 @@ class DiarizationEngine:
         self.pipeline = None
         self.sample_rate = 16000
         self.use_cpu = use_cpu
+
+    def __init__(self, model_id="pyannote/speaker-diarization-3.1", hf_token=None, use_cpu=False):
+        self.model_id = model_id
+        self.hf_token = hf_token
+        self.pipeline = None
+        self.sample_rate = 16000
+        self.use_cpu = use_cpu
+        self.encoder = None  # Resemblyzer encoder for embedding extraction
 
     def load(self):
         if not self.hf_token:
@@ -20,16 +31,20 @@ class DiarizationEngine:
 
         print(f"[*] Loading Pyannote pipeline: {self.model_id}")
         self.pipeline = Pipeline.from_pretrained(
-            self.model_id, 
+            self.model_id,
             token=self.hf_token
         )
-        
+
         if torch.cuda.is_available() and not self.use_cpu:
             self.pipeline = self.pipeline.to(torch.device("cuda"))
             setup_gpu()
             print("[*] Pyannote loaded on GPU.")
         else:
             print("[*] Pyannote loaded on CPU.")
+
+        # Load Resemblyzer encoder (CPU only, lightweight)
+        if self.encoder is None:
+            self.encoder = VoiceEncoder("cpu")
 
     def diarize(self, audio_float32, hook=None):
         if self.pipeline is None:
@@ -56,7 +71,33 @@ class DiarizationEngine:
             return []
 
         segments = []
+        # First pass: collect raw segments
+        raw_segments = []
         for turn, _, speaker in annotation.itertracks(yield_label=True):
-            segments.append((turn.start, turn.end, speaker))
-        
-        return segments
+            raw_segments.append((turn.start, turn.end, speaker))
+
+        # Second pass: compute embeddings per segment and attempt speaker ID match
+        final_segments = []
+        for start, end, speaker in raw_segments:
+            # Extract audio slice for the segment
+            start_idx = int(start * self.sample_rate)
+            end_idx = int(end * self.sample_rate)
+            segment_audio = audio_float32[start_idx:end_idx]
+
+            # Compute embedding using Resemblyzer
+            try:
+                wav = preprocess_wav(segment_audio)
+                emb = self.encoder.embed_utterance(wav)
+                match = speaker_profiles.match_embedding(emb)
+                if match:
+                    _, name = match
+                    final_speaker = name
+                else:
+                    final_speaker = speaker
+            except Exception:
+                # Fallback to original speaker label on any error
+                final_speaker = speaker
+
+            final_segments.append((start, end, final_speaker))
+
+        return final_segments

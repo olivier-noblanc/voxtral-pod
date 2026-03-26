@@ -5,6 +5,9 @@ let captureType = "mic";
 let selectedAudioDeviceId = "default";
 const CHUNK_SIZE = 4 * 1024 * 1024;
 
+// Counter to uniquely identify each transcript segment (used for drag‑and‑drop)
+let segmentCounter = 0;
+
 // DEBUG — à retirer en prod
 const _getElementById = document.getElementById.bind(document);
 document.getElementById = (id) => {
@@ -196,16 +199,49 @@ async function startRecording() {
                     }
                 } else {
                     // Partial segment: add a new line
-                    const row = document.createElement("div");
-                    row.className = "sentence-row";
-                    const s = document.createElement("span");
-                    s.className = "speaker-label";
-                    if (data.speaker !== lastSpeaker) { s.textContent = "[" + data.speaker + "] "; lastSpeaker = data.speaker; }
-                    const t = document.createElement("span");
-                    t.className = "partial-text";
-                    t.textContent = "... " + data.text;
-                    row.append(s, t);
-                    box.appendChild(row);
+                const row = document.createElement("div");
+                row.className = "sentence-row";
+                row.draggable = true;
+                row.dataset.idx = segmentCounter++;
+                const s = document.createElement("span");
+                s.className = "speaker-label";
+                if (data.speaker !== lastSpeaker) { s.textContent = "[" + data.speaker + "] "; lastSpeaker = data.speaker; }
+                const t = document.createElement("span");
+                t.className = "partial-text";
+                t.textContent = "... " + data.text;
+                row.append(s, t);
+                // Drag‑and‑drop handlers (same as for finalized rows)
+                row.addEventListener("dragstart", e => {
+                    e.dataTransfer.setData("text/plain", e.currentTarget.dataset.idx);
+                });
+                row.addEventListener("dragover", e => e.preventDefault());
+                row.addEventListener("drop", async e => {
+                    e.preventDefault();
+                    const srcIdx = e.dataTransfer.getData("text/plain");
+                    const srcRow = document.querySelector(`[data-idx="${srcIdx}"]`);
+                    const tgtRow = e.currentTarget;
+                    if (!srcRow || srcRow === tgtRow) return;
+                    const srcSpeaker = srcRow.querySelector(".speaker-label");
+                    const tgtSpeaker = tgtRow.querySelector(".speaker-label");
+                    const tmp = srcSpeaker.textContent;
+                    srcSpeaker.textContent = tgtSpeaker.textContent;
+                    tgtSpeaker.textContent = tmp;
+                    try {
+                        await fetch("/segment_update", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                client_id: getClientId(),
+                                filename: window.currentTranscriptFile || "",
+                                segment_index: parseInt(srcIdx, 10),
+new_speaker: srcSpeaker.textContent.replace(/\[|\]/g, "").trim()
+                            })
+                        });
+                    } catch (err) {
+                        console.warn("Failed to persist speaker change:", err);
+                    }
+                });
+                box.appendChild(row);
                 }
                 box.scrollTop = box.scrollHeight;
             } else if (data.type === "final_done") {

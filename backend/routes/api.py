@@ -13,6 +13,8 @@ from backend.state import get_job, update_job, add_job, JOBS_DB_MAX_SIZE, get_as
 from backend.config import TEMP_DIR, TRANSCRIPTIONS_DIR
 from backend.utils import format_transcription
 
+import backend.core.speaker_profiles as speaker_profiles
+
 router = APIRouter()
 
 # ---------- Sécurité : anti path traversal ----------
@@ -301,6 +303,87 @@ async def git_status():
         return {"commit": local_sha[:7], "behind": behind}
     except Exception as e:
         return {"commit": "unknown", "behind": -1, "error": str(e)}
+
+# ---------- Speaker profile endpoints ----------
+@router.get("/speaker_profiles")
+async def get_speaker_profiles():
+    """
+    Return the list of stored speaker profiles.
+    Each item is a dict: { "speaker_id": "...", "name": "..." }
+    """
+    profiles = speaker_profiles.load_profiles()
+    # Convert to list of dicts, ignore embeddings for the API response
+    return [
+        {"speaker_id": sid, "name": name}
+        for sid, (name, _) in profiles.items()
+    ]
+
+@router.post("/speaker_profiles")
+async def upsert_speaker_profile(payload: dict):
+    """
+    Create or update a speaker profile.
+    Expected JSON payload:
+    {
+        "speaker_id": "SPEAKER_00",
+        "name": "Olivier",
+        "embedding": [0.12, 0.34, ...]   # optional, list of floats
+    }
+    """
+    speaker_id = payload.get("speaker_id")
+    name = payload.get("name")
+    embedding = payload.get("embedding")
+    if not speaker_id or not name:
+        raise HTTPException(status_code=400, detail="speaker_id and name are required.")
+    # Convert embedding list to numpy array if provided
+    emb_array = None
+    if embedding is not None:
+        try:
+            import numpy as np
+            emb_array = np.array(embedding, dtype=np.float32)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid embedding format.")
+    speaker_profiles.save_profile(speaker_id, name, emb_array)
+    return {"status": "ok"}
+
+@router.post("/segment_update")
+async def update_segment_speaker(payload: dict):
+    """
+    Update the speaker label of a specific segment in a transcription.
+    Expected payload:
+    {
+        "client_id": "user_abcdef12",
+        "filename": "live_20240101_123456.txt",
+        "segment_index": 3,          # zero‑based index in the transcript file
+        "new_speaker": "Julie"
+    }
+    The server rewrites the transcript file with the new speaker label.
+    """
+    client_id = payload.get("client_id")
+    filename = payload.get("filename")
+    segment_index = payload.get("segment_index")
+    new_speaker = payload.get("new_speaker")
+    if not all([client_id, filename, isinstance(segment_index, int), new_speaker]):
+        raise HTTPException(status_code=400, detail="Invalid payload.")
+    # Load the transcript file
+    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Transcription not found.")
+    with open(file_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    # Simple format: each line is "start end speaker text"
+    # We replace the third token (speaker) for the given index
+    if segment_index < 0 or segment_index >= len(lines):
+        raise HTTPException(status_code=400, detail="segment_index out of range.")
+    parts = lines[segment_index].split(maxsplit=2)
+    if len(parts) < 3:
+        raise HTTPException(status_code=400, detail="Malformed transcription line.")
+    # Rebuild line with new speaker
+    parts[2] = new_speaker
+    lines[segment_index] = " ".join(parts) + "\n"
+    # Write back
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.writelines(lines)
+    return {"status": "ok"}
 
 # ---------- POST routes ----------
 @router.post("/git_update")
