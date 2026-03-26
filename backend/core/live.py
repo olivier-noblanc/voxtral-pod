@@ -120,8 +120,8 @@ class LiveSession:
         # Lazy import of soundfile
         import soundfile as sf
         sf.write(wav_path, audio_np, SAMPLE_RATE, subtype='PCM_16')
-
-        print(f"[*] [{self.client_id}] Audio saved: {wav_filename} ({len(pcm_bytes) / 1024:.1f} KB)")
+        abs_wav_path = os.path.abspath(wav_path)
+        print(f"[*] [{self.client_id}] Audio saved: {wav_filename} ({len(pcm_bytes) / 1024:.1f} KB) at {abs_wav_path}")
 
         # ---------- Transcription complète du fichier audio ----------
         # audio_np déjà calculé ci-dessus — pas besoin de le recalculer
@@ -135,13 +135,14 @@ class LiveSession:
         txt_path = os.path.join(audio_dir, txt_filename)
         with open(txt_path, "w", encoding="utf-8") as txt_file:
             txt_file.write(full_text)
-
-        print(f"[*] [{self.client_id}] Full transcription saved: {txt_filename}")
+        abs_txt_path = os.path.abspath(txt_path)
+        print(f"[*] [{self.client_id}] Full transcription saved: {txt_filename} at {abs_txt_path}")
 
         # ---------- Copier la transcription dans le répertoire client ----------
         client_dir = os.path.join(TRANSCRIPTIONS_DIR, self.client_id)
         os.makedirs(client_dir, exist_ok=True)
         shutil.copy(txt_path, client_dir)
+        print(f"[*] [{self.client_id}] Copied transcription to client dir: {client_dir}")
 
         return wav_filename
 
