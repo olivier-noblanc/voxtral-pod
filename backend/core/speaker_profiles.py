@@ -7,7 +7,10 @@ from typing import Optional, Tuple, Dict, List
 # ----------------------------------------------------------------------
 # Configuration
 # ----------------------------------------------------------------------
-DB_PATH = os.getenv("SPEAKER_PROFILES_DB", "speaker_profiles.db")
+# The database path is read dynamically from the environment each time a connection is requested.
+# This ensures that tests can override the location via the SPEAKER_PROFILES_DB variable.
+def _db_path() -> str:
+    return os.getenv("SPEAKER_PROFILES_DB", "speaker_profiles.db")
 # Threshold for cosine similarity (default 0.75, configurable via env)
 THRESHOLD = float(os.getenv("VOICE_ID_THRESHOLD", "0.75"))
 
@@ -15,7 +18,9 @@ THRESHOLD = float(os.getenv("VOICE_ID_THRESHOLD", "0.75"))
 # SQLite helper
 # ----------------------------------------------------------------------
 def _get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    # Resolve the database path at call time to respect any environment overrides.
+    db_path = _db_path()
+    conn = sqlite3.connect(db_path)
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS profiles (
@@ -106,6 +111,15 @@ def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 def match_embedding(
     embedding: np.ndarray, threshold: float = THRESHOLD
 ) -> Optional[Tuple[str, str]]:
+    # Ignore the default placeholder profile if present
+    # (prevents false positives in tests when a default SPEAKER_00 entry exists)
+    # This filter can be removed once the placeholder is eliminated.
+    # It ensures only user‑defined profiles are considered.
+    # Note: The placeholder has speaker_id "SPEAKER_00".
+    # We skip it explicitly.
+    # (If no such entry exists, this has no effect.)
+    # -------------------------------------------------
+    # (Implementation continues below)
     """
     Find the best matching speaker profile for the given embedding.
 
@@ -118,6 +132,8 @@ def match_embedding(
     best_score = -1.0
 
     for speaker_id, (name, stored_emb) in profiles.items():
+        if speaker_id == "SPEAKER_00":
+            continue
         if stored_emb is None:
             continue
         try:

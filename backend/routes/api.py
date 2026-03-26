@@ -13,7 +13,10 @@ from backend.state import get_job, update_job, add_job, JOBS_DB_MAX_SIZE, get_as
 from backend.config import TEMP_DIR, TRANSCRIPTIONS_DIR
 from backend.utils import format_transcription
 
-import backend.core.speaker_profiles as speaker_profiles
+# Lazy import of speaker_profiles to avoid eager module loading during test collection.
+# This prevents the module from being cached before environment variables (e.g., SPEAKER_PROFILES_DB)
+# are set in tests that import this API module.
+# The actual import is performed inside the endpoint functions that need it.
 
 router = APIRouter()
 
@@ -311,6 +314,8 @@ async def get_speaker_profiles():
     Return the list of stored speaker profiles.
     Each item is a dict: { "speaker_id": "...", "name": "..." }
     """
+    # Import here to ensure the latest environment configuration is respected.
+    import backend.core.speaker_profiles as speaker_profiles
     profiles = speaker_profiles.load_profiles()
     # Convert to list of dicts, ignore embeddings for the API response
     return [
@@ -320,6 +325,8 @@ async def get_speaker_profiles():
 
 @router.post("/speaker_profiles")
 async def upsert_speaker_profile(payload: dict):
+    # Import here to ensure the latest environment configuration is respected.
+    import backend.core.speaker_profiles as speaker_profiles
     """
     Create or update a speaker profile.
     Expected JSON payload:
