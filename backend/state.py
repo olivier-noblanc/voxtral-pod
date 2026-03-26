@@ -11,6 +11,7 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+
 def init_db():
     with get_db() as conn:
         conn.execute('''
@@ -33,10 +34,22 @@ def init_db():
         conn.commit()
 
 
+# init_db()  # Removed automatic DB initialization at import time
+
 def get_current_model():
-    with get_db() as conn:
-        row = conn.execute("SELECT value FROM config WHERE key='current_model'").fetchone()
-        return row['value'] if row else "whisper"
+    """
+    Retourne le modèle actuel. Initialise la base de données si nécessaire.
+    """
+    try:
+        with get_db() as conn:
+            row = conn.execute("SELECT value FROM config WHERE key='current_model'").fetchone()
+            return row['value'] if row else "whisper"
+    except sqlite3.OperationalError:
+        # La table n'existe pas encore – on initialise la DB puis on réessaye
+        init_db()
+        with get_db() as conn:
+            row = conn.execute("SELECT value FROM config WHERE key='current_model'").fetchone()
+            return row['value'] if row else "whisper"
 
 def set_current_model(model):
     with get_db() as conn:

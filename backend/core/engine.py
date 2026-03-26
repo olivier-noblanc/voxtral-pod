@@ -39,13 +39,9 @@ class SotaASR:
 
         self.hf_token = hf_token
 
-        # Diarization on CPU if no GPU or low VRAM
-        if self.no_gpu or self.low_vram:
-            from backend.core.diarization_cpu import LightDiarizationEngine
-            self.diarization_engine = LightDiarizationEngine()
-        else:
-            from backend.core.diarization import DiarizationEngine
-            self.diarization_engine = DiarizationEngine(hf_token=hf_token, use_cpu=False)
+        # Diarization engine will be instantiated lazily in load()
+        self._use_cpu_diarization = self.no_gpu or self.low_vram
+        self.diarization_engine = None
 
         from backend.core.transcription import TranscriptionEngine
         self.transcription_engine = TranscriptionEngine(model_id=self.model_id)
@@ -53,8 +49,24 @@ class SotaASR:
         self._loaded = False
 
     def load(self):
+        """
+        Charge les sous‑composants (diarisation et transcription) uniquement
+        lorsqu'ils sont réellement nécessaires. Cela évite d'importer des
+        dépendances lourdes (ex. resemblyzer) pendant les tests qui ne les
+        utilisent pas.
+        """
         if self._loaded:
             return
+
+        # Instancier le moteur de diarisation si ce n'est pas déjà fait
+        if self.diarization_engine is None:
+            if self._use_cpu_diarization:
+                from backend.core.diarization_cpu import LightDiarizationEngine
+                self.diarization_engine = LightDiarizationEngine()
+            else:
+                from backend.core.diarization import DiarizationEngine
+                self.diarization_engine = DiarizationEngine(hf_token=self.hf_token, use_cpu=False)
+
         self.diarization_engine.load()
         self.transcription_engine.load()
         self._loaded = True
