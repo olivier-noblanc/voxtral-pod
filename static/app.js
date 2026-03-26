@@ -321,7 +321,8 @@ const res = await fetch('/transcriptions/?client_id=' + getClientId());
 return '<div class="fr-col-12 fr-col-md-4">' +
     '<div class="fr-card fr-card--sm" style="padding:1rem; border:1px solid #3a3a3a;">' +
     '<h4 class="fr-card__title" style="font-size:0.8rem">' + f + '</h4>' +
-    '<a href="/view/' + getClientId() + '/' + f + '" class="fr-btn fr-btn--sm fr-mt-1w">Voir (temporaire)</a>' +
+        '<a href="/view/' + getClientId() + '/' + f + '" class="fr-btn fr-btn--sm fr-mt-1w">Voir (temporaire)</a>' +
+        '<button class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" data-filename="' + f + '" onclick="deleteTranscription(this)" style="color:#c00;">&#x2716;</button>' +
     '<a href="' + downloadUrl + '" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger audio</a>' +
     '<a href="' + transcriptUrl + '" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger texte</a>' +
     '</div></div>';
