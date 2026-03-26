@@ -10,3 +10,4 @@ hello.txt
 pytest_output.txt
 .vscode/settings.json
 jobs.db
+speaker_profiles.db

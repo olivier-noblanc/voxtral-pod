@@ -7,6 +7,7 @@ const CHUNK_SIZE = 4 * 1024 * 1024;
 
 // Counter to uniquely identify each transcript segment (used for drag‑and‑drop)
 let segmentCounter = 0;
+let audioDeviceCount;
 
 // DEBUG — à retirer en prod
 const _getElementById = document.getElementById.bind(document);
@@ -75,6 +76,11 @@ async function toggleMeeting() {
 
 async function startRecording() {
     console.log('startRecording initiated, captureType:', captureType);
+    // If multiple audio inputs are available and no specific device selected, prompt user
+    if (audioDeviceCount > 1 && selectedAudioDeviceId === "default") {
+        alert('Veuillez sélectionner le microphone dans le menu déroulant avant de démarrer l\'enregistrement.');
+        return;
+    }
     const btnRecord = document.getElementById('recordBtn');
     const btnSystem = document.getElementById('systemBtn');
     const btnMeeting = document.getElementById('meetingBtn');
@@ -659,7 +665,9 @@ async function loadAudioDevices() {
             selectElement.appendChild(option);
         });
 
-        console.log(`Loaded ${audioDevices.length} audio input devices`);
+console.log(`Loaded ${audioDevices.length} audio input devices`);
+audioDeviceCount = audioDevices.length;
+console.log('Audio device count:', audioDeviceCount);
     } catch (error) {
         console.error('Error loading audio devices:', error);
         // Even if we fail, keep the default option
