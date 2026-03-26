@@ -63,12 +63,23 @@ async def home(request: Request):
     engine = get_asr_engine(load_model=False)
     no_gpu_str = str(engine.no_gpu).lower()
     ws_url = f"{protocol}://{host}/live?client_id={{{{getClientId()}}}}&partial_albert={no_gpu_str}"
+    # Build model options based on device availability
+    if engine.no_gpu:
+        model_options = '<option value="albert">API Albert (Étalab)</option>'
+    else:
+        model_options = (
+            '<option value="whisper">Faster-Whisper Large-v3</option>'
+            '<option value="voxtral">Voxtral Mini 4B</option>'
+            '<option value="albert">API Albert (Étalab)</option>'
+            '<option value="mock">MODE TEST (Mock ASR)</option>'
+        )
     return HTMLResponse(
         content=HTML_UI
         .replace("{{model_name}}", current_model)
         .replace("{{device}}", "cuda" if not engine.no_gpu else "cpu")
         .replace("{{commit}}", commit)
         .replace("{{ws_url}}", ws_url)
+        .replace("{{model_options}}", model_options)
     )
 
 @router.get("/transcriptions")

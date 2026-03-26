@@ -115,13 +115,7 @@ async function startRecording() {
         barCont.style.display = 'block';
         const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
         let wsUrl = wsProtocol + '//' + location.host + '/live';
-        const model = document.getElementById('modelSelector').value;
-        const partial = document.getElementById('albertPartial').checked;
-        if (model === 'albert' && partial) {
-            wsUrl += '?client_id=' + getClientId() + '&partial_albert=true';
-        } else {
-            wsUrl += '?client_id=' + getClientId();
-        }
+        wsUrl += '?client_id=' + getClientId();
         // Add audio device information to WebSocket URL
         if (selectedAudioDeviceId && selectedAudioDeviceId !== "default") {
             wsUrl += `&device_id=${encodeURIComponent(selectedAudioDeviceId)}`;
@@ -337,12 +331,8 @@ return '<div class="fr-col-12 fr-col-md-4">' +
     }
 }
 
-// ========================= CONFIGURATION MODELE =========================
-async function changeModel() {
-    const newModel = document.getElementById('modelSelector').value;
-    const res = await fetch('/change_model?model=' + newModel, { method: 'POST' });
-    if (res.ok) location.reload();
-}
+ // ========================= CONFIGURATION MODELE =========================
+ // Model selection now handled server‑side; function removed.
 
 // ========================= CONFIGURATION S3 =========================
 function saveS3Config() {
@@ -369,17 +359,9 @@ function toggleS3Config() {
     }
 }
 
-// ========================= OPTIONS ALBERT =========================
-function saveAlbertConfig() {
-    localStorage.setItem('albert_partial', document.getElementById('albertPartial').checked);
-}
-function loadAlbertConfig() {
-    const partial = localStorage.getItem('albert_partial') === 'true';
-    document.getElementById('albertPartial').checked = partial;
-    if (document.getElementById('modelSelector').value === 'albert') {
-        document.getElementById('albertOptions').style.display = 'block';
-    }
-}
+ // ========================= OPTIONS ALBERT =========================
+ /* Albert partial config no longer used */
+ function loadAlbertConfig() {}
 
 // ========================= GESTIONNAIRE SPEAKER =========================
 function toggleSpeakerEditor() {
@@ -521,10 +503,8 @@ window.onload = () => {
     if (elUpload) elUpload.addEventListener('click', handleBatchAction);
     const elToggleS3 = document.getElementById('toggleS3');
     if (elToggleS3) elToggleS3.addEventListener('click', toggleS3Config);
-    const elModel = document.getElementById('modelSelector');
-    if (elModel) elModel.addEventListener('change', changeModel);
-    const elAlbert = document.getElementById('albertPartial');
-    if (elAlbert) elAlbert.addEventListener('click', saveAlbertConfig);
+    // Model selector event listener removed (handled server‑side)
+    // Albert partial checkbox listener removed
     const elS3Endpoint = document.getElementById('s3Endpoint');
     if (elS3Endpoint) elS3Endpoint.addEventListener('change', saveS3Config);
     const elS3Bucket = document.getElementById('s3Bucket');
@@ -563,22 +543,9 @@ loadAudioDevices();
     if (modelDisplay && modelSelect) {
         const currentModel = modelDisplay.textContent.trim().toLowerCase();
         if (['whisper', 'voxtral', 'albert', 'mock'].includes(currentModel)) {
-            modelSelect.value = currentModel;
-        }
-    }
-
-    // Forcer Albert si aucun GPU detecte
-    const deviceBadge = document.querySelector('.fr-badge.fr-badge--info');
-    if (deviceBadge && deviceBadge.textContent.trim() === 'cpu') {
-        const modelSelect = document.getElementById('modelSelector');
-        if (modelSelect && modelSelect.value !== 'mock') {
-            modelSelect.value = 'albert';
-            modelSelect.disabled = true; // desactiver la listbox en mode CPU
-            // Afficher l'avertissement CPU
-            const cpuWarn = document.getElementById('cpuWarning');
-            if (cpuWarn) cpuWarn.style.display = 'block';
-            // Mettre a jour l'affichage des options Albert
-            loadAlbertConfig();
+            if (!modelSelect.disabled) {
+                modelSelect.value = currentModel;
+            }
         }
     }
 

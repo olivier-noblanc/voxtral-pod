@@ -45,11 +45,8 @@ HTML_UI = r"""<!DOCTYPE html>
                     <div class="fr-select-group">
                         <label class="fr-label" for="modelSelector">Modèle ASR</label>
 <select class="fr-select" id="modelSelector">
-                            <option value="whisper">Faster-Whisper Large-v3</option>
-                            <option value="voxtral">Voxtral Mini 4B</option>
-                            <option value="albert">API Albert (Étalab)</option>
-                            <option value="mock">MODE TEST (Mock ASR)</option>
-                        </select>
+{{model_options}}
+</select>
                         <p id="cpuWarning" class="fr-hint-text fr-mt-1w" style="display:none; color:#ce0500;">
                             ⚠️ Aucun GPU détecté — Albert API forcé automatiquement
                         </p>
