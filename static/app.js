@@ -144,7 +144,7 @@ async function startRecording() {
 
         processor.port.onmessage = (e) => {
             if (!audioContext) return;
-            console.log('Audio worklet data received, length:', e.data.length);
+            //console.log('Audio worklet data received, length:', e.data.length);
             // Dynamically compute down-sampling factor based on the AudioContext sample rate
             const targetRate = 16000;
             const factor = Math.max(1, Math.round(audioContext.sampleRate / targetRate));
@@ -161,7 +161,7 @@ async function startRecording() {
             {
                 ws.send(pcm.buffer);
             }
-            console.log('PCM data sent (downsampled by factor', factor, ')');
+            //console.log('PCM data sent (downsampled by factor', factor, ')');
             // Update UI with downsampled data for a responsive volume bar
             updateVolumeBar(e.data);
         };
