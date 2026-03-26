@@ -116,6 +116,8 @@ async function startRecording() {
         const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
         let wsUrl = wsProtocol + '//' + location.host + '/live';
         wsUrl += '?client_id=' + getClientId();
+        // Always enable partial transcription for live feedback (especially Albert/CPU)
+        wsUrl += '&partial_albert=true';
         // Add audio device information to WebSocket URL
         if (selectedAudioDeviceId && selectedAudioDeviceId !== "default") {
             wsUrl += `&device_id=${encodeURIComponent(selectedAudioDeviceId)}`;
@@ -197,6 +199,18 @@ async function startRecording() {
                             row.append(s, t);
                             box.appendChild(row);
                         }
+                    } else {
+                        // First sentence ever — no rows exist yet
+                        const row = document.createElement("div");
+                        row.className = "sentence-row finalized";
+                        const s = document.createElement("span");
+                        s.className = "speaker-label";
+                        if (data.speaker !== lastSpeaker) { s.textContent = "[" + data.speaker + "] "; lastSpeaker = data.speaker; }
+                        const t = document.createElement("span");
+                        t.className = "final-text";
+                        t.textContent = data.text;
+                        row.append(s, t);
+                        box.appendChild(row);
                     }
                 } else {
                     // Partial segment: add a new line

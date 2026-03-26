@@ -75,6 +75,7 @@ class LiveSession:
 
             if has_speech:
                 if not self.is_speaking:
+                    print(f"[*] [{self.client_id}] Voice detected (VAD START)")
                     self.is_speaking = True
                     self.sentence_buffer = bytearray(self.pre_speech_buffer)
                     last_partial_bytes = len(self.sentence_buffer)
@@ -93,6 +94,7 @@ class LiveSession:
                     self.sentence_buffer.extend(audio_bytes)
                     self.silence_chunks_count += 1
                     if self.silence_chunks_count >= self.silence_chunks_threshold:
+                        print(f"[*] [{self.client_id}] Silence detected (VAD END)")
                         self.is_speaking = False
                         self.silence_chunks_count = 0
                         pcm_data = bytes(self.sentence_buffer)
@@ -139,10 +141,13 @@ class LiveSession:
         print(f"[*] [{self.client_id}] Full transcription saved: {txt_filename} at {abs_txt_path}")
 
         # ---------- Copier la transcription dans le répertoire client ----------
+        # Le nom dans le client_dir suit le schéma batch : live_{timestamp}.txt (sans client_id)
+        # pour que le frontend puisse reconstituer correctement le nom du fichier audio
         client_dir = os.path.join(TRANSCRIPTIONS_DIR, self.client_id)
         os.makedirs(client_dir, exist_ok=True)
-        shutil.copy(txt_path, client_dir)
-        print(f"[*] [{self.client_id}] Copied transcription to client dir: {client_dir}")
+        client_txt_name = f"live_{timestamp}.txt"
+        shutil.copy(txt_path, os.path.join(client_dir, client_txt_name))
+        print(f"[*] [{self.client_id}] Copied transcription to client dir: {client_dir}/{client_txt_name}")
 
         return wav_filename
 
@@ -155,20 +160,22 @@ class LiveSession:
             text = " ".join(w["word"] for w in words).strip()
 
             if text:
-                if text:
-                    # Stocker la phrase finalisée et mettre à jour l'index
-                    if final:
-                        self._sentences.append(text)
-                        self._sentence_index += 1
+                # Stocker la phrase finalisée et mettre à jour l'index
+                if final:
+                    self._sentences.append(text)
+                    self._sentence_index += 1
 
-                    await self.websocket.send_json({
-                        "type": "sentence",
-                        "text": text if final else f"{text} ...",
-                        "speaker": "Speaker",  # Placeholder — la diarisation par lot viendra plus tard
-                        "final": final,
-                        "sentence_index": self._sentence_index,
-                        "total_bytes_received": self._total_bytes_received,
-                    })
+                await self.websocket.send_json({
+                    "type": "sentence",
+                    "text": text if final else f"{text} ...",
+                    "speaker": "Speaker",  # Placeholder — la diarisation par lot viendra plus tard
+                    "final": final,
+                    "sentence_index": self._sentence_index,
+                    "total_bytes_received": self._total_bytes_received,
+                })
+                # Debug print to console
+                tag = "[FINAL]" if final else "[PARTIAL]"
+                print(f"[*] [{self.client_id}] {tag}: {text}")
         except Exception as e:
             # On capture toutes les exceptions pour ne pas faire crasher le worker live
             print(f"[!] [{self.client_id}] Live Inference error: {e}")
