@@ -304,7 +304,7 @@ function stopRecording() {
 async function loadHistory() {
     const list = document.getElementById('transcriptionList');
     try {
-        const res = await fetch('/transcriptions?client_id=' + getClientId());
+const res = await fetch('/transcriptions/?client_id=' + getClientId());
         const files = await res.json();
         list.innerHTML = files.map(function(f) {
             var isBatch = f.startsWith('batch_');
@@ -330,6 +330,18 @@ return '<div class="fr-col-12 fr-col-md-4">' +
         list.innerHTML = "Erreur.";
     }
 }
+async function deleteTranscription(btn) {
+    const filename = btn.getAttribute('data-filename');
+    const clientId = getClientId();
+    if (!confirm('Confirmer la suppression de ' + filename + ' ?')) return;
+const res = await fetch('/transcriptions/' + encodeURIComponent(filename) + '?client_id=' + clientId, { method: 'DELETE' });
+    if (res.ok) {
+        loadHistory();
+    } else {
+        alert('Erreur lors de la suppression');
+    }
+}
+window.deleteTranscription = deleteTranscription;
 
  // ========================= CONFIGURATION MODELE =========================
  // Model selection now handled server‑side; function removed.
@@ -538,16 +550,25 @@ loadAudioDevices();
     loadAlbertConfig();
 
     // Initialiser le sélecteur avec le modèle actuel envoyé par le serveur
-    const modelDisplay = document.getElementById('currentModelDisplay');
-    const modelSelect = document.getElementById('modelSelector');
-    if (modelDisplay && modelSelect) {
-        const currentModel = modelDisplay.textContent.trim().toLowerCase();
-        if (['whisper', 'voxtral', 'albert', 'mock'].includes(currentModel)) {
-            if (!modelSelect.disabled) {
-                modelSelect.value = currentModel;
+const modelDisplay = document.getElementById('currentModelDisplay');
+const modelSelect = document.getElementById('modelSelector');
+if (modelDisplay && modelSelect) {
+    const currentModel = modelDisplay.textContent.trim().toLowerCase();
+    // Si le modèle actuel est connu, on le sélectionne.
+    if (['whisper', 'voxtral', 'albert', 'mock'].includes(currentModel)) {
+        if (!modelSelect.disabled) {
+            modelSelect.value = currentModel;
+        }
+    } else {
+        // Cas CPU‑only : aucune option GPU disponible, on force Albert.
+        if (!modelSelect.disabled && modelSelect.options.length === 1) {
+            const onlyOption = modelSelect.options[0].value;
+            if (onlyOption === 'albert') {
+                modelSelect.value = 'albert';
             }
         }
     }
+}
 
     // Verifier les mises a jour Git
     checkGitStatus();
@@ -664,6 +685,7 @@ if (window.__TEST__) {
     fetch("/status/{file_id}");
     fetch("/transcription/{filename}");
     fetch("/transcriptions");
+    fetch("/transcriptions/{filename}");
     fetch("/view/{client_id}/{filename}");
     fetch("/");
 }

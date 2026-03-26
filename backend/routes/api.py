@@ -65,7 +65,7 @@ async def home(request: Request):
     ws_url = f"{protocol}://{host}/live?client_id={{{{getClientId()}}}}&partial_albert={no_gpu_str}"
     # Build model options based on device availability
     if engine.no_gpu:
-        model_options = '<option value="albert">API Albert (Étalab)</option>'
+        model_options = '<option value="albert" selected>API Albert (Étalab)</option>'
     else:
         model_options = (
             '<option value="whisper">Faster-Whisper Large-v3</option>'
@@ -90,6 +90,37 @@ async def list_trans(client_id: str):
     if not os.path.isdir(p):
         return []
     return sorted([f for f in os.listdir(p) if f.endswith(".txt")], reverse=True)
+
+# Alias for /transcriptions with trailing slash to satisfy route contract tests.
+@router.get("/transcriptions/")
+async def list_trans_slash(client_id: str):
+    """Alias for /transcriptions with trailing slash."""
+    return await list_trans(client_id)
+
+@router.delete("/transcriptions/{filename}")
+async def delete_trans(filename: str, client_id: str):
+    """Supprime un fichier de transcription et son audio associé."""
+    # Supprimer le fichier de transcription
+    trans_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
+    if not os.path.isfile(trans_path):
+        raise HTTPException(status_code=404, detail="Fichier transcription introuvable.")
+    os.remove(trans_path)
+
+    # Supprimer le fichier audio associé s'il existe (live ou batch)
+    # Le nom d'audio suit le même schéma que dans la vue
+    if filename.startswith("batch_"):
+        ts = filename.replace("batch_", "").replace(".txt", "")
+        audio_name = f"batch_{client_id}_{ts}.wav"
+        audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "batch_audio")
+    else:
+        ts = filename.replace("live_", "").replace(".txt", "")
+        audio_name = f"live_{client_id}_{ts}.wav"
+        audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "live_audio")
+    audio_path = os.path.join(audio_dir, audio_name)
+    if os.path.isfile(audio_path):
+        os.remove(audio_path)
+
+    return {"status": "ok"}
 
 @router.get("/transcription/{filename}")
 async def get_trans(filename: str, client_id: str):
@@ -195,7 +226,7 @@ async def view_transcription(client_id: str, filename: str, request: Request):
         <button id="toggleSpeakerEditorBtn" class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-user-line fr-w-100">👥 Éditer les speakers</button>
     </div>
     <div class="fr-col-12 fr-col-md-6">
-        <div class="fr-fieldset fr-p-2w" style="background: var(--background-alt-blue-france); border-radius:8px;">
+            <div class="fr-fieldset fr-p-2w" style="background: var(--background-alt-blue-france); border-radius:8px;">
             <p class="fr-text--xs fr-mb-1w fr-text--bold">Options Copie LLM (ChatGPT/Claude)</p>
             <div class="fr-checkbox-group fr-checkbox-group--sm">
                 <input type="checkbox" id="hideTimestamps"><label class="fr-label" for="hideTimestamps">Masquer les timestamps</label>

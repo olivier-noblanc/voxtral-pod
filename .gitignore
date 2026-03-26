@@ -5,6 +5,7 @@ run.txt
 node_modules
 export*.txt
 .history/
+.history/**
 temp_script_content.html
 hello.txt
 pytest_output.txt
