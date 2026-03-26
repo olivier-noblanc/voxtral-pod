@@ -22,9 +22,9 @@ echo "[#] Python Système : $(python3 --version 2>&1)"
 if ! command -v ffmpeg &> /dev/null; then
     echo "[*] ffmpeg missing. Attempting installation..."
     if command -v apt-get &> /dev/null; then
-        sudo apt-get update && sudo apt-get install -y ffmpeg || apt-get update && apt-get install -y ffmpeg
+         apt-get update &&  apt-get install -y ffmpeg || apt-get update && apt-get install -y ffmpeg
     elif command -v yum &> /dev/null; then
-        sudo yum install -y ffmpeg
+         yum install -y ffmpeg
     else
         echo "[!] Auto-install failed. Please install ffmpeg manually."
     fi
