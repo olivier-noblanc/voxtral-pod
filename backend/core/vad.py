@@ -109,12 +109,9 @@ class VADManager:
             .astype(np.float32) / INT16_MAX_ABS_VALUE
         )
         max_vad_prob = 0.0
-        # Split audio into chunks using numpy array_split for clarity
-        chunks = np.array_split(
-            audio_np,
-            max(1, len(audio_np) // _SILERO_CHUNK_SIZE)
-        )
-        for piece in chunks:
+        # Process audio in fixed-size chunks to avoid padding issues
+        for i in range(0, len(audio_np), _SILERO_CHUNK_SIZE):
+            piece = audio_np[i : i + _SILERO_CHUNK_SIZE]
             if len(piece) < _SILERO_CHUNK_SIZE:
                 piece = np.pad(piece, (0, _SILERO_CHUNK_SIZE - len(piece)))
             # Lazy import torch only when needed
