@@ -460,34 +460,7 @@ window.cleanText = cleanText;
         .catch(err => console.error(err));
  }
 
-// ========================= CONFIGURATION S3 =========================
-function saveS3Config() {
-    localStorage.setItem('s3_conf', JSON.stringify({
-        e: document.getElementById('s3Endpoint').value,
-        b: document.getElementById('s3Bucket').value,
-        a: document.getElementById('s3AccessKey').value,
-        s: document.getElementById('s3SecretKey').value
-    }));
-}
-function loadS3Config() {
-    const c = JSON.parse(localStorage.getItem('s3_conf') || '{}');
-    document.getElementById('s3Endpoint').value = c.e || "";
-    document.getElementById('s3Bucket').value = c.b || "";
-    document.getElementById('s3AccessKey').value = c.a || "";
-    document.getElementById('s3SecretKey').value = c.s || "";
-}
-function toggleS3Config() {
-    const cfg = document.getElementById('s3Config');
-    if (cfg.style.display === 'none') {
-        cfg.style.display = 'flex';
-    } else {
-        cfg.style.display = 'none';
-    }
-}
 
- // ========================= OPTIONS ALBERT =========================
- /* Albert partial config no longer used */
- function loadAlbertConfig() {}
 
 // ========================= GESTIONNAIRE SPEAKER =========================
 function toggleSpeakerEditor() {
@@ -627,17 +600,7 @@ window.onload = () => {
     if (elMeeting) elMeeting.addEventListener('click', toggleMeeting);
     const elUpload = document.getElementById('uploadBtn');
     if (elUpload) elUpload.addEventListener('click', handleBatchAction);
-    const elToggleS3 = document.getElementById('toggleS3');
-    if (elToggleS3) elToggleS3.addEventListener('click', toggleS3Config);
-    // Albert partial checkbox listener removed
-    const elS3Endpoint = document.getElementById('s3Endpoint');
-    if (elS3Endpoint) elS3Endpoint.addEventListener('change', saveS3Config);
-    const elS3Bucket = document.getElementById('s3Bucket');
-    if (elS3Bucket) elS3Bucket.addEventListener('change', saveS3Config);
-    const elS3Access = document.getElementById('s3AccessKey');
-    if (elS3Access) elS3Access.addEventListener('click', saveS3Config);
-    const elS3Secret = document.getElementById('s3SecretKey');
-    if (elS3Secret) elS3Secret.addEventListener('click', saveS3Config);
+
         const elToggleSpeaker = document.getElementById('toggleSpeakerEditorBtn');
         if (elToggleSpeaker) elToggleSpeaker.addEventListener('click', toggleSpeakerEditor);
 
@@ -662,8 +625,7 @@ loadAudioDevices();
 
         // Chargement initial des donnees
         loadHistory();
-    loadS3Config();
-    loadAlbertConfig();
+
 
     // Initialiser le sélecteur avec le modèle actuel envoyé par le serveur
 const modelDisplay = document.getElementById('currentModelDisplay');

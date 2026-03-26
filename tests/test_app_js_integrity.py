@@ -28,8 +28,6 @@ def test_essential_functions_present():
         "stopRecording",
         "loadAudioDevices",
         "loadHistory",
-        "loadS3Config",
-        "loadAlbertConfig",
     ]
     missing = [fn for fn in required_functions if f"function {fn}(" not in content]
     assert not missing, f"The following essential functions are missing from app.js: {missing}"
