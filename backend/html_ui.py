@@ -64,6 +64,15 @@ HTML_UI = r"""<!DOCTYPE html>
                             </label>
                         </div>
                     </div>
+
+                    <div class="fr-mt-2w">
+                        <div class="fr-select-group">
+                            <label class="fr-label" for="audioDeviceSelect">Appareil audio</label>
+                            <select class="fr-select" id="audioDeviceSelect">
+                                <option value="default">Système par défaut</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="fr-col-12 fr-col-md-7">

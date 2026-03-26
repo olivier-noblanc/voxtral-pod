@@ -428,6 +428,7 @@ async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", part
     engine = get_asr_engine(load_model=True)
     session = LiveSession(engine, websocket, client_id, partial_albert=partial_albert)
     processor = asyncio.create_task(session.process_audio_queue())
+    
     try:
         while True:
             data = await websocket.receive_bytes()

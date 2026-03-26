@@ -2,6 +2,7 @@
 let ws, audioContext, source, processor, isRecording = false;
 let audioStream = null;
 let captureType = "mic";
+let selectedAudioDeviceId = "default";
 const CHUNK_SIZE = 4 * 1024 * 1024;
 
 // DEBUG — à retirer en prod
@@ -110,6 +111,10 @@ async function startRecording() {
             wsUrl += '?client_id=' + getClientId() + '&partial_albert=true';
         } else {
             wsUrl += '?client_id=' + getClientId();
+        }
+        // Add audio device information to WebSocket URL
+        if (selectedAudioDeviceId && selectedAudioDeviceId !== "default") {
+            wsUrl += `&device_id=${encodeURIComponent(selectedAudioDeviceId)}`;
         }
         ws = new WebSocket(wsUrl);
         console.log('WebSocket opened to', wsUrl);
@@ -485,11 +490,23 @@ window.onload = () => {
     if (elS3Access) elS3Access.addEventListener('click', saveS3Config);
     const elS3Secret = document.getElementById('s3SecretKey');
     if (elS3Secret) elS3Secret.addEventListener('click', saveS3Config);
-    const elToggleSpeaker = document.getElementById('toggleSpeakerEditorBtn');
-    if (elToggleSpeaker) elToggleSpeaker.addEventListener('click', toggleSpeakerEditor);
+        const elToggleSpeaker = document.getElementById('toggleSpeakerEditorBtn');
+        if (elToggleSpeaker) elToggleSpeaker.addEventListener('click', toggleSpeakerEditor);
 
-    // Chargement initial des donnees
-    loadHistory();
+        // Add event listener for audio device selection
+        const elAudioDeviceSelect = document.getElementById('audioDeviceSelect');
+        if (elAudioDeviceSelect) {
+            elAudioDeviceSelect.addEventListener('change', (e) => {
+                selectedAudioDeviceId = e.target.value;
+                console.log('Selected audio device:', selectedAudioDeviceId);
+            });
+        }
+
+        // Load available audio devices when page loads
+        loadAudioDevices();
+
+        // Chargement initial des donnees
+        loadHistory();
     loadS3Config();
     loadAlbertConfig();
 
@@ -576,6 +593,47 @@ window.onload = () => {
     }
 };
 
+// ========================= AUDIO DEVICE MANAGEMENT =========================
+async function loadAudioDevices() {
+    try {
+        // Check if mediaDevices API is available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+            console.warn('MediaDevices API not supported');
+            return;
+        }
+
+        // Enumerate audio input devices
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioDevices = devices.filter(device => device.kind === 'audioinput');
+        
+        const selectElement = document.getElementById('audioDeviceSelect');
+        if (!selectElement) {
+            console.warn('Audio device select element not found');
+            return;
+        }
+
+        // Clear existing options (keep the default option)
+        selectElement.innerHTML = '<option value="default">Système par défaut</option>';
+        
+        // Add audio devices to the select dropdown
+        audioDevices.forEach(device => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            option.textContent = device.label || `Microphone ${device.deviceId.substring(0, 8)}`;
+            selectElement.appendChild(option);
+        });
+
+        console.log(`Loaded ${audioDevices.length} audio input devices`);
+    } catch (error) {
+        console.error('Error loading audio devices:', error);
+        // Even if we fail, keep the default option
+        const selectElement = document.getElementById('audioDeviceSelect');
+        if (selectElement) {
+            selectElement.innerHTML = '<option value="default">Système par défaut</option>';
+        }
+    }
+};
+
 /* Dummy fetch calls to ensure all backend routes are referenced in the frontend.
    These calls are no-ops and are only used for test coverage of route contracts.
    They are placed in an explicitly dead code block to never execute. */
@@ -593,4 +651,3 @@ if (window.__TEST__) {
     fetch("/view/{client_id}/{filename}");
     fetch("/");
 }
-

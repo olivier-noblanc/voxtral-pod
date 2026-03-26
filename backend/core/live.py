@@ -37,6 +37,7 @@ class LiveSession:
         self.silence_chunks_threshold = 5                        # ~0.8s de silence
 
         self.vad = VADManager(silero_sensitivity=0.4)
+        self.selected_audio_device_id = None
 
     async def process_audio_queue(self):
         """Worker: dequeue chunks, run VAD, trigger inference."""
