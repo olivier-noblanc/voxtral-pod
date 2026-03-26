@@ -9,3 +9,14 @@ repos:
         stages: [commit]
         always_run: false
         pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: pyright-check
+        name: Pyright / Pylance type checking
+        entry: npx pyright --project .
+        language: system
+        types: [python]
+        stages: [commit]
+        always_run: true
+        pass_filenames: false

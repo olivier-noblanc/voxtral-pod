@@ -1,5 +1,6 @@
 import os
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
@@ -27,18 +28,20 @@ from backend.config import TRANSCRIPTIONS_DIR
 # ----------------------------------------------------------------------
 from backend.utils import format_transcription
 
-app = FastAPI(title="SOTA ASR Server", version="4.0.0")
+@asynccontextmanager
+async def lifespan(app):
+    # startup
+    from backend.state import init_db
+    init_db()
+    get_asr_engine(load_model=False)
+    yield
+    # shutdown
+
+app = FastAPI(title="SOTA ASR Server", version="4.0.0", lifespan=lifespan)
 # trusted_hosts : accepter uniquement les proxies locaux (nginx/caddy sur la même machine)
 _TRUSTED_PROXIES = os.getenv("TRUSTED_PROXIES", "127.0.0.1,::1").split(",")
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=_TRUSTED_PROXIES)
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize DB and ASR engine instance at startup."""
-    from backend.state import init_db
-    init_db()  # DB init ici pour éviter les race-conditions multi-worker
-    get_asr_engine(load_model=False)
 
 # Include all routes defined in backend/routes/api.py
 app.include_router(api_module.router)

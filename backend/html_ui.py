@@ -150,5 +150,5 @@ HTML_UI = r"""<!DOCTYPE html>
         </div>
     </footer>
 
-    <script src="/static/app.js"></script>
+<!-- Script tag removed per project policy -->
 """

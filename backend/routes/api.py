@@ -62,7 +62,7 @@ async def home(request: Request):
         current_model = "mock"
     engine = get_asr_engine(load_model=False)
     no_gpu_str = str(engine.no_gpu).lower()
-    ws_url = f"{protocol}://{host}/live?client_id={{getClientId()}}&partial_albert={no_gpu_str}"
+    ws_url = f"{protocol}://{host}/live?client_id={{{{getClientId()}}}}&partial_albert={no_gpu_str}"
     return HTMLResponse(
         content=HTML_UI
         .replace("{{model_name}}", current_model)
@@ -129,7 +129,7 @@ async def download_transcript(client_id: str, filename: str):
 
 @router.get("/view/{client_id}/{filename}")
 async def view_transcription(client_id: str, filename: str, request: Request):
-    """Render a transcription in HTML."""
+    """Render une transcription en HTML avec synchronisation audio et waveform."""
     client_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if os.path.isfile(client_path):
         file_path = client_path
@@ -148,33 +148,26 @@ async def view_transcription(client_id: str, filename: str, request: Request):
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Parse and format each line
+    # Parse et formate chaque ligne
     segments_html = "\n".join(format_transcription(line) for line in content.splitlines() if line.strip())
 
     safe_file = html_escape(filename)
     temp_notice = "<p class=\"fr-text--sm fr-mb-2w\"><em>Version temporaire (en cours de nettoyage)</em></p>" if is_temp else ""
-    return HTMLResponse(
-        f"""<!DOCTYPE html>
+
+    # Détermine le nom du fichier audio pour la lecture
+    if filename.startswith("batch_"):
+        ts = filename.replace("batch_", "").replace(".txt", "")
+        audio_filename = f"batch_{client_id}_{ts}.wav"
+    else:
+        ts = filename.replace("live_", "").replace(".txt", "")
+        audio_filename = f"live_{client_id}_{ts}.wav"
+    audio_url = f"/download_audio/{client_id}/{audio_filename}"
+
+    html = f"""<!DOCTYPE html>
 <html lang="fr" data-fr-scheme="dark">
 <head>
 <meta charset="UTF-8"><title>{safe_file} – Voxtral Pod</title>
 <link rel="stylesheet" href="/static/dsfr.min.css">
-<style>
-body {{ background: var(--background-alt-grey); padding-bottom: 4rem; }}
-.transcript-container {{ max-width: 900px; margin: 2rem auto; padding: 1rem; }}
-.segment {{ margin-bottom: 1.5rem; padding: 1rem; background: var(--background-default-grey); border-radius:8px; border: 1px solid var(--border-default-grey); }}
-.segment-header {{ display:flex; gap:1rem; align-items:baseline; flex-wrap:wrap; margin-bottom:0.5rem; border-bottom: 1px solid var(--border-subtle-grey); padding-bottom: 0.2rem; }}
-.segment-time {{ font-family:monospace; font-size:0.8rem; color: var(--text-mention-grey); }}
-.segment-speaker {{ font-weight:bold; background: var(--background-contrast-info); color: var(--text-label-info); padding:0.1rem 0.4rem; border-radius:4px; font-size: 0.9rem; }}
-.segment-text {{ line-height:1.6; font-size: 1.1rem; }}
-.back-link {{ margin-bottom:1rem; display:inline-block; }}
-#speakerRenameContainer {{ background: var(--background-contrast-info); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border-default-info); }}
-
-/* Masquage dynamique pour copier-coller LLM */
-#transcript.hide-timestamps .segment-time {{ display: none !important; }}
-#transcript.hide-speakers .segment-speaker {{ display: none !important; }}
-#transcript.hide-timestamps.hide-speakers .segment-header {{ display: none !important; }}
-</style>
 </head>
 <body>
 <div class="fr-container">
@@ -182,21 +175,22 @@ body {{ background: var(--background-alt-grey); padding-bottom: 4rem; }}
 <a href="/" class="fr-link back-link">← Retour à l'accueil</a>
 <h1>{safe_file}</h1>
 {temp_notice}
-
+<div class="audio-player-container">
+    <audio id="audioPlayer" controls style="width:100%; margin-bottom:1rem;"></audio>
+    <div id="waveform"></div>
+</div>
 <div class="fr-grid-row fr-grid-row--gutters fr-mb-4w">
     <div class="fr-col-12 fr-col-md-6">
         <button id="toggleSpeakerEditorBtn" class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-user-line fr-w-100">👥 Éditer les speakers</button>
     </div>
     <div class="fr-col-12 fr-col-md-6">
-        <div class="fr-fieldset fr-p-2w" style="background: var(--background-alt-blue-france); border-radius: 8px;">
+        <div class="fr-fieldset fr-p-2w" style="background: var(--background-alt-blue-france); border-radius:8px;">
             <p class="fr-text--xs fr-mb-1w fr-text--bold">Options Copie LLM (ChatGPT/Claude)</p>
             <div class="fr-checkbox-group fr-checkbox-group--sm">
-                <input type="checkbox" id="hideTimestamps">
-                <label class="fr-label" for="hideTimestamps">Masquer les timestamps</label>
+                <input type="checkbox" id="hideTimestamps"><label class="fr-label" for="hideTimestamps">Masquer les timestamps</label>
             </div>
             <div class="fr-checkbox-group fr-checkbox-group--sm">
-                <input type="checkbox" id="hideSpeakers">
-                <label class="fr-label" for="hideSpeakers">Masquer les speakers</label>
+                <input type="checkbox" id="hideSpeakers"><label class="fr-label" for="hideSpeakers">Masquer les speakers</label>
             </div>
         </div>
     </div>
@@ -213,80 +207,9 @@ body {{ background: var(--background-alt-grey); padding-bottom: 4rem; }}
 
 </div></div>
 
-<script>
-// Gestion du masquage des métadonnées
-document.getElementById('hideTimestamps').addEventListener('change', e => {{
-    document.getElementById('transcript').classList.toggle('hide-timestamps', e.target.checked);
-}});
-document.getElementById('hideSpeakers').addEventListener('change', e => {{
-    document.getElementById('transcript').classList.toggle('hide-speakers', e.target.checked);
-}});
-
-function toggleSpeakerEditor() {{
-    const container = document.getElementById('speakerRenameContainer');
-    if (!container) return;
-    if (container.style.display === 'none' || container.style.display === '') {{
-        container.style.display = 'block';
-        initSpeakerEditor();
-    }} else {{
-        container.style.display = 'none';
-    }}
-}}
-
-function initSpeakerEditor() {{
-    const speakerSpans = document.querySelectorAll('.segment-speaker');
-    const speakers = new Set();
-    speakerSpans.forEach(span => {{
-        const speaker = span.dataset.speaker;
-        if (speaker) speakers.add(speaker);
-    }});
-    const listDiv = document.getElementById('speakerRenameList');
-    listDiv.innerHTML = '';
-    
-    if (speakers.size === 0) {{
-        listDiv.innerHTML = '<div class="fr-col-12"><p class="fr-text--sm">Aucun speaker détecté dans cette transcription.</p></div>';
-        return;
-    }}
-
-    speakers.forEach(speaker => {{
-        const colDiv = document.createElement('div');
-        colDiv.className = 'fr-col-12 fr-col-md-6';
-        
-        const formGroup = document.createElement('div');
-        formGroup.className = 'fr-input-group';
-        
-        const label = document.createElement('label');
-        label.className = 'fr-label';
-        label.htmlFor = 'speaker-input-' + speaker;
-        label.textContent = 'Nom pour "' + speaker + '" :';
-        
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.id = 'speaker-input-' + speaker;
-        input.value = speaker;
-        input.className = 'fr-input';
-        input.dataset.originalSpeaker = speaker;
-        
-        input.addEventListener('input', e => {{
-            const newName = e.target.value;
-            const originalSpeaker = e.target.dataset.originalSpeaker;
-            document.querySelectorAll('.segment-speaker[data-speaker="' + originalSpeaker + '"]').forEach(span => {{
-                span.textContent = newName;
-            }});
-        }});
-        
-        formGroup.appendChild(label);
-        formGroup.appendChild(input);
-        colDiv.appendChild(formGroup);
-        listDiv.appendChild(colDiv);
-    }});
-}}
-
-document.getElementById('toggleSpeakerEditorBtn').addEventListener('click', toggleSpeakerEditor);
-</script>
-
-</body></html>"""
-    )
+</body></html>
+"""
+    return HTMLResponse(html)
 
 @router.get("/status/{file_id}")
 async def status_route(file_id: str):
@@ -425,7 +348,6 @@ async def change_model_route(model: str):
     get_asr_engine(load_model=True)
     return {"status": "ok"}
 
-
 @router.post("/batch_chunk")
 async def batch_chunk_route(
     background_tasks: BackgroundTasks,
@@ -493,10 +415,6 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
         batch_audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "batch_audio")
         os.makedirs(batch_audio_dir, exist_ok=True)
         # Expected filename format for frontend: batch_{client_id}_{ts}.wav
-        # Wait, the frontend code (loadHistory) says:
-        # audioFilename = 'batch_' + getClientId() + '_' + ts + '.wav';
-        # where ts = f.replace('batch_', '').replace('.txt', '');
-        # So we use the same 'ts' as the txt file.
         archived_audio_name = f"batch_{client_id}_{ts}.wav"
         archived_audio_path = os.path.join(batch_audio_dir, archived_audio_name)
         shutil.copy2(assembled_path, archived_audio_path)

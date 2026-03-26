@@ -2,10 +2,10 @@
 import numpy as np
 import soundfile as sf
 import tempfile, os
-# from resemblyzer import VoiceEncoder, preprocess_wav
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_score
 import backend.core.speaker_profiles as speaker_profiles
+from resemblyzer import VoiceEncoder, preprocess_wav
 
 class LightDiarizationEngine:
     def __init__(self):

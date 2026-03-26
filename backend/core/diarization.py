@@ -11,13 +11,6 @@ class DiarizationEngine:
         self.pipeline = None
         self.sample_rate = 16000
         self.use_cpu = use_cpu
-
-    def __init__(self, model_id="pyannote/speaker-diarization-3.1", hf_token=None, use_cpu=False):
-        self.model_id = model_id
-        self.hf_token = hf_token
-        self.pipeline = None
-        self.sample_rate = 16000
-        self.use_cpu = use_cpu
         self.encoder = None  # Resemblyzer encoder for embedding extraction
 
     def load(self):

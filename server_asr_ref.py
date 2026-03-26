@@ -49,8 +49,8 @@ HTML_UI = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <title>SOTA ASR 2026 - Control Panel</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
-    <style>
+<!-- CDN stylesheet removed per project policy -->
+<!-- Style block removed per project policy -->
         body { padding: 2rem; max-width: 960px; margin: 0 auto; }
         .live-box {
             height: 200px; overflow-y: auto;
@@ -124,175 +124,9 @@ HTML_UI = """<!DOCTYPE html>
     </article>
 </dialog>
 
-<script>
-// Logic JS identique à l'original de run.sh, avec gestion websocket pour recevoir les segments
-let ws = null, isRecording = false;
-let audioContext = null, processor = null, source = null;
-
-const getClientId = () => {
-    let id = localStorage.getItem("sota_client_id");
-    if (!id) { id = "user_" + crypto.randomUUID().slice(0, 8); localStorage.setItem("sota_client_id", id); }
-    return id;
-};
-
-async function toggleRecording() {
-    if (!isRecording) await startRecording(); else stopRecording();
-}
-
-async function startRecording() {
-    const btn = document.getElementById('recordBtn');
-    const box = document.getElementById('liveTranscript');
-    const barCont = document.getElementById('audioBarCont');
-    const bar = document.getElementById('audioBar');
-
-    try {
-        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        ws = new WebSocket(`${protocol}//${location.host}/live`);
-
-        ws.onopen = async () => {
-            isRecording = true;
-            btn.innerText = "Arrêter l'enregistrement";
-            btn.classList.add('recording');
-            barCont.style.display = 'block';
-            box.innerText = ">> Connexion établie. Parlez...\\n";
-
-            audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-            const processorCode = `
-                class AudioProcessor extends AudioWorkletProcessor {
-                    constructor() { super(); this.buffer = new Float32Array(4000); this.offset = 0; }
-                    process(inputs) {
-                        const input = inputs[0][0];
-                        if (!input) return true;
-                        for (let i = 0; i < input.length; i++) {
-                            this.buffer[this.offset++] = input[i];
-                            if (this.offset >= 4000) { this.port.postMessage(this.buffer); this.offset = 0; }
-                        }
-                        return true;
-                    }
-                }
-                registerProcessor('audio-processor', AudioProcessor);
-            `;
-            const blob = new Blob([processorCode], { type: 'application/javascript' });
-            const blobUrl = URL.createObjectURL(blob);
-            await audioContext.audioWorklet.addModule(blobUrl);
-
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            source = audioContext.createMediaStreamSource(stream);
-            processor = new AudioWorkletNode(audioContext, 'audio-processor');
-            source.connect(processor);
-
-            processor.port.onmessage = (e) => {
-                const inputData = e.data;
-                let sum = 0;
-                for (let i = 0; i < inputData.length; i++) sum += inputData[i] ** 2;
-                bar.style.width = Math.min(100, Math.sqrt(sum / inputData.length) * 400) + '%';
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    const pcm = new Int16Array(inputData.length);
-                    for (let i = 0; i < inputData.length; i++) pcm[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
-                    ws.send(pcm.buffer);
-                }
-            };
-        };
-
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data.text) {
-                box.innerHTML += `<p><strong>[Phrase]</strong>: ${data.text}</p>`;
-                box.scrollTop = box.scrollHeight;
-            }
-        };
-
-        ws.onerror = () => stopRecording();
-        ws.onclose = () => { if (isRecording) stopRecording(); };
-
-    } catch (err) { alert("Erreur micro : " + err.message); }
-}
-
-function stopRecording() {
-    const btn = document.getElementById('recordBtn');
-    const box = document.getElementById('liveTranscript');
-    if (ws) { ws.close(); ws = null; }
-    if (audioContext) { audioContext.close(); audioContext = null; }
-    isRecording = false;
-    btn.innerText = "Démarrer l'enregistrement";
-    btn.classList.remove('recording');
-    box.innerText += "\\n\\n[Fin de session - Repasse finale en cours]";
-}
-
-async function changeModel() {
-    const newModel = document.getElementById('modelSelector').value;
-    const res = await fetch(`/change_model?model=${newModel}`, { method: 'POST' });
-    if (res.ok) location.reload();
-}
-
-async function loadHistory() {
-    const list = document.getElementById('transcriptionList');
-    const cid = getClientId();
-    const res = await fetch(`/transcriptions?client_id=${cid}`);
-    const files = await res.json();
-    list.innerHTML = files.map(f => `
-            <div class="style13">
-            <span>${f}</span>
-            <button class="outline style12" onclick="viewFile('${f}')">Voir</button>
-        </div>
-    `).join('') || "Aucune transcription.";
-}
-
-async function viewFile(name) {
-    const dialog = document.getElementById('viewerDialog');
-    const title = document.getElementById('viewerTitle');
-    const content = document.getElementById('viewerContent');
-    title.innerText = name;
-    dialog.showModal();
-    const res = await fetch(`/transcription/${name}?client_id=${getClientId()}`);
-    content.innerText = await res.text();
-}
-
-function closeViewer() { document.getElementById('viewerDialog').close(); }
-
-// Uploader Batch
-const CHUNK_SIZE = 4 * 1024 * 1024;
-async function uploadFile() {
-    const fileInput = document.getElementById('audioFile');
-    if (!fileInput.files.length) return;
-    const file = fileInput.files[0];
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    const fileId = crypto.randomUUID();
-    const clientId = getClientId();
-    const status = document.getElementById('batchStatus');
-    status.innerText = "Upload...";
-    for (let i = 0; i < totalChunks; i++) {
-        const formData = new FormData();
-        formData.append("file_id", fileId);
-        formData.append("client_id", clientId);
-        formData.append("chunk_index", String(i));
-        formData.append("total_chunks", String(totalChunks));
-        formData.append("file", file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE), file.name);
-        await fetch('/batch_chunk', { method: 'POST', body: formData });
-    }
-    status.innerText = "Transcription en cours...";
-    pollStatus(fileId, status);
-}
-
-async function pollStatus(fileId, status) {
-    const interval = setInterval(async () => {
-        const res = await fetch(`/status/${fileId}`);
-        const data = await res.json();
-        if (data.status === "done") {
-            clearInterval(interval);
-            status.innerText = "✅ Terminé.";
-            loadHistory();
-        } else if (data.status === "error") {
-            clearInterval(interval);
-            status.innerText = "❌ Erreur: " + data.error;
-        } else if (data.status.startsWith("processing:")) {
-            status.innerText = "⏳ " + data.status.replace("processing:", "");
-        }
-    }, 2000);
-}
-
-window.onload = loadHistory;
-</script>
+<!-- Script tag removed per project policy -->
+<!-- Script tag removed per project policy -->
+<script src="/static/wavesurfer.js"></script>
 </body>
 </html>
 """
