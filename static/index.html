@@ -1,12 +1,39 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<title>Voxtral Pod</title>
-<link rel="stylesheet" href="/static/custom.css">
+    <meta charset="UTF-8">
+    <title>Voxtral Pod</title>
+    <link rel="stylesheet" href="/static/custom.css">
+    <script src="/static/app.js" defer></script>
 </head>
 <body>
-<h1>Voxtral Pod</h1>
-<p>Interface simplifiée sans balises <script>.</p>
+    <h1>Voxtral Pod</h1>
+
+    <!-- Boutons de contrôle -->
+    <div class="fr-btns-group fr-btns-group--inline-md fr-btns-group--sm fr-my-2w">
+        <button id="recordBtn" class="fr-btn">🎤 Micro</button>
+        <button id="systemBtn" class="fr-btn fr-btn--secondary">🖥️ Système</button>
+        <button id="meetingBtn" class="fr-btn fr-btn--secondary">👥 Réunion</button>
+    </div>
+
+    <!-- Barre de volume -->
+    <div id="audioBarCont" style="display:none; width:100%; background:#eee; height:5px; margin-top:10px;">
+        <div id="audioBar" style="width:0%; height:100%; background:#4caf50;"></div>
+    </div>
+
+    <!-- Zone de transcription en direct -->
+    <div id="liveTranscript" style="margin-top:20px; min-height:100px; border:1px solid #ccc; padding:10px;"></div>
+
+    <!-- Sélecteur d'appareil audio -->
+    <div style="margin-top:10px;">
+        <label for="audioDeviceSelect">Microphone :</label>
+        <select id="audioDeviceSelect">
+            <option value="default">Système par défaut</option>
+        </select>
+    </div>
+
+    <!-- Historique des transcriptions -->
+    <h2>Historique</h2>
+    <div id="transcriptionList" class="fr-grid-row fr-grid-row--gutters"></div>
 </body>
 </html>
