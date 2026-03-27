@@ -18,12 +18,13 @@ echo "===================================================="
 # Diagnostic
 echo "[#] Python Système : $(python3 --version 2>&1)"
 
-# 0.1. System dependencies (ffmpeg)
-if ! command -v ffmpeg &> /dev/null; then
+# 0.1. System dependencies (ffmpeg + codecs)
+if command -v apt-get &> /dev/null; then
+    echo "[*] Ensuring ffmpeg and extra codecs are installed..."
+    apt-get update && apt-get install -y ffmpeg libavcodec-extra || true
+elif ! command -v ffmpeg &> /dev/null; then
     echo "[*] ffmpeg missing. Attempting installation..."
-    if command -v apt-get &> /dev/null; then
-         apt-get update &&  apt-get install -y ffmpeg || apt-get update && apt-get install -y ffmpeg
-    elif command -v yum &> /dev/null; then
+    if command -v yum &> /dev/null; then
          yum install -y ffmpeg
     else
         echo "[!] Auto-install failed. Please install ffmpeg manually."

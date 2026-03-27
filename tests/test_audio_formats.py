@@ -34,7 +34,8 @@ def test_decode_non_existent():
     with pytest.raises(Exception):
         decode_audio("non_existent_file.mp3")
 
-@pytest.mark.skipif(not os.system("ffmpeg -version == 0"), reason="ffmpeg not found")
+import shutil
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not found")
 def test_decode_real_mp3_if_any_found():
     """
     Si un MP3 existe dans le repo, on essaie de le lire.

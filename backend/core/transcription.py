@@ -170,7 +170,7 @@ class TranscriptionEngine:
             try:
                 from backend.core.audio import float32_to_pcm16
                 pcm16_bytes = float32_to_pcm16(chunk_audio)
-                out, _ = (
+                out, err = (
                     ffmpeg.input("pipe:0", format="s16le", ar=16000, ac=1)
                     .output("pipe:0", format="mp3", acodec="libmp3lame", audio_bitrate="48k")
                     .run(input=pcm16_bytes, capture_stdout=True, capture_stderr=True, quiet=True)
@@ -179,7 +179,14 @@ class TranscriptionEngine:
                 mime_type = "audio/mpeg"
                 file_ext = "mp3"
             except Exception as e:
-                print(f"[!] Erreur compression MP3 (Tranche {idx+1}), repli WAV: {e}")
+                print(f"\n[!] ERREUR CRITIQUE COMPRESSION MP3 (Tranche {idx+1})")
+                print(f"[!] Erreur: {e}")
+                if hasattr(e, "stderr") and e.stderr:
+                    print(f"[!] FFmpeg STDERR:\n{e.stderr.decode()}")
+                import traceback
+                traceback.print_exc()
+                sys.stdout.flush()
+                
                 import soundfile as sf
                 buffer = io.BytesIO()
                 sf.write(buffer, chunk_audio, 16000, format='WAV', subtype='PCM_16')
