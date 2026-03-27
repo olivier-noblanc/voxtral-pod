@@ -7,6 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Reque
 from fastapi.responses import HTMLResponse, FileResponse, Response
 from html import escape as html_escape
 from backend.html_ui import HTML_UI
+import markdown
 
 # Import shared state (no import of server_asr_ref)
 from backend.state import get_job, update_job, add_job, JOBS_DB_MAX_SIZE, get_asr_engine, get_current_model, set_current_model
@@ -322,10 +323,9 @@ def _render_postprocess_page(title: str, content: str, filename: str) -> HTMLRes
     """Rendu d'une page de visualisation pour les résultats Albert (Markdown)."""
     safe_title = html_escape(title)
     safe_filename = html_escape(filename)
-    # On échappe le contenu pour l'injecter en tant que string JS, mais Marked le traitera.
-    # On utilise JSON.stringify pour être sûr de ne pas casser le script JS.
-    import json
-    json_content = json.dumps(content)
+    safe_content = html_escape(content)
+    # Rendu Markdown côté serveur
+    rendered_html = markdown.markdown(content, extensions=['extra', 'nl2br'])
 
     html = f"""<!DOCTYPE html>
 <html lang="fr" data-fr-scheme="dark">
@@ -333,12 +333,8 @@ def _render_postprocess_page(title: str, content: str, filename: str) -> HTMLRes
     <meta charset="UTF-8">
     <title>{safe_title} - {safe_filename}</title>
     <link rel="stylesheet" href="/static/dsfr.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <style>
-        .postprocess-container {{ max-width: 800px; margin: 2rem auto; padding: 2rem; background: var(--background-alt-blue-france); border-radius: 8px; }}
-        .content-area {{ padding: 1.5rem; background: var(--background-default-grey); border-radius: 4px; border: 1px solid var(--border-default-grey); }}
-        .actions-bar {{ display: flex; gap: 1rem; margin-bottom: 2rem; }}
-    </style>
+    <link rel="stylesheet" href="/static/postprocess.css">
+    <script src="/static/postprocess.js"></script>
 </head>
 <body>
     <div class="fr-container">
@@ -348,40 +344,15 @@ def _render_postprocess_page(title: str, content: str, filename: str) -> HTMLRes
             <p class="fr-text--sm">Fichier : {safe_filename}</p>
 
             <div class="actions-bar">
-                <button class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-clipboard-line" onclick="copyToClipboard()">Copier le texte</button>
-                <button class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-download-line" onclick="downloadText()">Télécharger (.txt)</button>
+                <button id="copyBtn" class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-clipboard-line">Copier le texte</button>
+                <button id="downloadBtn" class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-download-line" data-title="{safe_title}" data-filename="{safe_filename}">Télécharger (.txt)</button>
             </div>
 
-            <div id="content" class="content-area fr-text--md">
-                <!-- Rendu Markdown ici -->
+            <div id="content" class="content-area fr-text--md" data-content="{safe_content}">
+                {rendered_html}
             </div>
         </div>
     </div>
-
-    <script>
-        const rawContent = {json_content};
-        document.getElementById('content').innerHTML = marked.parse(rawContent);
-
-        function copyToClipboard() {{
-            navigator.clipboard.writeText(rawContent).then(() => {{
-                alert("Texte copié !");
-            }}).catch(err => {{
-                console.error("Erreur de copie : ", err);
-            }});
-        }}
-
-        function downloadText() {{
-            const blob = new Blob([rawContent], {{ type: 'text/plain' }});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = "{title.replace(' ', '_')}_" + "{safe_filename}";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }}
-    </script>
 </body>
 </html>
 """
@@ -696,7 +667,7 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
 
 # ---------- WebSocket ----------
 @router.websocket("/live")
-async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", partial_albert: bool = False):
+async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", partial_albert: bool = False, device_id: str = None):
     """WebSocket endpoint for live transcription."""
     if not client_id or client_id == "anonymous" or not client_id.startswith("user_"):
         # On ne peut pas lever HTTPException ici, on ferme la socket
@@ -705,7 +676,7 @@ async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", part
     await websocket.accept()
     from backend.core.live import LiveSession
     engine = get_asr_engine(load_model=True)
-    session = LiveSession(engine, websocket, client_id, partial_albert=partial_albert)
+    session = LiveSession(engine, websocket, client_id, partial_albert=partial_albert, selected_audio_device_id=device_id)
     processor = asyncio.create_task(session.process_audio_queue())
     
     try:

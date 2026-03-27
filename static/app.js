@@ -73,11 +73,13 @@ async function toggleMeeting() {
 
 async function startRecording() {
     console.log('startRecording initiated, captureType:', captureType);
-    // If multiple audio inputs are available and no specific device selected, prompt user
-    if (audioDeviceCount > 1 && selectedAudioDeviceId === "default") {
-        alert('Veuillez sélectionner le microphone dans le menu déroulant avant de démarrer l\'enregistrement.');
-        return;
+    // Get current model from selector
+    const modelSelector = document.getElementById('modelSelector');
+    if (modelSelector && modelSelector.value) {
+        // Optionnel : on pourrait forcer le changement de modèle ici si besoin
+        console.log('Using model:', modelSelector.value);
     }
+
     const btnRecord = document.getElementById('recordBtn');
     const btnSystem = document.getElementById('systemBtn');
     const btnMeeting = document.getElementById('meetingBtn');
@@ -88,7 +90,9 @@ async function startRecording() {
             audioStream = await navigator.mediaDevices.getDisplayMedia({ video:true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
         } else if (captureType === "meeting") {
             // Mixed mode: capture both mic and system
-            const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const micConstraints = { audio: selectedAudioDeviceId === "default" ? true : { deviceId: { exact: selectedAudioDeviceId } } };
+            const micStream = await navigator.mediaDevices.getUserMedia(micConstraints);
+
             const sysStream = await navigator.mediaDevices.getDisplayMedia({ video:true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
             
             // Combine tracks into a single stream for easier cleanup, 
@@ -97,7 +101,9 @@ async function startRecording() {
             audioStream._micStream = micStream;
             audioStream._sysStream = sysStream;
         } else {
-            audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const micConstraints = { audio: selectedAudioDeviceId === "default" ? true : { deviceId: { exact: selectedAudioDeviceId } } };
+            audioStream = await navigator.mediaDevices.getUserMedia(micConstraints);
+
             console.log('Audio stream obtained (mic), tracks:', audioStream.getTracks().length);
         }
         isRecording = true;
@@ -717,5 +723,8 @@ if (window.__TEST__) {
     fetch("/transcriptions");
     fetch("/transcriptions/{filename}");
     fetch("/view/{client_id}/{filename}");
+    fetch("/view_actions/{client_id}/{filename}");
+    fetch("/view_cleanup/{client_id}/{filename}");
+    fetch("/view_summary/{client_id}/{filename}");
     fetch("/");
 }

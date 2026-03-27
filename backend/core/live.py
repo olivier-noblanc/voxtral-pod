@@ -12,7 +12,7 @@ from backend.config import TRANSCRIPTIONS_DIR
 class LiveSession:
     """Isolated per-connection live transcription with VAD."""
 
-    def __init__(self, engine, websocket: WebSocket, client_id: str, partial_albert: bool = False):
+    def __init__(self, engine, websocket: WebSocket, client_id: str, partial_albert: bool = False, selected_audio_device_id: str = None):
         self.engine = engine
         self.websocket = websocket
         self.client_id = client_id
@@ -37,7 +37,7 @@ class LiveSession:
         self.silence_chunks_threshold = 5                        # ~0.8s de silence
 
         self.vad = VADManager(silero_sensitivity=0.4)
-        self.selected_audio_device_id = None
+        self.selected_audio_device_id = selected_audio_device_id
 
     async def process_audio_queue(self):
         """Worker: dequeue chunks, run VAD, trigger inference."""

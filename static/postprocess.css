@@ -1,0 +1,20 @@
+.postprocess-container {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background: var(--background-alt-blue-france);
+    border-radius: 8px;
+}
+
+.content-area {
+    padding: 1.5rem;
+    background: var(--background-default-grey);
+    border-radius: 4px;
+    border: 1px solid var(--border-default-grey);
+}
+
+.actions-bar {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
