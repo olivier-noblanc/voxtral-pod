@@ -170,33 +170,26 @@ async function startRecording() {
         console.log('Processor connected to audio context destination');
         box.innerHTML = "";
         let lastSpeaker = "";
+        let partialRow = null; // Reference to the current in-progress partial row
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (data.type === "sentence") {
                 if (data.final) {
-                    // Replace last partial segment if it exists
-                    const rows = box.getElementsByClassName("sentence-row");
-                    if (rows.length > 0) {
-                        const lastRow = rows[rows.length - 1];
-                        const partialSpan = lastRow.querySelector("span.partial-text");
+                    // Look up partial row by sentence_index first (robust against out-of-order messages)
+                    const target = (data.sentence_index != null)
+                        ? box.querySelector(`[data-sindex="${data.sentence_index}"]`) || partialRow
+                        : partialRow;
+                    if (target) {
+                        const partialSpan = target.querySelector("span.partial-text");
                         if (partialSpan) {
                             partialSpan.className = "final-text";
                             partialSpan.textContent = data.text;
-                        } else {
-                            // No partial found: create a new final line
-                            const row = document.createElement("div");
-                            row.className = "sentence-row finalized";
-                            const s = document.createElement("span");
-                            s.className = "speaker-label";
-                            if (data.speaker !== lastSpeaker) { s.textContent = "[" + data.speaker + "] "; lastSpeaker = data.speaker; }
-                            const t = document.createElement("span");
-                            t.className = "final-text";
-                            t.textContent = data.text;
-                            row.append(s, t);
-                            box.appendChild(row);
                         }
+                        target.classList.add("finalized");
+                        target.removeAttribute("data-sindex");
+                        if (partialRow === target) partialRow = null;
                     } else {
-                        // First sentence ever — no rows exist yet
+                        // No partial in flight: create a new final line directly
                         const row = document.createElement("div");
                         row.className = "sentence-row finalized";
                         const s = document.createElement("span");
@@ -209,50 +202,62 @@ async function startRecording() {
                         box.appendChild(row);
                     }
                 } else {
-                    // Partial segment: add a new line
-                const row = document.createElement("div");
-                row.className = "sentence-row";
-                row.draggable = true;
-                row.dataset.idx = segmentCounter++;
-                const s = document.createElement("span");
-                s.className = "speaker-label";
-                if (data.speaker !== lastSpeaker) { s.textContent = "[" + data.speaker + "] "; lastSpeaker = data.speaker; }
-                const t = document.createElement("span");
-                t.className = "partial-text";
-                t.textContent = "... " + data.text;
-                row.append(s, t);
-                // Drag‑and‑drop handlers (same as for finalized rows)
-                row.addEventListener("dragstart", e => {
-                    e.dataTransfer.setData("text/plain", e.currentTarget.dataset.idx);
-                });
-                row.addEventListener("dragover", e => e.preventDefault());
-                row.addEventListener("drop", async e => {
-                    e.preventDefault();
-                    const srcIdx = e.dataTransfer.getData("text/plain");
-                    const srcRow = document.querySelector(`[data-idx="${srcIdx}"]`);
-                    const tgtRow = e.currentTarget;
-                    if (!srcRow || srcRow === tgtRow) return;
-                    const srcSpeaker = srcRow.querySelector(".speaker-label");
-                    const tgtSpeaker = tgtRow.querySelector(".speaker-label");
-                    const tmp = srcSpeaker.textContent;
-                    srcSpeaker.textContent = tgtSpeaker.textContent;
-                    tgtSpeaker.textContent = tmp;
-                    try {
-                        await fetch("/segment_update", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                                client_id: getClientId(),
-                                filename: window.currentTranscriptFile || "",
-                                segment_index: parseInt(srcIdx, 10),
-new_speaker: srcSpeaker.textContent.replace(/\[|\]/g, "").trim()
-                            })
+                    // Partial segment: update existing partialRow or create one
+                    // Partial: find existing row by sentence_index or fall back to partialRow
+                    const existingPartial = (data.sentence_index != null)
+                        ? box.querySelector(`[data-sindex="${data.sentence_index}"]`) || partialRow
+                        : partialRow;
+                    if (existingPartial) {
+                        // Reuse the same row — just update the text
+                        const partialSpan = existingPartial.querySelector("span.partial-text");
+                        if (partialSpan) partialSpan.textContent = "... " + data.text;
+                    } else {
+                        const row = document.createElement("div");
+                        row.className = "sentence-row";
+                        row.draggable = true;
+                        row.dataset.idx = segmentCounter++;
+                        if (data.sentence_index != null) row.dataset.sindex = data.sentence_index;
+                        const s = document.createElement("span");
+                        s.className = "speaker-label";
+                        if (data.speaker !== lastSpeaker) { s.textContent = "[" + data.speaker + "] "; lastSpeaker = data.speaker; }
+                        const t = document.createElement("span");
+                        t.className = "partial-text";
+                        t.textContent = "... " + data.text;
+                        row.append(s, t);
+                        // Drag‑and‑drop handlers (same as for finalized rows)
+                        row.addEventListener("dragstart", e => {
+                            e.dataTransfer.setData("text/plain", e.currentTarget.dataset.idx);
                         });
-                    } catch (err) {
-                        console.warn("Failed to persist speaker change:", err);
+                        row.addEventListener("dragover", e => e.preventDefault());
+                        row.addEventListener("drop", async e => {
+                            e.preventDefault();
+                            const srcIdx = e.dataTransfer.getData("text/plain");
+                            const srcRow = document.querySelector(`[data-idx="${srcIdx}"]`);
+                            const tgtRow = e.currentTarget;
+                            if (!srcRow || srcRow === tgtRow) return;
+                            const srcSpeaker = srcRow.querySelector(".speaker-label");
+                            const tgtSpeaker = tgtRow.querySelector(".speaker-label");
+                            const tmp = srcSpeaker.textContent;
+                            srcSpeaker.textContent = tgtSpeaker.textContent;
+                            tgtSpeaker.textContent = tmp;
+                            try {
+                                await fetch("/segment_update", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                        client_id: getClientId(),
+                                        filename: window.currentTranscriptFile || "",
+                                        segment_index: parseInt(srcIdx, 10),
+                                        new_speaker: srcSpeaker.textContent.replace(/\[|\]/g, "").trim()
+                                    })
+                                });
+                            } catch (err) {
+                                console.warn("Failed to persist speaker change:", err);
+                            }
+                        });
+                        box.appendChild(row);
+                        partialRow = row;
                     }
-                });
-                box.appendChild(row);
                 }
                 box.scrollTop = box.scrollHeight;
             } else if (data.type === "final_done") {
