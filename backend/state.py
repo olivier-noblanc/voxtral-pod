@@ -12,29 +12,6 @@ def get_db():
     return conn
 
 
-def init_db():
-    with get_db() as conn:
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS jobs (
-                job_id TEXT PRIMARY KEY,
-                data TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS config (
-                key TEXT PRIMARY KEY,
-                value TEXT
-            )
-        ''')
-        cursor = conn.execute("SELECT value FROM config WHERE key='current_model'")
-        if not cursor.fetchone():
-            default_model = os.getenv("ASR_MODEL", "whisper").lower()
-            conn.execute("INSERT INTO config (key, value) VALUES ('current_model', ?)", (default_model,))
-        conn.commit()
-    cleanup_stuck_jobs()
-
-
 def cleanup_stuck_jobs():
     """
     Parcourt la base SQLite au démarrage pour trouver les jobs restés en 
@@ -58,6 +35,55 @@ def cleanup_stuck_jobs():
             conn.commit()
     except Exception as e:
         print(f"Erreur lors du nettoyage des jobs SQLite : {e}")
+
+def cleanup_stale_jobs(hours: int = 4):
+    """
+    Marque les jobs 'uploading' ou 'processing:...' plus vieux que 'hours'
+    comme 'erreur' (jobs stale/abandonnés).
+    """
+    try:
+        with get_db() as conn:
+            # On cherche les jobs qui ne sont pas finis et qui sont plus vieux que X heures
+            cursor = conn.execute(
+                "SELECT job_id, data FROM jobs WHERE created_at < datetime('now', ?)",
+                (f"-{hours} hours",)
+            )
+            rows = cursor.fetchall()
+            for row in rows:
+                try:
+                    data = json.loads(row['data'])
+                    status = data.get("status", "")
+                    if status not in ("terminé", "not_found", "erreur") and (status.startswith("processing:") or status == "uploading"):
+                        data["status"] = "erreur"
+                        data["error_details"] = f"Job expiré (stale après {hours}h)"
+                        conn.execute("UPDATE jobs SET data=? WHERE job_id=?", (json.dumps(data, ensure_ascii=False), row['job_id']))
+                except Exception:
+                    pass
+            conn.commit()
+    except Exception as e:
+        print(f"Erreur lors du nettoyage des jobs stale : {e}")
+
+def init_db():
+    with get_db() as conn:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS jobs (
+                job_id TEXT PRIMARY KEY,
+                data TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS config (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        ''')
+        cursor = conn.execute("SELECT value FROM config WHERE key='current_model'")
+        if not cursor.fetchone():
+            default_model = os.getenv("ASR_MODEL", "whisper").lower()
+            conn.execute("INSERT INTO config (key, value) VALUES ('current_model', ?)", (default_model,))
+        conn.commit()
+    cleanup_stuck_jobs()
 
 # init_db()  # Removed automatic DB initialization at import time
 

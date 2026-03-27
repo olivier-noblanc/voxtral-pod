@@ -141,27 +141,47 @@ def run_cleanup(days: int = CLEANUP_RETENTION_DAYS) -> dict:
     """Exécute les nettoyages base de données et fichiers, retourne les statistiques."""
     print(f"[*] Démarrage du nettoyage automatique (Rétention: {days} jours)...")
     
-    # Compress old wav to mp3 first
+    # 1. Nettoyage des jobs "stale" (toujours en cours après 4h)
+    from backend.state import cleanup_stale_jobs
+    cleanup_stale_jobs(hours=4)
+
+    # 2. Compression des vieux WAV en MP3
     compressed_files = compress_old_wavs(0.1) # compress files older than ~2.4h
     
+    # 3. Suppression des vieux jobs (archives > days)
     jobs_deleted = clean_old_jobs(days)
+    
+    # 4. Suppression des vieux fichiers (archives > days)
     files_deleted = clean_old_files(days)
     
     print(f"[*] Nettoyage terminé: {jobs_deleted} jobs supprimés, {files_deleted} fichiers supprimés, {compressed_files} fichiers WAV compressés en MP3.")
     return {"jobs_deleted": jobs_deleted, "files_deleted": files_deleted, "compressed_files": compressed_files}
 
 async def periodic_cleanup_task(days: int):
-    """Tâche asynchrone tournant en boucle toutes les 24h."""
+    """
+    Tâche asynchrone tournant en boucle.
+    Nettoie les jobs stale toutes les heures, et les archives toutes les 24h.
+    """
+    last_full_cleanup = 0
     while True:
         try:
             # Attend d'abord légèrement pour ne pas bloquer le démarrage
             await asyncio.sleep(60) 
-            # Exécute le nettoyage (dans un thread pool pour ne pas bloquer l'event loop)
-            await asyncio.to_thread(run_cleanup, days)
+            
+            now = time.time()
+            # Nettoyage complet (fichiers) toutes les 24h, sinon juste les jobs stale
+            if now - last_full_cleanup > 86400:
+                await asyncio.to_thread(run_cleanup, days)
+                last_full_cleanup = now
+            else:
+                # Juste les jobs stale (plus léger)
+                from backend.state import cleanup_stale_jobs
+                await asyncio.to_thread(cleanup_stale_jobs, 4)
+                
         except asyncio.CancelledError:
             break
         except Exception as e:
             print(f"Erreur dans periodic_cleanup_task: {e}")
         
-        # Pause de 24 heures (86400 secondes)
-        await asyncio.sleep(86400)
+        # Pause de 1 heure (3600 secondes) pour la prochaine vérification de jobs stale
+        await asyncio.sleep(3600)

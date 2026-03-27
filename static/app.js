@@ -655,6 +655,10 @@ if (modelDisplay && modelSelect) {
                     // Job orphelin/erreur : nettoyage
                     clearPendingJob();
                     loadHistory();
+                } else if (data.status === 'uploading') {
+                    // Un upload ne peut pas être "en cours" au chargement de la page (la boucle JS est morte)
+                    clearPendingJob();
+                    loadHistory();
                 } else {
                     // Job reellement en cours : afficher la progression
                     if (uploadBtn) uploadBtn.disabled = true;
