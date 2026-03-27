@@ -2,6 +2,7 @@ import os
 import json
 import requests
 import asyncio
+import shutil
 from backend.core.assistant import AlbertAssistant
 
 # ----------------------------------------------------------------------
@@ -64,8 +65,34 @@ def _call_albert(prompt: str) -> str:
 # Public helpers
 # ----------------------------------------------------------------------
 def words_to_text(words):
-    """Convert a list of dicts {'word': …} to plain text."""
+    """Convert une liste de dictionnaires {'word': …} en texte brut."""
     return " ".join(w.get("word", "").strip() for w in words).strip()
+
+def _ensure_ffmpeg():
+    """
+    Vérifie que ffmpeg est installé dans l'image Docker.
+    En cas d'absence, lève une RuntimeError afin que le conteneur échoue au démarrage.
+    """
+    if not shutil.which("ffmpeg"):
+        raise RuntimeError(
+            "ffmpeg n'est pas installé dans le conteneur Docker. "
+            "Ajoutez `apt-get update && apt-get install -y ffmpeg` dans le Dockerfile."
+        )
+
+def convert_audio(src_path: str, dst_path: str, format: str = "wav") -> str:
+    """
+    Convertit un fichier audio en wav ou mp3 en utilisant pydub.
+    Vérifie la présence de ffmpeg via _ensure_ffmpeg().
+    """
+    _ensure_ffmpeg()
+    from pydub import AudioSegment
+
+    audio = AudioSegment.from_file(src_path)
+    ext = format.lower()
+    if ext not in {"wav", "mp3"}:
+        raise ValueError("Format de sortie non supporté, choisissez 'wav' ou 'mp3'.")
+    audio.export(dst_path, format=ext)
+    return dst_path
 
 
 def summarize_text(text):
