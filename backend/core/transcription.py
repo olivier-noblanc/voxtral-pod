@@ -22,7 +22,8 @@ _ALBERT_MODEL_IDS = frozenset({"albert"})
 # Limite de taille du payload (en Mo) – on vise < 20 Mo
 MAX_PAYLOAD_MB = 19
 # Chunk limit disabled – aucune contrainte de durée fixe ; la segmentation s’appuie sur la taille du payload
-CHUNK_LIMIT_SEC = 10**9  # effectively disabled; tests may patch this value
+# Nous limitons la durée maximale d’un chunk à 30 minutes (1800 s) pour garantir que le MP3 reste < 20 Mo avec le bitrate actuel.
+CHUNK_LIMIT_SEC = 1800
 
 class TranscriptionEngine:
     """
@@ -140,10 +141,16 @@ class TranscriptionEngine:
             end_idx = min(len(audio_np_chunk), int((target_sec + search_range) * sr))
             
             chunk_to_search = audio_np_chunk[start_idx:end_idx]
+            # Si le segment est essentiellement silencieux, on ne coupe pas et on renvoie la cible.
             if len(chunk_to_search) < sr * 0.5:
                 return target_sec
+            # Détection de silence global (énergie très faible)
+            overall_energy = np.sqrt(np.mean(chunk_to_search.astype(np.float64)**2))
+            if overall_energy < 1e-6:
+                # Le chunk est quasi‑silencieux ; on évite de couper dans le blanc.
+                return target_sec
             
-            win_size = int(sr * 0.2) # 200ms
+            win_size = int(sr * 0.2) # 200 ms
             num_wins = len(chunk_to_search) // win_size
             if num_wins == 0:
                 return target_sec
@@ -189,12 +196,14 @@ class TranscriptionEngine:
             wav_buffer.seek(0)
 
             # Conversion du WAV en MP3 avec ffmpeg (ffmpeg‑python)
+            # Conversion du WAV en MP3 avec ffmpeg (ffmpeg‑python) – bitrate fixe à 32 kbit/s (qualité préservée)
             out, err = (
                 ffmpeg
                 .input('pipe:0', format='wav')  # type: ignore
                 .output('pipe:1', format='mp3', audio_bitrate='32k', vbr='on')
                 .run(input=wav_buffer.read(), capture_stdout=True, capture_stderr=True)
             )
+            # out now contains le MP3 du chunk (30 min max) ; la taille devrait rester < 20 Mo avec ce bitrate
             buffer = io.BytesIO(out)
             mime_type = "audio/mpeg"
             file_ext = "mp3"
