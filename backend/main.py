@@ -26,7 +26,10 @@ from backend.config import TRANSCRIPTIONS_DIR
 #     line does not match the expected pattern.
 #   * Return an empty string for empty input.
 # ----------------------------------------------------------------------
+from backend.config import CLEANUP_RETENTION_DAYS
 from backend.utils import format_transcription
+from backend.cleanup import periodic_cleanup_task
+import asyncio
 
 @asynccontextmanager
 async def lifespan(app):
@@ -34,8 +37,10 @@ async def lifespan(app):
     from backend.state import init_db
     init_db()
     get_asr_engine(load_model=False)
+    cleanup_task = asyncio.create_task(periodic_cleanup_task(CLEANUP_RETENTION_DAYS))
     yield
     # shutdown
+    cleanup_task.cancel()
 
 app = FastAPI(title="SOTA ASR Server", version="4.0.0", lifespan=lifespan)
 # trusted_hosts : accepter uniquement les proxies locaux (nginx/caddy sur la même machine)

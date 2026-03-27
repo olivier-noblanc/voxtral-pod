@@ -731,6 +731,7 @@ if (window.__TEST__) {
     fetch("/actions/{filename}");
     fetch("/cleanup/{filename}");
     fetch("/summary/{filename}");
+    fetch("/cleanup");
     fetch("/transcription/{filename}");
     fetch("/transcriptions");
     fetch("/transcriptions/{filename}");

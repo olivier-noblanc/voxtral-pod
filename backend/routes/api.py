@@ -198,13 +198,25 @@ async def generate_cleanup(filename: str, client_id: str):
 
 @router.get("/download_audio/{client_id}/{filename}")
 async def download_audio(client_id: str, filename: str):
-    """Download a WAV audio file from the local filesystem."""
+    """Download a WAV or compressed MP3 audio file from the local filesystem."""
     # Strict isolation: filename must contain the client_id to prevent cross-client access
     if f"_{client_id}_" not in filename:
         raise HTTPException(status_code=403, detail="Accès refusé : ce fichier n'appartient pas à votre session.")
 
+    base_name = os.path.splitext(filename)[0]
+
     for subdir in ("live_audio", "batch_audio"):
         try:
+            # Check for compressed MP3 first
+            mp3_path = _safe_join(TRANSCRIPTIONS_DIR, subdir, base_name + ".mp3")
+            if os.path.isfile(mp3_path):
+                return FileResponse(
+                    mp3_path,
+                    media_type="audio/mpeg",
+                    filename=base_name + ".mp3",
+                    headers={"Content-Disposition": f"attachment; filename={base_name}.mp3"}
+                )
+            # Fallback to WAV
             file_path = _safe_join(TRANSCRIPTIONS_DIR, subdir, filename)
             if os.path.isfile(file_path):
                 return FileResponse(
@@ -584,6 +596,18 @@ async def change_model_route(model: str, request: Request):
     # Pre-warm the model in this worker
     get_asr_engine(load_model=True)
     return {"status": "ok"}
+
+@router.post("/cleanup")
+async def trigger_cleanup(request: Request):
+    """Trigger manual cleanup of old files and jobs."""
+    _require_admin_key(request)
+    from backend.cleanup import run_cleanup
+    from backend.config import CLEANUP_RETENTION_DAYS
+    try:
+        stats = await asyncio.to_thread(run_cleanup, CLEANUP_RETENTION_DAYS)
+        return {"status": "ok", "deleted": stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/batch_chunk")
 async def batch_chunk_route(

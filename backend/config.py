@@ -57,6 +57,7 @@ def setup_warnings():
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRANSCRIPTIONS_DIR = "transcriptions_terminees"
 TEMP_DIR = "temp_batch"
+CLEANUP_RETENTION_DAYS = int(os.getenv("CLEANUP_RETENTION_DAYS", "90"))
 
 os.makedirs(TRANSCRIPTIONS_DIR, exist_ok=True)
 os.makedirs(os.path.join(TRANSCRIPTIONS_DIR, "live_audio"), exist_ok=True)
