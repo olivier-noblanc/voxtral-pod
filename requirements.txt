@@ -28,4 +28,4 @@ numba
 soxr
 boto3
 matplotlib
-scikit-learnmarkdown
+scikit-learn
