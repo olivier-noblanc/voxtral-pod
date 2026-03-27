@@ -13,3 +13,4 @@ pytest_output.txt
 jobs.db
 speaker_profiles.db
 backend/core/audio.py
+test_skips.txt
