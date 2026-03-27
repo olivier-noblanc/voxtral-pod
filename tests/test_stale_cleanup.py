@@ -13,7 +13,7 @@ def test_cleanup_stale_jobs_marks_as_error():
     
     # Simuler une date ancienne (4h30 ago) en UTC
     with get_db() as conn:
-        old_time = (datetime.datetime.utcnow() - datetime.timedelta(hours=4.5)).strftime('%Y-%m-%d %H:%M:%S')
+        old_time = (datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=4.5)).strftime('%Y-%m-%d %H:%M:%S')
         conn.execute("UPDATE jobs SET created_at = ? WHERE job_id = ?", (old_time, job_id))
         conn.commit()
     

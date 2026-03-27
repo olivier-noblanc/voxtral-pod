@@ -85,7 +85,7 @@ def init_db():
         conn.commit()
     cleanup_stuck_jobs()
 
-# init_db()  # Removed automatic DB initialization at import time
+# init_db()  # Initialization deferred to runtime; removed automatic call at import
 
 def get_current_model():
     """

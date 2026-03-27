@@ -1,0 +1,18 @@
+{
+  "typeCheckingMode": "basic",
+  "reportMissingImports": true,
+  "reportOptionalMemberAccess": false,
+  "reportAttributeAccessIssue": false,
+  "reportGeneralTypeIssues": false,
+  "reportArgumentType": false,
+  "reportUnusedVariable": false,
+  "reportUnusedFunction": false,
+  "reportUnusedClass": false,
+  "reportUnusedImport": false,
+  "reportPrivateImportUsage": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownArgumentType": false,
+  "reportUnknownLambdaType": false,
+  "reportUnknownMemberType": false,
+  "reportUnknownParameterType": false
+}

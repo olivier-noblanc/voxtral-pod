@@ -1,6 +1,6 @@
-# conftest.py
-import sys
-import os
+"""Test configuration for the Voxtral Pod project.
 
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "scripts"))  # ← ajouter ça
+This file can be used to define fixtures or configure pytest settings.
+"""
+
+# You can add pytest fixtures here if needed.

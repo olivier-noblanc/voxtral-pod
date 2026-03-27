@@ -3,27 +3,14 @@ import numpy as np
 import threading
 from typing import Optional
 
+# Suppress noisy UserWarning from webrtcvad about pkg_resources
+warnings.filterwarnings("ignore", category=UserWarning, module="webrtcvad")
+
 # Lazy import helper for webrtcvad
 def _lazy_get_webrtcvad():
     """Attempt to import webrtcvad; if unavailable, provide a fallback stub."""
-    try:
-        import webrtcvad
-        return webrtcvad
-    except ImportError:
-        class FakeVad:
-            def __init__(self, *args, **kwargs):
-                pass
-
-            def set_mode(self, mode):
-                pass
-
-            def is_speech(self, frame_bytes, sample_rate):
-                return bool(frame_bytes)
-
-        class FakeModule:
-            Vad = FakeVad
-
-        return FakeModule()
+    import webrtcvad
+    return webrtcvad
 
 
 # Lazy import of silero_vad

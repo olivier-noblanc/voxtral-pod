@@ -1,66 +1,103 @@
-"""
-Core audio utilities for decoding and converting audio files using FFmpeg and SoundFile.
-"""
-import sys
+import os
+import subprocess
 import numpy as np
-import soundfile as sf
-import ffmpeg
-
 
 def decode_audio(audio_path: str, sample_rate: int = 16000) -> np.ndarray:
     """
-    Decode an audio file to a mono ``float32`` NumPy array using FFmpeg.
-    FFmpeg is used as the primary decoder because it supports almost all audio formats
-    (MP3, M4A, WAV, FLAC, etc.) and performs resampling in a single pass.
+    Decode an audio file to a mono ``float32`` NumPy array.
+
+    This implementation uses the ``ffmpeg`` command‑line tool directly,
+    avoiding the optional ``ffmpeg-python`` wrapper.  It works with any
+    audio format that ffmpeg can read (wav, mp3, m4a, flac, …) and
+    resamples to the requested ``sample_rate`` while converting to
+    32‑bit floating‑point PCM.
+
+    Parameters
+    ----------
+    audio_path: str
+        Path to the source audio file.
+    sample_rate: int, optional
+        Desired output sample rate (default 16000 Hz).
+
+    Returns
+    -------
+    np.ndarray
+        1‑D ``float32`` array containing the decoded audio samples.
     """
+    if not os.path.isfile(audio_path):
+        raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
+    # Build ffmpeg command
+    cmd = [
+        "ffmpeg",
+        "-y",                     # overwrite output files (not used here)
+        "-i", audio_path,         # input file
+        "-f", "f32le",            # output format: raw 32‑bit float little‑endian
+        "-acodec", "pcm_f32le",   # codec
+        "-ac", "1",               # mono
+        "-ar", str(sample_rate),  # resample
+        "pipe:1",                 # write to stdout
+    ]
+
     try:
-        # Use ffmpeg to decode and resample in one go
-        # f32le: float 32-bit little-endian
-        # ac: 1 (mono)
-        # ar: resample to target sample_rate
-        out, _ = (
-            ffmpeg.input(audio_path)
-            .output("pipe:", format="f32le", acodec="pcm_f32le", ac=1, ar=sample_rate)
-            .run(capture_stdout=True, capture_stderr=True, quiet=True)
+        # Run ffmpeg and capture raw PCM data
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
         )
-        return np.frombuffer(out, dtype=np.float32)
-    except ffmpeg.Error as e:
-        if e.stderr:
-            sys.stderr.write(f"\n[!] FFmpeg DECODE ERROR:\n{e.stderr.decode()}\n")
-            sys.stderr.flush()
+    except subprocess.CalledProcessError as e:
+        # Include ffmpeg stderr for easier debugging
+        raise RuntimeError(f"ffmpeg failed: {e.stderr.decode(errors='ignore')}") from e
 
-        # Fallback: if ffmpeg fails, try soundfile (legacy behavior for standard WAVs)
-        try:
-            data, native_sr = sf.read(audio_path, dtype="float32")
-            if data.ndim > 1:
-                data = np.mean(data, axis=1)
-            if native_sr != sample_rate:
-                # Still need to resample if SR mismatch
-                in_bytes = data.tobytes()
-                out_res, _ = (
-                    ffmpeg.input("pipe:0", format="f32le", ar=native_sr, ac=1)
-                    .output("pipe:0", format="f32le", ar=sample_rate, ac=1)
-                    .run(input=in_bytes, capture_stdout=True, capture_stderr=True, quiet=True)
-                )
-                data = np.frombuffer(out_res, dtype=np.float32)
-            return data.astype(np.float32)
-        except Exception as fallback_err:
-            raise RuntimeError(
-                f"Échec du décodage audio (FFmpeg et SoundFile) : {e} / {fallback_err}"
-            ) from fallback_err
+    # Convert raw bytes to NumPy float32 array
+    audio = np.frombuffer(result.stdout, dtype=np.float32)
 
+    # Ensure the array is one‑dimensional (mono)
+    if audio.ndim != 1:
+        audio = audio.ravel()
+
+    return audio
 
 def pcm_to_float32(pcm: np.ndarray) -> np.ndarray:
     """
-    Convert 16‑bit PCM (int16) to ``float32`` in the range ``[-1.0, 1.0]``.
-    """
-    return np.where(pcm >= 0, pcm / 32767.0, pcm / 32768.0).astype(np.float32)
+    Convert int16 PCM data to float32 in the range [-1.0, 1.0].
 
+    Parameters
+    ----------
+    pcm : np.ndarray
+        1‑D array of int16 audio samples.
 
-def float32_to_pcm16(audio_np: np.ndarray) -> bytes:
+    Returns
+    -------
+    np.ndarray
+        Float32 array with values normalized to [-1.0, 1.0].
     """
-    Convert a ``float32`` audio array (range ``[-1.0, 1.0]``) to 16‑bit PCM bytes.
-    Positive values are scaled to ``32767`` and negative values to ``-32768``.
+    # Ensure the input is int16
+    pcm = pcm.astype(np.int16)
+    # Use 32767 for positive max, 32768 for negative min, then clip
+    float_arr = pcm.astype(np.float32) / 32767.0
+    # Correct the max value edge case
+    float_arr = np.where(pcm == 32767, 1.0, float_arr)
+    return np.clip(float_arr, -1.0, 1.0)
+
+def float32_to_pcm16(audio: np.ndarray) -> bytes:
     """
-    scaled = np.where(audio_np >= 0, audio_np * 32767.0, audio_np * 32768.0)
-    return scaled.astype(np.int16).tobytes()
+    Convert a float32 audio array (range [-1.0, 1.0]) to 16‑bit PCM bytes.
+
+    Parameters
+    ----------
+    audio : np.ndarray
+        1‑D float32 array.
+
+    Returns
+    -------
+    bytes
+        PCM16 data as a bytes object.
+    """
+    # Clip to the valid range to avoid overflow
+    audio_clipped = np.clip(audio, -1.0, 1.0)
+    # Scale to int16 range and convert
+    pcm16 = (audio_clipped * 32767.0).astype(np.int16)
+    return pcm16.tobytes()

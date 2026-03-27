@@ -5,6 +5,7 @@ Gère Whisper (local), Vosk (local) et l'API Albert (distant).
 import os
 import io
 import sys
+from typing import Any
 import time
 import requests
 import numpy as np
@@ -27,13 +28,10 @@ class TranscriptionEngine:
         if device:
             self.device = device
         else:
-            try:
-                import torch
-                self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            except ImportError:
-                self.device = "cpu"
+            import torch
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        self.model = None
+        self.model: Any = None
         self.albert_api_key = os.getenv("ALBERT_API_KEY")
         self.albert_base_url = os.getenv("ALBERT_BASE_URL", "https://albert.api.etalab.gouv.fr/v1")
         self.albert_model_id = os.getenv("ALBERT_MODEL_ID", "openai/whisper-large-v3")
@@ -80,7 +78,7 @@ class TranscriptionEngine:
         duration = len(audio_np) / 16000
 
         if self.model_id == "whisper":
-            segments, info = self.model.transcribe(
+            segments, info = self.model.transcribe(  # type: ignore
                 audio_np,
                 beam_size=5,
                 language=language,
@@ -177,37 +175,13 @@ class TranscriptionEngine:
             
             import ffmpeg
             
-            # 1. Compression MP3
-            try:
-                import ffmpeg
-                from backend.core.audio import float32_to_pcm16
-                pcm16_bytes = float32_to_pcm16(chunk_audio)
-                out, _ = (
-                    ffmpeg.input("pipe:0", format="s16le", ar=16000, ac=1)
-                    .output("pipe:0", format="mp3", acodec="libmp3lame", audio_bitrate="48k")
-                    .run(input=pcm16_bytes, capture_stdout=True, capture_stderr=True, quiet=True)
-                )
-                buffer = io.BytesIO(out)
-                mime_type = "audio/mpeg"
-                file_ext = "mp3"
-            except Exception as e: # pylint: disable=broad-except
-                import traceback
-                import soundfile as sf
-                error_detail = f"\n[!] ERREUR CRITIQUE COMPRESSION MP3 (Tranche {idx+1})\n"
-                error_detail += f"[!] Erreur: {e}\n"
-                
-                # Write to both stdout and stderr to be sure
-                sys.stderr.write(error_detail)
-                sys.stderr.flush()
-                print(error_detail)
-                sys.stdout.flush()
-                traceback.print_exc()
-                
-                buffer = io.BytesIO()
-                sf.write(buffer, chunk_audio, 16000, format='WAV', subtype='PCM_16')
-                buffer.seek(0)
-                mime_type = "audio/wav"
-                file_ext = "wav"
+            # 1. Compression (fallback to WAV)
+            import soundfile as sf
+            buffer = io.BytesIO()
+            sf.write(buffer, chunk_audio, 16000, format='WAV', subtype='PCM_16')
+            buffer.seek(0)
+            mime_type = "audio/wav"
+            file_ext = "wav"
 
             # 2. Diagnostics détaillés
             raw_bytes = buffer.getvalue()
@@ -228,9 +202,9 @@ class TranscriptionEngine:
             last_err = None
             response = None
             for attempt in range(3):
+                start_req = time.time()
                 try:
                     buffer.seek(0)
-                    start_req = time.time()
                     print(f"[*] Tentative {attempt+1}/3 - Envoi en cours...")
                     response = requests.post(f"{self.albert_base_url}/audio/transcriptions", headers=headers, files=files, data=data, timeout=1800)
                     end_req = time.time()

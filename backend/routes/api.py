@@ -7,17 +7,53 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Reque
 from fastapi.responses import HTMLResponse, FileResponse, Response
 from html import escape as html_escape
 from backend.html_ui import HTML_UI
-import markdown
+import re
+import importlib.util
+
+_markdown_spec = importlib.util.find_spec("markdown")
+if _markdown_spec is not None:
+    import markdown as _markdown_lib
+    markdown = _markdown_lib
+else:
+    # Simple fallback markdown renderer handling headings, lists, and bold
+    class _FallbackMarkdown:
+        @staticmethod
+        def markdown(text, **kwargs):
+            """
+            Very small markdown subset renderer handling headings, lists, and bold.
+            """
+            # Convert **bold** to <strong> tags
+            text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+
+            lines = text.splitlines()
+            html_lines = []
+            in_list = False
+            for line in lines:
+                stripped = line.strip()
+                if stripped.startswith("### "):
+                    if in_list:
+                        html_lines.append("</ul>")
+                        in_list = False
+                    html_lines.append(f"<h3>{stripped[4:].strip()}</h3>")
+                elif stripped.startswith("- "):
+                    if not in_list:
+                        html_lines.append("<ul>")
+                        in_list = True
+                    html_lines.append(f"<li>{stripped[2:].strip()}</li>")
+                else:
+                    if in_list:
+                        html_lines.append("</ul>")
+                        in_list = False
+                    html_lines.append(line)
+            if in_list:
+                html_lines.append("</ul>")
+            return "\n".join(html_lines)
+    markdown = _FallbackMarkdown()
 
 # Import shared state (no import of server_asr_ref)
 from backend.state import get_job, update_job, add_job, JOBS_DB_MAX_SIZE, get_asr_engine, get_current_model, set_current_model
 from backend.config import TEMP_DIR, TRANSCRIPTIONS_DIR, BASE_DIR
 from backend.utils import format_transcription
-
-# Lazy import of speaker_profiles to avoid eager module loading during test collection.
-# This prevents the module from being cached before environment variables (e.g., SPEAKER_PROFILES_DB)
-# are set in tests that import this API module.
-# The actual import is performed inside the endpoint functions that need it.
 
 router = APIRouter()
 
@@ -484,7 +520,7 @@ async def upsert_speaker_profile(payload: dict) -> Union[dict, None]:
 def _extract_and_save_profile_sync(audio_path: str, start_s: float, end_s: float, speaker_id: str):
     import os
     if not os.path.isfile(audio_path):
-        print(f"[!] Audio file {audio_path} not found for embedding extraction.")
+        print(f"[!] Audio file {audio_path} not found for profile extraction.")
         return
     try:
         from resemblyzer import preprocess_wav, VoiceEncoder
@@ -565,7 +601,6 @@ async def update_segment_speaker(payload: dict, background_tasks: BackgroundTask
     with open(file_path, "w", encoding="utf-8") as f:
         f.writelines(lines)
     return {"status": "ok"}
-
 
 # ---------- POST routes ----------
 @router.post("/git_update")
@@ -688,7 +723,7 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
         # En cas de plantage (OOM, fichier illisible, API Albert HS, etc.), informer directement le client
         from backend.state import update_job
         update_job(file_id, {"status": "erreur", "progress": 0, "error_details": str(e)})
-
+    
     finally:
         # Cleanup temporary files (exécuté quoi qu'il arrive)
         try:
@@ -702,7 +737,7 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
 
 async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp: str):
     """Process the final live audio file as a background job using Diarization."""
-    print(f"[*] Starting Live Final Job for {job_id} (Client: {client_id})")
+    print(f"[*] Starting Live Final Job for {job_id} (client: {client_id})")
     try:
         _update_job_status(job_id, "processing:Transcription avancée...", 5)
         engine = get_asr_engine(load_model=True)
