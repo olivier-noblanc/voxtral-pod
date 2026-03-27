@@ -5,7 +5,7 @@ Tests de non-régression pour les 5 avertissements 🟡 corrigés :
   1. f-string no_gpu correctement interpolée dans la home route
   2. init_db() appelé uniquement via startup event (pas au module-level)
   3. _assemble_chunks() fonctionne correctement (I/O sync extraite)
-  4. audio_np recalculé une seule fois dans LiveSession.save_audio_file
+  4. audio_np recalculé une seule fois dans LiveSession.save_wav_only
   5. ProxyHeadersMiddleware a des trusted_hosts configurés
 """
 import os
@@ -115,9 +115,9 @@ def test_assemble_chunks(tmp_path):
 
 # ── 4. audio_np non doublé dans LiveSession ─────────────────────────────────
 
-def test_save_audio_file_no_duplicate_audio_np():
+def test_save_wav_only_no_duplicate_audio_np():
     """
-    Vérifier via AST qu'audio_np n'est pas assigné deux fois dans save_audio_file.
+    Vérifier via AST qu'audio_np n'est pas assigné deux fois dans save_wav_only.
     """
     import ast, pathlib
 
@@ -125,7 +125,7 @@ def test_save_audio_file_no_duplicate_audio_np():
     tree = ast.parse(src)
 
     for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "save_audio_file":
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "save_wav_only":
             assignments = [
                 n for n in ast.walk(node)
                 if isinstance(n, ast.Assign)
@@ -136,11 +136,11 @@ def test_save_audio_file_no_duplicate_audio_np():
             ]
             count = len(assignments)
             assert count == 1, (
-                f"audio_np est assigné {count} fois dans save_audio_file, attendu 1"
+                f"audio_np est assigné {count} fois dans save_wav_only, attendu 1"
             )
             return
 
-    pytest.fail("Fonction save_audio_file introuvable dans live.py")
+    pytest.fail("Fonction save_wav_only introuvable dans live.py")
 
 
 # ── 5. ProxyHeadersMiddleware avec trusted_hosts ────────────────────────────

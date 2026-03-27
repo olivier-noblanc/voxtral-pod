@@ -1,67 +1,172 @@
-============================= test session starts =============================
-platform win32 -- Python 3.13.11, pytest-9.0.2, pluggy-1.5.0
-rootdir: C:\Users\raver\.gemini\antigravity\scratch\voxtral_pod
-plugins: anyio-4.12.1
-collected 24 items
-
-tests\test_audio.py .F.                                                  [ 12%]
-tests\test_dom_contract.py ...                                           [ 25%]
-tests\test_download_routes.py ...                                        [ 37%]
-tests\test_format_transcription.py .x..                                  [ 54%]
-tests\test_merger.py ......                                              [ 79%]
-tests\test_pylint_errors.py .                                            [ 83%]
-tests\test_routes_contract.py ..                                         [ 91%]
-tests\test_state_jobs_db.py ..                                           [100%]
-
+........................................................................ [ 26%]
+........................................................................ [ 52%]
+........................................................................ [ 78%]
+.............................FFFF.......................F...             [100%]
 ================================== FAILURES ===================================
-______________________ test_pcm_to_float32_normalization ______________________
+_____________________ test_save_audio_file_string_return ______________________
 
-    def test_pcm_to_float32_normalization():
+tmp_path = WindowsPath('C:/Users/raver/AppData/Local/Temp/pytest-of-raver/pytest-72/test_save_audio_file_string_re0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000229BF885A50>
+
+    def test_save_audio_file_string_return(tmp_path, monkeypatch):
+        monkeypatch.setattr("backend.core.live.TRANSCRIPTIONS_DIR", str(tmp_path))
+        session = _build_session(_EngineWithStringTranscribe(), tmp_path)
+        async def run():
+            return await session.save_audio_file()
+>       result = asyncio.run(run())
+                 ^^^^^^^^^^^^^^^^^^
+
+tests\test_save_audio_file.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\..\..\scoop\apps\python311\current\Lib\asyncio\runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+..\..\..\scoop\apps\python311\current\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\scoop\apps\python311\current\Lib\asyncio\base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+>       return await session.save_audio_file()
+                     ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'LiveSession' object has no attribute 'save_audio_file'
+
+tests\test_save_audio_file.py:55: AttributeError
+__________________ test_save_audio_file_tuple_string_return ___________________
+
+tmp_path = WindowsPath('C:/Users/raver/AppData/Local/Temp/pytest-of-raver/pytest-72/test_save_audio_file_tuple_str0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000229BF759890>
+
+    def test_save_audio_file_tuple_string_return(tmp_path, monkeypatch):
+        monkeypatch.setattr("backend.core.live.TRANSCRIPTIONS_DIR", str(tmp_path))
+        session = _build_session(_EngineWithTupleStringTranscribe(), tmp_path, "user_satest2")
+        async def run():
+            return await session.save_audio_file()
+>       result = asyncio.run(run())
+                 ^^^^^^^^^^^^^^^^^^
+
+tests\test_save_audio_file.py:69: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\..\..\scoop\apps\python311\current\Lib\asyncio\runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+..\..\..\scoop\apps\python311\current\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\scoop\apps\python311\current\Lib\asyncio\base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+>       return await session.save_audio_file()
+                     ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'LiveSession' object has no attribute 'save_audio_file'
+
+tests\test_save_audio_file.py:68: AttributeError
+____________________ test_save_audio_file_word_list_return ____________________
+
+tmp_path = WindowsPath('C:/Users/raver/AppData/Local/Temp/pytest-of-raver/pytest-72/test_save_audio_file_word_list0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000229BF81C310>
+
+    def test_save_audio_file_word_list_return(tmp_path, monkeypatch):
+        monkeypatch.setattr("backend.core.live.TRANSCRIPTIONS_DIR", str(tmp_path))
+        session = _build_session(_EngineWithWordListTranscribe(), tmp_path, "user_satest3")
+        async def run():
+            return await session.save_audio_file()
+>       result = asyncio.run(run())
+                 ^^^^^^^^^^^^^^^^^^
+
+tests\test_save_audio_file.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\..\..\scoop\apps\python311\current\Lib\asyncio\runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+..\..\..\scoop\apps\python311\current\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\scoop\apps\python311\current\Lib\asyncio\base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+>       return await session.save_audio_file()
+                     ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'LiveSession' object has no attribute 'save_audio_file'
+
+tests\test_save_audio_file.py:80: AttributeError
+________________________ test_save_audio_file_no_audio ________________________
+
+tmp_path = WindowsPath('C:/Users/raver/AppData/Local/Temp/pytest-of-raver/pytest-72/test_save_audio_file_no_audio0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000229BF884DD0>
+
+    def test_save_audio_file_no_audio(tmp_path, monkeypatch):
+        monkeypatch.setattr("backend.core.live.TRANSCRIPTIONS_DIR", str(tmp_path))
+        session = _build_session(_EngineWithStringTranscribe(), tmp_path, "user_satest4")
+        session.full_session_audio = []
+        async def run():
+            return await session.save_audio_file()
+>       result = asyncio.run(run())
+                 ^^^^^^^^^^^^^^^^^^
+
+tests\test_save_audio_file.py:94: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\..\..\scoop\apps\python311\current\Lib\asyncio\runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+..\..\..\scoop\apps\python311\current\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\scoop\apps\python311\current\Lib\asyncio\base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+>       return await session.save_audio_file()
+                     ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'LiveSession' object has no attribute 'save_audio_file'
+
+tests\test_save_audio_file.py:93: AttributeError
+_________________ test_save_audio_file_no_duplicate_audio_np __________________
+
+    def test_save_audio_file_no_duplicate_audio_np():
         """
-        Verify that the conversion from int16 PCM to float32 normalizes correctly.
+        V�rifier via AST qu'audio_np n'est pas assign� deux fois dans save_audio_file.
         """
-        max_int16 = np.int16(32767)
-        min_int16 = np.int16(-32768)
+        import ast, pathlib
     
-        max_float = pcm_to_float32(np.array([max_int16], dtype=np.int16))
-        min_float = pcm_to_float32(np.array([min_int16], dtype=np.int16))
+        src = pathlib.Path("backend/core/live.py").read_text(encoding="utf-8")
+        tree = ast.parse(src)
     
-        # Expected values are approximately 1.0 and -1.0
-        assert np.isclose(max_float[0], 1.0, atol=1e-5)
->       assert np.isclose(min_float[0], -1.0, atol=1e-5)
-E       assert np.False_
-E        +  where np.False_ = <function isclose at 0x00000235A81153B0>(np.float32(-1.0000305), -1.0, atol=1e-05)
-E        +    where <function isclose at 0x00000235A81153B0> = np.isclose
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "save_audio_file":
+                assignments = [
+                    n for n in ast.walk(node)
+                    if isinstance(n, ast.Assign)
+                    and any(
+                        isinstance(t, ast.Name) and t.id == "audio_np"
+                        for t in n.targets
+                    )
+                ]
+                count = len(assignments)
+                assert count == 1, (
+                    f"audio_np est assign� {count} fois dans save_audio_file, attendu 1"
+                )
+                return
+    
+>       pytest.fail("Fonction save_audio_file introuvable dans live.py")
+E       Failed: Fonction save_audio_file introuvable dans live.py
 
-tests\test_audio.py:64: AssertionError
-============================== warnings summary ===============================
-backend\main.py:71
-  C:\Users\raver\.gemini\antigravity\scratch\voxtral_pod\backend\main.py:71: DeprecationWarning: 
-          on_event is deprecated, use lifespan event handlers instead.
-  
-          Read more about it in the
-          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
-          
-    @app.on_event("startup")
-
-..\..\..\..\scoop\apps\miniconda3\current\Lib\site-packages\fastapi\applications.py:4598
-  C:\Users\raver\scoop\apps\miniconda3\current\Lib\site-packages\fastapi\applications.py:4598: DeprecationWarning: 
-          on_event is deprecated, use lifespan event handlers instead.
-  
-          Read more about it in the
-          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
-          
-    return self.router.on_event(event_type)  # ty: ignore[deprecated]
-
-tests/test_audio.py::test_decode_audio_returns_float32
-  C:\Users\raver\scoop\apps\miniconda3\current\Lib\site-packages\audioread\rawread.py:16: DeprecationWarning: aifc was removed in Python 3.13. Please be aware that you are currently NOT using standard 'aifc', but instead a separately installed 'standard-aifc'.
-    import aifc
-
-tests/test_audio.py::test_decode_audio_returns_float32
-  C:\Users\raver\scoop\apps\miniconda3\current\Lib\site-packages\audioread\rawread.py:19: DeprecationWarning: sunau was removed in Python 3.13. Please be aware that you are currently NOT using standard 'sunau', but instead a separately installed 'standard-sunau'.
-    import sunau
-
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+tests\test_warnings_fixes.py:143: Failed
 =========================== short test summary info ===========================
-FAILED tests/test_audio.py::test_pcm_to_float32_normalization - assert np.False_
-============= 1 failed, 22 passed, 1 xfailed, 4 warnings in 6.25s =============
+FAILED tests/test_save_audio_file.py::test_save_audio_file_string_return - At...
+FAILED tests/test_save_audio_file.py::test_save_audio_file_tuple_string_return
+FAILED tests/test_save_audio_file.py::test_save_audio_file_word_list_return
+FAILED tests/test_save_audio_file.py::test_save_audio_file_no_audio - Attribu...
+FAILED tests/test_warnings_fixes.py::test_save_audio_file_no_duplicate_audio_np
+5 failed, 271 passed in 12.95s

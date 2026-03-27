@@ -163,3 +163,21 @@ def test_pending_job_cleared_on_network_error():
         "The .catch() handler does not clean up pending_job — "
         "a network error will permanently disable the upload button."
     )
+
+def test_live_polling_initialization():
+    """
+    Regression guard: Ensure that when a live session ends, the app uses
+    `window.currentLiveSessionId` to start polling via `pollStatus()`
+    instead of relying on hardcoded timeouts.
+    """
+    content = APP_JS_PATH.read_text(encoding="utf-8")
+    
+    assert "currentLiveSessionId" in content, (
+        "currentLiveSessionId is missing. The frontend must track the live session ID."
+    )
+    assert "session_id=" in content, (
+        "session_id parameter is not passed to the WebSocket URL."
+    )
+    assert "pollStatus(window.currentLiveSessionId)" in content, (
+        "pollStatus must be called with the live session ID when recording stops."
+    )

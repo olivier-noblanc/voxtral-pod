@@ -125,6 +125,8 @@ async function startRecording() {
         if (selectedAudioDeviceId && selectedAudioDeviceId !== "default") {
             wsUrl += `&device_id=${encodeURIComponent(selectedAudioDeviceId)}`;
         }
+        window.currentLiveSessionId = "live_final_" + Date.now();
+        wsUrl += '&session_id=' + encodeURIComponent(window.currentLiveSessionId);
         ws = new WebSocket(wsUrl);
         console.log('WebSocket opened to', wsUrl);
         ws.binaryType = 'arraybuffer';
@@ -289,16 +291,20 @@ function stopRecording() {
         row.className = "sentence-row finalized";
         row.style.marginTop = "1rem";
         row.style.color = "var(--text-action-high-blue-france)";
-        row.innerHTML = "<strong>⏳ Enregistrement terminé. Repasse finale de l'IA en cours... Le fichier fiable apparaîtra dans l'historique d'ici quelques instants.</strong>";
+        row.innerHTML = "<strong>⏳ Enregistrement terminé. Traitement final en arrière-plan en cours...</strong>";
         box.appendChild(row);
         box.scrollTop = box.scrollHeight;
     }
 
-    // On poll l'historique quelques fois pour laisser le temps au serveur 
-    // de générer le fichier texte final via Whispher.
-    setTimeout(loadHistory, 3000);
-    setTimeout(loadHistory, 8000);
-    setTimeout(loadHistory, 15000);
+    if (window.currentLiveSessionId) {
+        localStorage.setItem('pending_job', window.currentLiveSessionId);
+        pollStatus(window.currentLiveSessionId);
+        window.currentLiveSessionId = null;
+    } else {
+        setTimeout(loadHistory, 3000);
+        setTimeout(loadHistory, 8000);
+        setTimeout(loadHistory, 15000);
+    }
     if (audioContext) { audioContext.close(); audioContext = null; }
     if (audioStream) { 
         audioStream.getTracks().forEach(track => track.stop()); 

@@ -59,5 +59,32 @@ def test_configuration_flags_are_respected():
         assert torch.backends.cudnn.allow_tf32 is True, "allow_tf32 doit être activé sur cuDNN"
     else:
         # En l'absence de GPU, le flag reste False mais aucune exception ne doit être levée
+        # En l'absence de GPU, le flag reste False mais aucune exception ne doit être levée
         assert torch.backends.cuda.matmul.allow_tf32 is False
         assert torch.backends.cudnn.allow_tf32 is False
+
+def test_live_websocket_session_id_job_registration():
+    """
+    Vérifie que la déconnexion de la WebSocket Live enregistre bien un job
+    BackgroundTasks sous le nom du `session_id` fourni par le client.
+    """
+    from backend.state import get_job
+    import numpy as np
+    import time
+    from unittest.mock import patch, MagicMock
+
+    # Create 0.5s of silent 16000Hz PCM16 audio
+    dummy_audio = np.zeros(16000, dtype=np.int16).tobytes()
+
+    mock_engine = MagicMock()
+    mock_engine.load = MagicMock()
+
+    with patch("backend.routes.api.get_asr_engine", return_value=mock_engine):
+        with client.websocket_connect("/live?client_id=user_testws&session_id=live_test_999") as websocket:
+            websocket.send_bytes(dummy_audio)
+    
+    # The finally block runs when the context manager exits.
+    time.sleep(0.5) # Yield slightly for async tasks to register the job
+    job = get_job("live_test_999", default=None)
+    assert job is not None, "Le job n'a pas été enregistré avec le session_id."
+    assert "status" in job, "Le job n'a pas de statut."

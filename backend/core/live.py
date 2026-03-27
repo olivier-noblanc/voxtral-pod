@@ -102,11 +102,10 @@ class LiveSession:
                         if len(pcm_data) >= self.min_segment_bytes:
                             await self._transcribe_segment(pcm_data, final=True)
 
-    async def save_audio_file(self) -> str | None:
-        """Sauvegarde les données audio de la session dans un fichier WAV valide,
-        puis génère une transcription complète propre du fichier audio."""
+    async def save_wav_only(self) -> tuple[str, str]:
+        """Sauvegarde les données audio de la session dans un fichier WAV valide."""
         if not self.full_session_audio:
-            return None
+            return None, None
 
         # ---------- Enregistrement du fichier WAV ----------
         audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "live_audio")
@@ -125,45 +124,7 @@ class LiveSession:
         abs_wav_path = os.path.abspath(wav_path)
         print(f"[*] [{self.client_id}] Audio saved: {wav_filename} ({len(pcm_bytes) / 1024:.1f} KB) at {abs_wav_path}")
 
-        # ---------- Transcription complète du fichier audio ----------
-        # audio_np déjà calculé ci-dessus — pas besoin de le recalculer
-
-        # Utiliser le moteur de transcription pour obtenir le texte complet.
-        # transcribe() peut retourner :
-        #   - (list[dict{"word":...}], metadata)  → whisper/voxtral
-        #   - (str, metadata)                      → albert text-only
-        #   - str                                  → mock direct
-        result = await asyncio.to_thread(self.engine.transcription_engine.transcribe, audio_np)
-        if isinstance(result, tuple):
-            words_or_text, _ = result
-        else:
-            words_or_text = result
-
-        if isinstance(words_or_text, str):
-            full_text = words_or_text.strip()
-        elif isinstance(words_or_text, list) and words_or_text and isinstance(words_or_text[0], dict):
-            full_text = " ".join(w.get("word", "") for w in words_or_text).strip()
-        else:
-            full_text = str(words_or_text).strip()
-
-        # Enregistrer la transcription propre dans un fichier .txt à côté du wav
-        txt_filename = f"live_{self.client_id}_{timestamp}.txt"
-        txt_path = os.path.join(audio_dir, txt_filename)
-        with open(txt_path, "w", encoding="utf-8") as txt_file:
-            txt_file.write(full_text)
-        abs_txt_path = os.path.abspath(txt_path)
-        print(f"[*] [{self.client_id}] Full transcription saved: {txt_filename} at {abs_txt_path}")
-
-        # ---------- Copier la transcription dans le répertoire client ----------
-        # Le nom dans le client_dir suit le schéma batch : live_{timestamp}.txt (sans client_id)
-        # pour que le frontend puisse reconstituer correctement le nom du fichier audio
-        client_dir = os.path.join(TRANSCRIPTIONS_DIR, self.client_id)
-        os.makedirs(client_dir, exist_ok=True)
-        client_txt_name = f"live_{timestamp}.txt"
-        shutil.copy(txt_path, os.path.join(client_dir, client_txt_name))
-        print(f"[*] [{self.client_id}] Copied transcription to client dir: {client_dir}/{client_txt_name}")
-
-        return wav_filename
+        return wav_path, timestamp
 
     async def _transcribe_segment(self, pcm_data: bytes, final: bool = True):
         """Invoke engine transcription and send via WS."""

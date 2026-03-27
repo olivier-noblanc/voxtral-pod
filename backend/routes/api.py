@@ -676,9 +676,37 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
         except Exception:
             pass
 
+async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp: str):
+    """Process the final live audio file as a background job using Diarization."""
+    print(f"[*] Starting Live Final Job for {job_id} (Client: {client_id})")
+    try:
+        _update_job_status(job_id, "processing:Transcription avancée...", 5)
+        engine = get_asr_engine(load_model=True)
+        
+        def progress_callback(step: str, pct: int):
+            pct = max(0, min(100, pct))
+            print(f"[*] [LiveFinal {job_id}] {step} : {pct}%")
+            _update_job_status(job_id, f"processing:{step}", pct)
+            
+        transcript = await engine.process_file(wav_path, progress_callback=progress_callback)
+        
+        # Save transcript in client‑specific directory
+        client_dir = os.path.join(TRANSCRIPTIONS_DIR, client_id)
+        os.makedirs(client_dir, exist_ok=True)
+        txt_name = f"live_{timestamp}.txt"
+        txt_path = os.path.join(client_dir, txt_name)
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(transcript)
+            
+        add_job(job_id, {"status": "terminé", "progress": 100, "result_file": txt_name})
+    except Exception as e:
+        print(f"[!] Error in Live Final Job {job_id}: {e}")
+        from backend.state import update_job
+        update_job(job_id, {"status": "erreur", "progress": 0, "error_details": str(e)})
+
 # ---------- WebSocket ----------
 @router.websocket("/live")
-async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", partial_albert: bool = False, device_id: str = None):
+async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", partial_albert: bool = False, device_id: str = None, session_id: str = None):
     """WebSocket endpoint for live transcription."""
     if not client_id or client_id == "anonymous" or not client_id.startswith("user_"):
         # On ne peut pas lever HTTPException ici, on ferme la socket
@@ -700,6 +728,9 @@ async def live_endpoint(websocket: WebSocket, client_id: str = "anonymous", part
         await session.audio_queue.put(None)
         await processor
         if session.full_session_audio:
-            # Lancement de la transcription finale de manière asynchrone
-            # pour qu'elle puisse se terminer même si la socket est coupée
-            asyncio.create_task(session.save_audio_file())
+            # Sauvegarder l'audio et déclencher le traitement asynchrone type batch
+            wav_path, timestamp = await session.save_wav_only()
+            if wav_path:
+                job_id = session_id if session_id else f"live_final_{timestamp}"
+                add_job(job_id, {"status": "en_attente", "progress": 0})
+                asyncio.create_task(_live_final_job(wav_path, job_id, client_id, timestamp))
