@@ -9,6 +9,10 @@ from typing import Any
 import time
 import requests
 import numpy as np
+import ffmpeg
+import soundfile as sf
+import subprocess
+from backend.core.postprocess import _ensure_ffmpeg
 
 # Propriété utilitaire : nom des modèles qui utilisent l'API Albert
 _ALBERT_MODEL_IDS = frozenset({"albert"})
@@ -173,15 +177,24 @@ class TranscriptionEngine:
 
             chunk_audio = audio_np[int(start_time*16000) : int((start_time+duration)*16000)]
             
-            import ffmpeg
-            
-            # 1. Compression (fallback to WAV)
-            import soundfile as sf
-            buffer = io.BytesIO()
-            sf.write(buffer, chunk_audio, 16000, format='WAV', subtype='PCM_16')
-            buffer.seek(0)
-            mime_type = "audio/wav"
-            file_ext = "wav"
+            # 1. Compression (fallback to MP3) – utilise ffmpeg via ffmpeg‑python
+            # Vérifie que ffmpeg est disponible
+            _ensure_ffmpeg()
+            # Écriture temporaire du WAV en mémoire
+            wav_buffer = io.BytesIO()
+            sf.write(wav_buffer, chunk_audio, 16000, format='WAV', subtype='PCM_16')
+            wav_buffer.seek(0)
+
+            # Conversion du WAV en MP3 avec ffmpeg (ffmpeg‑python)
+            out, err = (
+                ffmpeg
+                .input('pipe:0', format='wav')
+                .output('pipe:1', format='mp3', audio_bitrate='64k')
+                .run(input=wav_buffer.read(), capture_stdout=True, capture_stderr=True)
+            )
+            buffer = io.BytesIO(out)
+            mime_type = "audio/mpeg"
+            file_ext = "mp3"
 
             # 2. Diagnostics détaillés
             raw_bytes = buffer.getvalue()

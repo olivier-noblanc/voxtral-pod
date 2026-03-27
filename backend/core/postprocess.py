@@ -70,18 +70,19 @@ def words_to_text(words):
 
 def _ensure_ffmpeg():
     """
-    Vérifie que ffmpeg est installé dans l'image Docker.
-    En cas d'absence, lève une RuntimeError afin que le conteneur échoue au démarrage.
+    Vérifie que ffmpeg est installé sur le système.
+    Le script run.sh s'occupe déjà de l'installation via le gestionnaire de paquets
+    (apt-get, yum, etc.). Si ffmpeg n'est pas trouvé, une RuntimeError est levée.
     """
     if not shutil.which("ffmpeg"):
         raise RuntimeError(
-            "ffmpeg n'est pas installé dans le conteneur Docker. "
-            "Ajoutez `apt-get update && apt-get install -y ffmpeg` dans le Dockerfile."
+            "ffmpeg n'est pas installé sur le système. "
+            "Le script run.sh devrait l'installer automatiquement."
         )
 
-def convert_audio(src_path: str, dst_path: str, format: str = "wav") -> str:
+def convert_audio(src_path: str, dst_path: str, format: str = "mp3") -> str:
     """
-    Convertit un fichier audio en wav ou mp3 en utilisant pydub.
+    Convertit un fichier audio en mp3 en utilisant pydub.
     Vérifie la présence de ffmpeg via _ensure_ffmpeg().
     """
     _ensure_ffmpeg()
@@ -89,8 +90,8 @@ def convert_audio(src_path: str, dst_path: str, format: str = "wav") -> str:
 
     audio = AudioSegment.from_file(src_path)
     ext = format.lower()
-    if ext not in {"wav", "mp3"}:
-        raise ValueError("Format de sortie non supporté, choisissez 'wav' ou 'mp3'.")
+    if ext != "mp3":
+        raise ValueError("Seul le format 'mp3' est autorisé pour l'envoi à l'API Albert.")
     audio.export(dst_path, format=ext)
     return dst_path
 
