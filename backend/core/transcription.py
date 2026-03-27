@@ -102,9 +102,9 @@ class TranscriptionEngine:
 
                 if hasattr(s, "words") and s.words:
                     for w in s.words:
-                        all_words.append({"start": w.start, "end": w.end, "word": w.word})
+                        all_words.append({"start": w.start, "end": w.end, "word": w.word, "speaker": "UNKNOWN"})
                 else:
-                    all_words.append({"start": s.start, "end": s.end, "word": s.text.strip()})
+                    all_words.append({"start": s.start, "end": s.end, "word": s.text.strip(), "speaker": "UNKNOWN"})
 
             return all_words, info.duration
 
@@ -122,7 +122,7 @@ class TranscriptionEngine:
             all_words = []
             if "result" in res:
                 for w in res["result"]:
-                    all_words.append({"start": w["start"], "end": w["end"], "word": w["word"]})
+                    all_words.append({"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"})
 
             return all_words, len(audio_np) / 16000
 
@@ -132,39 +132,49 @@ class TranscriptionEngine:
         """
         duration_total = len(audio_np) / 16000
 
-        def _find_best_cut(audio_np_chunk, target_sec, search_range=90):
-            """Trouve un point de coupe (silence) autour de target_sec."""
+        def _find_best_cut(audio_np, target_sec, search_range=90):
+            """Trouve le meilleur point de coupe (silence) entre le début du chunk et target_sec.
+            Le chunk commence à t (déjà traité) et on veut couper avant ou à target_sec (t + CHUNK_LIMIT_SEC).
+            On recherche le cadre le plus silencieux dans la fenêtre [t, target_sec] (soit CHUNK_LIMIT_SEC de durée)
+            afin d’éviter de couper dans le blanc et de rester sous la limite de taille.
+            Si aucun silence suffisamment bas n’est trouvé, on retourne target_sec (cut à la limite maximale)."""
             sr = 16000
-            # Fenêtre de recherche centrée sur target_sec, mais après t
-            search_start_sec = max(t + 10**9 * 0.5, target_sec - search_range)
-            start_idx = int(search_start_sec * sr)
-            end_idx = min(len(audio_np_chunk), int((target_sec + search_range) * sr))
-            
-            chunk_to_search = audio_np_chunk[start_idx:end_idx]
-            # Si le segment est essentiellement silencieux, on ne coupe pas et on renvoie la cible.
-            if len(chunk_to_search) < sr * 0.5:
+            # La fenêtre de recherche commence à target_sec - CHUNK_LIMIT_SEC (c’est‑à‑dire le début du chunk)
+            start_sec = max(0, target_sec - CHUNK_LIMIT_SEC)
+            end_sec = min(len(audio_np) / sr, target_sec)
+            start_idx = int(start_sec * sr)
+            end_idx = int(end_sec * sr)
+
+            segment = audio_np[start_idx:end_idx]
+            if len(segment) == 0:
                 return target_sec
-            # Détection de silence global (énergie très faible)
-            overall_energy = np.sqrt(np.mean(chunk_to_search.astype(np.float64)**2))
-            if overall_energy < 1e-6:
-                # Le chunk est quasi‑silencieux ; on évite de couper dans le blanc.
+
+            # Découper le segment en fenêtres de 200 ms pour analyser l’énergie
+            frame_len = int(sr * 0.2)  # 200 ms
+            num_frames = len(segment) // frame_len
+            if num_frames == 0:
                 return target_sec
-            
-            win_size = int(sr * 0.2) # 200 ms
-            num_wins = len(chunk_to_search) // win_size
-            if num_wins == 0:
-                return target_sec
-            
-            wins = chunk_to_search[:num_wins*win_size].reshape(num_wins, win_size)
-            energies = np.sqrt(np.mean(wins**2, axis=1))
-            
-            # Pénalité de distance pour préférer le point le plus proche de target_sec
-            win_times = search_start_sec + (np.arange(num_wins) * win_size) / sr
-            # On divise par un grand nombre pour que l'énergie reste prioritaire
-            dist_penalty = np.abs(win_times - target_sec) * 1e-7
-            
-            best_win = np.argmin(energies + dist_penalty)
-            return win_times[best_win]
+
+            frames = segment[:num_frames * frame_len].reshape(num_frames, frame_len)
+            energies = np.sqrt(np.mean(frames.astype(np.float64) ** 2, axis=1))
+
+            # Seuil d’énergie pour considérer un cadre comme « silence »
+            SILENCE_THRESHOLD = 1e-3
+
+            # Trouver le premier cadre dont l’énergie est en dessous du seuil
+            silent_indices = np.where(energies < SILENCE_THRESHOLD)[0]
+            if silent_indices.size > 0:
+                first_silent = silent_indices[0]
+                cut_sec = start_sec + (first_silent * frame_len) / sr
+                # Si le silence détecté est au tout début du segment, on garde la coupe à la cible
+                if cut_sec <= start_sec:
+                    return target_sec
+                return cut_sec
+
+            # Sinon, choisir le cadre avec l’énergie la plus faible (fallback)
+            min_idx = np.argmin(energies)
+            cut_sec = start_sec + (min_idx * frame_len) / sr
+            return cut_sec
 
         tranches = []
         t = 0
@@ -264,27 +274,29 @@ class TranscriptionEngine:
             chunk_words = []
             if result.get("words"):
                 for w in result["words"]: 
-                    chunk_words.append({"start": w["start"], "end": w["end"], "word": w["word"]})
+                    chunk_words.append({"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"})
             elif result.get("segments"):
                 for s in result["segments"]:
                     if s.get("words"):
                         for w in s["words"]: 
-                            chunk_words.append({"start": w["start"], "end": w["end"], "word": w["word"]})
+                            chunk_words.append({"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"})
                     else:
                         chunk_words.append({
                             "start": s.get("start", 0.0), 
                             "end": s.get("end", duration), 
-                            "word": s.get("text", "").strip()
+                            "word": s.get("text", "").strip(),
+                            "speaker": "UNKNOWN"
                         })
             elif result.get("text"):
-                chunk_words.append({"start": 0.0, "end": duration, "word": result["text"].strip()})
+                chunk_words.append({"start": 0.0, "end": duration, "word": result["text"].strip(), "speaker": "UNKNOWN"})
 
             # 5. Décalage des timestamps
             for w in chunk_words:
                 all_final_words.append({
                     "start": w["start"] + start_time, 
                     "end": w["end"] + start_time, 
-                    "word": w["word"]
+                    "word": w["word"],
+                    "speaker": w.get("speaker", "UNKNOWN")
                 })
             
             buffer.close()
