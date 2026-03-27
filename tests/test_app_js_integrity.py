@@ -81,3 +81,85 @@ def test_live_final_looks_up_by_sindex_before_fallback():
     assert "partialRow" in content, (
         "partialRow fallback reference is missing from the final message handler."
     )
+
+
+def test_pending_job_server_validated_before_ui():
+    """
+    Regression guard: when a pending_job is found in localStorage on page load,
+    the app must NOT immediately disable the upload button or show the progress
+    container. Instead it must first fetch /status/{id} and only update the UI
+    based on the server response.
+
+    Concretely: the fetch('/status/...') call must precede any DOM manipulation
+    inside the pendingJob branch, and the UI must only be shown when the server
+    confirms the job is truly in progress.
+    """
+    content = APP_JS_PATH.read_text(encoding="utf-8")
+
+    # The pendingJob block must call fetch('/status/...') before touching the DOM
+    pending_block_start = content.find("if (pendingJob)")
+    assert pending_block_start != -1, "pendingJob guard block not found in app.js"
+
+    block = content[pending_block_start:]
+
+    fetch_pos = block.find("fetch(`/status/")
+    disabled_pos = block.find("uploadBtn.disabled = true")
+
+    assert fetch_pos != -1, (
+        "fetch('/status/...') call is missing from the pendingJob block — "
+        "server validation has been removed."
+    )
+    assert disabled_pos == -1 or disabled_pos > fetch_pos, (
+        "uploadBtn is disabled BEFORE the server responds — "
+        "UI must not be blocked until /status returns a live job."
+    )
+
+
+def test_pending_job_cleared_on_not_found():
+    """
+    Regression guard: when /status returns 'not_found', the app must call
+    clearPendingJob() (or equivalent) to silently clean localStorage.
+    The user must never see a stuck progress bar caused by an orphaned job.
+    """
+    content = APP_JS_PATH.read_text(encoding="utf-8")
+
+    assert "not_found" in content, (
+        "'not_found' status is not handled — orphaned jobs will block the UI."
+    )
+    # After 'not_found', clearPendingJob must be invoked
+    not_found_idx = content.find("'not_found'")
+    if not_found_idx == -1:
+        not_found_idx = content.find('"not_found"')
+    assert not_found_idx != -1, "not_found handling is missing from app.js"
+
+    snippet = content[not_found_idx: not_found_idx + 300]
+    assert "clearPendingJob" in snippet or "localStorage.removeItem('pending_job')" in snippet, (
+        "pending_job is not removed from localStorage on 'not_found' — "
+        "the UI will remain blocked for the user."
+    )
+
+
+def test_pending_job_cleared_on_network_error():
+    """
+    Regression guard: if the /status fetch throws (server unreachable), the app
+    must clean up localStorage and leave the UI in a usable state — never leave
+    the upload button permanently disabled.
+    """
+    content = APP_JS_PATH.read_text(encoding="utf-8")
+
+    # Find the .catch() block inside the pendingJob branch
+    pending_block_start = content.find("if (pendingJob)")
+    assert pending_block_start != -1, "pendingJob guard block not found in app.js"
+
+    block = content[pending_block_start: pending_block_start + 2000]
+    catch_pos = block.find(".catch(")
+    assert catch_pos != -1, (
+        "No .catch() handler found in the pendingJob fetch — "
+        "network errors will leave the UI permanently blocked."
+    )
+
+    catch_block = block[catch_pos: catch_pos + 300]
+    assert "clearPendingJob" in catch_block or "localStorage.removeItem" in catch_block, (
+        "The .catch() handler does not clean up pending_job — "
+        "a network error will permanently disable the upload button."
+    )

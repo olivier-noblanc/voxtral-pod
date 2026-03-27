@@ -40,6 +40,7 @@ function getClientId() {
     return id;
 }
 
+
 function updateVolumeBar(data) {
     // Safety check: ensure the audio bar element exists
     const bar = document.getElementById('audioBar');
@@ -366,91 +367,26 @@ window.deleteTranscription = deleteTranscription;
 async function generateSummary(btn) {
     const filename = btn.getAttribute('data-filename');
     const clientId = getClientId();
-    const originalText = btn.innerText;
-    btn.innerText = "⏳ Génération...";
-    btn.disabled = true;
-    try {
-        const urlPath = "/summary/" + encodeURIComponent(filename) + "?client_id=" + clientId;
-        const res = await fetch(urlPath, { method: 'POST' });
-        if (!res.ok) throw new Error("Erreur serveur lors de la génération");
-        const data = await res.json();
-        
-        // Créer un fichier téléchargeable avec le contenu du compte-rendu
-        const blob = new Blob([data.summary], { type: 'text/markdown' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = "Compte_Rendu_" + filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        btn.innerText = "✓ Terminé";
-    } catch (err) {
-        alert(err.message);
-        btn.innerText = originalText;
-        btn.disabled = false;
-    }
+    window.open("/view_summary/" + clientId + "/" + encodeURIComponent(filename), "_blank");
 }
 window.generateSummary = generateSummary;
+
 
 async function generateActions(btn) {
     const filename = btn.getAttribute('data-filename');
     const clientId = getClientId();
-    const originalText = btn.innerText;
-    btn.innerText = "⏳ Extraction...";
-    btn.disabled = true;
-    try {
-        const urlPath = "/actions/" + encodeURIComponent(filename) + "?client_id=" + clientId;
-        const res = await fetch(urlPath, { method: 'POST' });
-        if (!res.ok) throw new Error("Erreur serveur lors de la génération");
-        const data = await res.json();
-        const blob = new Blob([data.actions], { type: 'text/markdown' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = "Actions_" + filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        btn.innerText = "✓ Terminé";
-    } catch (err) {
-        alert(err.message);
-        btn.innerText = originalText;
-        btn.disabled = false;
-    }
+    window.open("/view_actions/" + clientId + "/" + encodeURIComponent(filename), "_blank");
 }
 window.generateActions = generateActions;
+
 
 async function cleanText(btn) {
     const filename = btn.getAttribute('data-filename');
     const clientId = getClientId();
-    const originalText = btn.innerText;
-    btn.innerText = "⏳ Nettoyage...";
-    btn.disabled = true;
-    try {
-        const urlPath = "/cleanup/" + encodeURIComponent(filename) + "?client_id=" + clientId;
-        const res = await fetch(urlPath, { method: 'POST' });
-        if (!res.ok) throw new Error("Erreur serveur lors de la génération");
-        const data = await res.json();
-        const blob = new Blob([data.cleanup], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = "Nettoye_" + filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        btn.innerText = "✓ Terminé";
-    } catch (err) {
-        alert(err.message);
-        btn.innerText = originalText;
-        btn.disabled = false;
-    }
+    window.open("/view_cleanup/" + clientId + "/" + encodeURIComponent(filename), "_blank");
 }
 window.cleanText = cleanText;
+
 
  // ========================= CONFIGURATION MODELE =========================
  function changeModel(e) {
@@ -538,27 +474,42 @@ async function uploadFile() {
     pollStatus(id);
 }
 async function pollStatus(id) {
+    let attempts = 0;
+    const MAX_ATTEMPTS = 150; // ~5 minutes à 2s d'intervalle
     const interval = setInterval(async () => {
-        const res = await fetch(`/status/${id}`);
-        const data = await res.json();
-        if (data.status === "terminé") {
+        attempts++;
+        if (attempts > MAX_ATTEMPTS) {
             clearInterval(interval);
             localStorage.removeItem('pending_job');
             document.getElementById('uploadBtn').disabled = false;
-            document.getElementById('batchStatus').innerText = "✓ Terminé.";
-            loadHistory();
-        } else if (data.status === "not_found") {
-            clearInterval(interval);
-            localStorage.removeItem('pending_job');
-            document.getElementById('uploadBtn').disabled = false;
-        } else if (data.status.startsWith("processing:")) {
-            const pct = data.progress || 0;
-            const eta = data.eta ? " (ETA: " + data.eta + "s)" : '';
-            const statusLabel = (data.status && data.status.includes(":")) ? data.status.split(":")[1] : (data.status || "unknown");
-            document.getElementById('batchStatus').innerText = "⏳ " + statusLabel + " — " + pct + "%" + eta;
-            document.getElementById('uploadBtn').disabled = true;
-            document.getElementById('uploadProgressFill').style.width = pct + '%';
-            document.getElementById('uploadProgressContainer').style.display = 'block';
+            document.getElementById('batchStatus').innerText = "⚠️ Timeout : job introuvable ou serveur injoignable.";
+            return;
+        }
+        try {
+            const res = await fetch(`/status/${id}`);
+            const data = await res.json();
+            if (data.status === "terminé") {
+                clearInterval(interval);
+                localStorage.removeItem('pending_job');
+                document.getElementById('uploadBtn').disabled = false;
+                document.getElementById('batchStatus').innerText = "✓ Terminé.";
+                loadHistory();
+            } else if (data.status === "not_found") {
+                clearInterval(interval);
+                localStorage.removeItem('pending_job');
+                document.getElementById('uploadBtn').disabled = false;
+                document.getElementById('batchStatus').innerText = "";
+            } else if (data.status.startsWith("processing:")) {
+                const pct = data.progress || 0;
+                const eta = data.eta ? " (ETA: " + data.eta + "s)" : '';
+                const statusLabel = (data.status && data.status.includes(":")) ? data.status.split(":")[1] : (data.status || "unknown");
+                document.getElementById('batchStatus').innerText = "⏳ " + statusLabel + " — " + pct + "%" + eta;
+                document.getElementById('uploadBtn').disabled = true;
+                document.getElementById('uploadProgressFill').style.width = pct + '%';
+                document.getElementById('uploadProgressContainer').style.display = 'block';
+            }
+        } catch (e) {
+            console.warn('pollStatus error:', e);
         }
     }, 2000);
 }
@@ -658,55 +609,48 @@ if (modelDisplay && modelSelect) {
 
     // Reprendre le suivi d'un batch en cours apres rafraichissement
     const pendingJob = localStorage.getItem('pending_job');
+
+    function clearPendingJob() {
+        localStorage.removeItem('pending_job');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const progressContainer = document.getElementById('uploadProgressContainer');
+        const statusElem = document.getElementById('batchStatus');
+        if (uploadBtn) uploadBtn.disabled = false;
+        if (progressContainer) progressContainer.style.display = 'none';
+        if (statusElem) statusElem.innerText = '';
+    }
+
     if (pendingJob) {
         const uploadBtn = document.getElementById('uploadBtn');
         const progressContainer = document.getElementById('uploadProgressContainer');
         const statusElem = document.getElementById('batchStatus');
 
-        // Desactiver le bouton et afficher le conteneur de progression
-        if (uploadBtn) uploadBtn.disabled = true;
-        if (progressContainer) progressContainer.style.display = 'block';
-        if (statusElem) statusElem.innerText = "⏳ Reprise du traitement...";
-
-        // Fonction de secours: reactiver le bouton apres 30 s si aucune reponse
-        const fallbackTimeout = setTimeout(() => {
-            if (uploadBtn) uploadBtn.disabled = false;
-            if (statusElem) statusElem.innerText = "⚠️ Aucun statut recu, veuillez reessayer.";
-            loadHistory();
-        }, 30000);
-
-        // Verifier immediatement le statut du job
+        // Verifier le statut cote serveur AVANT d'afficher quoi que ce soit
         fetch(`/status/${pendingJob}`)
             .then(res => res.json())
             .then(data => {
-                clearTimeout(fallbackTimeout);
-                if (data.status === "terminé") {
-                    localStorage.removeItem('pending_job');
-                    if (uploadBtn) uploadBtn.disabled = false;
-                    if (statusElem) statusElem.innerText = "✓ Terminé.";
+                if (data.status === 'terminé') {
+                    clearPendingJob();
+                    if (statusElem) statusElem.innerText = '✓ Terminé.';
                     loadHistory();
-                } else if (data.status === "not_found") {
-                    localStorage.removeItem('pending_job');
-                    if (uploadBtn) uploadBtn.disabled = false;
-                    if (statusElem) statusElem.innerText = "";
+                } else if (data.status === 'not_found' || !data.status || data.status === 'erreur') {
+                    // Job orphelin : nettoyage silencieux
+                    clearPendingJob();
                     loadHistory();
                 } else {
-                    // Job en cours
+                    // Job reellement en cours : afficher la progression
                     if (uploadBtn) uploadBtn.disabled = true;
-                    if (statusElem) {
-                        const pct = data.progress || 0;
-                        const eta = data.eta ? " (ETA: " + data.eta + "s)" : '';
-                        const statusLabel = (data.status && data.status.includes(":")) ? data.status.split(":")[1] : (data.status || "unknown");
-                        statusElem.innerText = "⏳ " + statusLabel + " — " + pct + "%" + eta;
-                    }
+                    if (progressContainer) progressContainer.style.display = 'block';
+                    const pct = data.progress || 0;
+                    const eta = data.eta ? ' (ETA: ' + data.eta + 's)' : '';
+                    const statusLabel = (data.status && data.status.includes(':')) ? data.status.split(':')[1] : (data.status || 'traitement');
+                    if (statusElem) statusElem.innerText = '⏳ ' + statusLabel + ' — ' + pct + '%' + eta;
                     pollStatus(pendingJob);
                 }
             })
             .catch(() => {
-                // En cas d'erreur reseau, demarrer le polling
-                if (uploadBtn) uploadBtn.disabled = true;
-                if (progressContainer) progressContainer.style.display = 'block';
-                pollStatus(pendingJob);
+                // Serveur injoignable : nettoyage silencieux, pas de blocage UI
+                clearPendingJob();
             });
     }
 };

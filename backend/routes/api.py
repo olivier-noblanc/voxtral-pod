@@ -318,6 +318,124 @@ async def view_transcription(client_id: str, filename: str, request: Request):
 """
     return HTMLResponse(html)
 
+def _render_postprocess_page(title: str, content: str, filename: str) -> HTMLResponse:
+    """Rendu d'une page de visualisation pour les résultats Albert (Markdown)."""
+    safe_title = html_escape(title)
+    safe_filename = html_escape(filename)
+    # On échappe le contenu pour l'injecter en tant que string JS, mais Marked le traitera.
+    # On utilise JSON.stringify pour être sûr de ne pas casser le script JS.
+    import json
+    json_content = json.dumps(content)
+
+    html = f"""<!DOCTYPE html>
+<html lang="fr" data-fr-scheme="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>{safe_title} - {safe_filename}</title>
+    <link rel="stylesheet" href="/static/dsfr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        .postprocess-container {{ max-width: 800px; margin: 2rem auto; padding: 2rem; background: var(--background-alt-blue-france); border-radius: 8px; }}
+        .content-area {{ padding: 1.5rem; background: var(--background-default-grey); border-radius: 4px; border: 1px solid var(--border-default-grey); }}
+        .actions-bar {{ display: flex; gap: 1rem; margin-bottom: 2rem; }}
+    </style>
+</head>
+<body>
+    <div class="fr-container">
+        <div class="postprocess-container">
+            <a href="/" class="fr-link fr-icon-arrow-left-line fr-link--icon-left fr-mb-2w">Retour à l'accueil</a>
+            <h1>{safe_title}</h1>
+            <p class="fr-text--sm">Fichier : {safe_filename}</p>
+
+            <div class="actions-bar">
+                <button class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-clipboard-line" onclick="copyToClipboard()">Copier le texte</button>
+                <button class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-download-line" onclick="downloadText()">Télécharger (.txt)</button>
+            </div>
+
+            <div id="content" class="content-area fr-text--md">
+                <!-- Rendu Markdown ici -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const rawContent = {json_content};
+        document.getElementById('content').innerHTML = marked.parse(rawContent);
+
+        function copyToClipboard() {{
+            navigator.clipboard.writeText(rawContent).then(() => {{
+                alert("Texte copié !");
+            }}).catch(err => {{
+                console.error("Erreur de copie : ", err);
+            }});
+        }}
+
+        function downloadText() {{
+            const blob = new Blob([rawContent], {{ type: 'text/plain' }});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "{title.replace(' ', '_')}_" + "{safe_filename}";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }}
+    </script>
+</body>
+</html>
+"""
+    return HTMLResponse(html)
+
+@router.get("/view_summary/{client_id}/{filename}")
+async def view_summary(client_id: str, filename: str):
+    """Visualiser le compte-rendu Albert."""
+    _validate_client_id(client_id)
+    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Transcription introuvable.")
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    from backend.core.postprocess import summarize_text
+    try:
+        summary = await asyncio.to_thread(summarize_text, content)
+        return _render_postprocess_page("Compte Rendu Albert", summary, filename)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/view_actions/{client_id}/{filename}")
+async def view_actions(client_id: str, filename: str):
+    """Visualiser les actions Albert."""
+    _validate_client_id(client_id)
+    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Transcription introuvable.")
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    from backend.core.postprocess import extract_actions_text
+    try:
+        actions_list = await asyncio.to_thread(extract_actions_text, content)
+        actions_text = "\n".join(f"- {a}" for a in actions_list)
+        return _render_postprocess_page("Actions Albert", actions_text, filename)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/view_cleanup/{client_id}/{filename}")
+async def view_cleanup(client_id: str, filename: str):
+    """Visualiser le texte nettoyé Albert."""
+    _validate_client_id(client_id)
+    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Transcription introuvable.")
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    from backend.core.postprocess import clean_text
+    try:
+        cleaned = await asyncio.to_thread(clean_text, content)
+        return _render_postprocess_page("Nettoyage Albert", cleaned, filename)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/status/{file_id}")
 async def status_route(file_id: str):
     """Return the status of a batch job."""
