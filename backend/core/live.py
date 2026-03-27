@@ -52,6 +52,11 @@ class LiveSession:
         while True:
             audio_bytes = await self.audio_queue.get()
             if audio_bytes is None:
+                # Finalisation du dernier segment en cours à la fermeture de la session
+                if self.is_speaking and self.sentence_buffer:
+                    pcm_data = bytes(self.sentence_buffer)
+                    # Note: on finalise même si c'est court, pour éviter un résidu "..."
+                    await self._transcribe_segment(pcm_data, final=True)
                 break
 
             self.full_session_audio.append(audio_bytes)
@@ -101,6 +106,9 @@ class LiveSession:
                         self.sentence_buffer = bytearray()
                         if len(pcm_data) >= self.min_segment_bytes:
                             await self._transcribe_segment(pcm_data, final=True)
+                            # On vide le pre_speech_buffer pour éviter que la fin de cette phrase 
+                            # ne soit reprise comme contexte (et donc répétée) au début de la suivante.
+                            self.pre_speech_buffer = bytearray()
 
     # Retourne ``(None, None)`` lorsqu'aucune donnée audio n'est disponible.
     # Le typage indique explicitement que les deux valeurs peuvent être ``None``.
@@ -136,20 +144,25 @@ class LiveSession:
             words, _ = await asyncio.to_thread(self.engine.transcription_engine.transcribe, audio_np)
             text = " ".join(w["word"] for w in words).strip()
 
-            if text:
-                # Stocker la phrase finalisée et mettre à jour l'index
+            if text or final:
+                # Nettoyage des éventuels points de suspension (souvent au début ou fin avec Albert/Whisper)
+                display_text = text
                 if final:
-                    self._sentences.append(text)
-                    self._sentence_index += 1
+                    display_text = text.strip(". ").strip()
 
                 await self.websocket.send_json({
                     "type": "sentence",
-                    "text": text if final else f"{text} ...",
+                    "text": display_text,
                     "speaker": "Speaker",  # Placeholder — la diarisation par lot viendra plus tard
                     "final": final,
                     "sentence_index": self._sentence_index,
                     "total_bytes_received": self._total_bytes_received,
                 })
+
+                # Stocker la phrase finalisée et incrémenter l'index SEULEMENT APRÈS l'envoi
+                if final:
+                    self._sentences.append(text)
+                    self._sentence_index += 1
                 # Debug print to console
                 tag = "[FINAL]" if final else "[PARTIAL]"
                 print(f"[*] [{self.client_id}] {tag}: {text}")

@@ -22,15 +22,30 @@
     margin-bottom: 8px;
     display: block;
     border-left: 3px solid transparent;
-    padding-left: 10px;
-    transition: border-color 0.3s;
+    padding: 4px 10px;
+    transition: all 0.3s ease;
+    border-radius: 0 4px 4px 0;
+}
+
+.sentence-row:not(.finalized) { 
+    border-left-color: #fbbf24; 
+    background: rgba(251, 191, 36, 0.08);
 }
 
 .sentence-row.finalized { border-left-color: #3b82f6; }
 
-.partial-text { color: #9ca3af; font-style: italic; }
+.partial-text { 
+    color: #fcd34d; 
+    font-style: italic; 
+    animation: pulse-partial 2s infinite;
+}
 
-.final-text { color: #f9fafb; }
+.final-text { color: #f9fafb; font-weight: 500; }
+
+@keyframes pulse-partial { 
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
 
 #record-btn.recording {
     background-color: #fcebe8 !important;

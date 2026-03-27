@@ -34,6 +34,12 @@ class DummyEngine:
         self.transcription_engine = DummyTranscriptionEngine()
 
 
+class DummyEmptyEngine:
+    def __init__(self, model_id="empty"):
+        self.model_id = model_id
+        self.transcription_engine = type('Dummy', (), {'transcribe': lambda self, x: ([], None)})()
+
+
 # ---- VADs de test ----
 
 class SpeechThenSilenceVAD:
@@ -116,7 +122,7 @@ async def _test_ws_receives_final_sentence():
     assert msg["type"] == "sentence"
     assert "bonjour monde" in msg["text"], f"Texte inattendu: {msg['text']}"
     assert msg["speaker"] == "Speaker"
-    assert msg["sentence_index"] >= 1
+    assert msg["sentence_index"] >= 0
     assert "total_bytes_received" in msg
 
 
@@ -153,3 +159,29 @@ def test_ws_receives_final_sentence():
 def test_ws_receives_partial_sentence():
     """Le WebSocket doit recevoir au moins un partial (final=False)."""
     asyncio.run(_test_ws_receives_partial_sentence())
+
+
+async def _test_ws_receives_empty_final_sentence():
+    """
+    Vérifie qu'un segment qui ne contient QUE du silence (ou que l'IA ignore) 
+    envoie quand même un message final=True pour clore la ligne côté frontend.
+    """
+    ws = DummyWebSocket()
+    session = LiveSession(engine=DummyEmptyEngine(), websocket=ws, client_id="user_empty")
+    session.vad = SpeechThenSilenceVAD(speech_chunks=0) # Directement silence après audit
+    session.is_speaking = True # Simulation : on croyait parler
+    
+    proc = asyncio.create_task(session.process_audio_queue())
+    silence = make_pcm_chunk(100, amplitude=0.0)
+    for _ in range(6):
+        await session.audio_queue.put(silence)
+    await session.audio_queue.put(None)
+    await proc
+
+    final_msgs = [m for m in ws.messages if m.get("final") is True]
+    assert final_msgs, "Un message final avec texte vide DOIT être envoyé pour clore le segment"
+    assert final_msgs[0]["text"] == ""
+
+
+def test_ws_receives_empty_final_sentence():
+    asyncio.run(_test_ws_receives_empty_final_sentence())
