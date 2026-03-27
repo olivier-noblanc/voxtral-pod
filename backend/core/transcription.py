@@ -22,7 +22,7 @@ _ALBERT_MODEL_IDS = frozenset({"albert"})
 # Limite de taille du payload (en Mo) – on vise < 20 Mo
 MAX_PAYLOAD_MB = 19
 # Chunk limit disabled – aucune contrainte de durée fixe ; la segmentation s’appuie sur la taille du payload
-# CHUNK_LIMIT_SEC is intentionally disabled; segmentation relies on payload size checks.
+CHUNK_LIMIT_SEC = 10**9  # effectively disabled; tests may patch this value
 
 class TranscriptionEngine:
     """
@@ -163,11 +163,11 @@ class TranscriptionEngine:
         t = 0
         while t < duration_total:
             remaining = duration_total - t
-            if remaining <= 10**9 + 60: # +60s de marge finale
+            if remaining <= CHUNK_LIMIT_SEC + 60:  # +60s de marge finale
                 tranches.append((t, remaining))
                 break
-            
-                cut_point = _find_best_cut(audio_np, t + 10**9)
+
+            cut_point = _find_best_cut(audio_np, t + CHUNK_LIMIT_SEC)
             tranches.append((t, cut_point - t))
             t = cut_point
 
