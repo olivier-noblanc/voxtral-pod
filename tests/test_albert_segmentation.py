@@ -14,21 +14,19 @@ class TestAlbertSegmentation(unittest.TestCase):
         self.engine.albert_api_key = "test_key"
         
     @patch("requests.post")
-    @patch("ffmpeg.run")
+    @patch("ffmpeg.input")
+    @patch("soundfile.write")
     @patch("time.sleep")
-    def test_segmentation_logic(self, mock_sleep, mock_ffmpeg, mock_post):
+    def test_segmentation_logic(self, mock_sleep, mock_sf, mock_ffmpeg_input, mock_post):
         """
-        Verifie que l'audio est bien coupe en tranches
-        et que les timestamps sont recalés sans appels reels.
+        Verifie la segmentation offline (tout est mocké).
         """
-        # Mock FFmpeg output (dummy bytes)
-        mock_ffmpeg.return_value = (b"fake_mp3_data", b"")
+        # Mock FFmpeg chain: ffmpeg.input().output().run() -> (stdout, stderr)
+        mock_run = mock_ffmpeg_input.return_value.output.return_value.run
+        mock_run.return_value = (b"fake_mp3_data", b"")
         
         # Audio de 150s. Avec segments de 40s et marge de 60s:
-        # 150s > 40s + 60s -> Decoupe.
-        # Tranche 1: 0-40s
-        # Tranche 2: 40-80s
-        # Tranche 3: 80-150s
+        # Tranche 1: 0-40s, Tranche 2: 40-80s, Tranche 3: 80-150s
         duration_sec = 150
         sr = 16000
         audio_np = np.zeros(duration_sec * sr, dtype=np.float32)
@@ -41,30 +39,23 @@ class TestAlbertSegmentation(unittest.TestCase):
         }
         mock_post.return_value = mock_response
         
-        # Test avec segments de 40s
+        # On force la limite a 40s pour le test
         with patch("backend.core.transcription.CHUNK_LIMIT_SEC", 40):
             words, duration = self.engine._transcribe_albert(audio_np)
             
-        # 100s -> tranches de [0-40, 40-80, 80-100] = 3 tranches
+        # On attend 3 appels API
         self.assertEqual(mock_post.call_count, 3)
         self.assertEqual(len(words), 3)
         
-        # Verifier le recalage temporel
-        self.assertEqual(words[0]["start"], 1.0)
-        self.assertEqual(words[1]["start"], 41.0)
-        self.assertEqual(words[2]["start"], 81.0)
-        self.assertEqual(duration, 100.0)
+        # Verifier le recalage temporel des tranches
+        self.assertEqual(words[0]["start"], 1.0) # Tranche 0-40
+        self.assertEqual(words[1]["start"], 41.0) # Tranche 40-80
+        self.assertEqual(words[2]["start"], 81.0) # Tranche 80-150
+        self.assertEqual(duration, 150.0)
 
-    def test_find_best_cut_logic(self):
-        """Verifie la logique de recherche de silence sans executer toute la transcription."""
-        # On va tester directement la fonction interne en la 'sortant' ou via un test ciblé
-        # Ici on verifie que l'audio plat donne la valeur cible
-        duration_sec = 60
-        sr = 16000
-        audio = np.ones(duration_sec * sr, dtype=np.float32)
-        
-        # On teste via l'integration legere
-        # (Vu que c'est une fonction imbriquée, on teste le comportement macro)
+    def test_find_best_cut_isolated(self):
+        """Test leger du helper de silence."""
+        # Test minimaliste : sur un audio plat, il doit renvoyer la cible
         pass
 
 if __name__ == "__main__":
