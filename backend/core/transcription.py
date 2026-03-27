@@ -188,7 +188,7 @@ class TranscriptionEngine:
             # Conversion du WAV en MP3 avec ffmpeg (ffmpeg‑python)
             out, err = (
                 ffmpeg
-                .input('pipe:0', format='wav')
+                .input('pipe:0', format='wav')  # type: ignore
                 .output('pipe:1', format='mp3', audio_bitrate='64k')
                 .run(input=wav_buffer.read(), capture_stdout=True, capture_stderr=True)
             )
