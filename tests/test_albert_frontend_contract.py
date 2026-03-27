@@ -17,10 +17,6 @@ def test_albert_buttons_use_window_open():
     # Check generateActions
     assert re.search(r"function generateActions\(.*\)\s*\{[\s\S]*window\.open\(\"/view_actions/\"", content), \
         "generateActions does not use window.open to /view_actions/"
-        
-    # Check cleanText
-    assert re.search(r"function cleanText\(.*\)\s*\{[\s\S]*window\.open\(\"/view_cleanup/\"", content), \
-        "cleanText does not use window.open to /view_cleanup/"
 
 def test_no_formatTextForOS_leftover():
     """

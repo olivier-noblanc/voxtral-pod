@@ -129,7 +129,9 @@ def clean_text(text):
     print(f"[*] Post-traitement: Nettoyage du texte Albert ({len(text.split())} mots)...")
     prompt = (
         "Supprime les tics de langage (euh, bah, alors, …) du texte suivant, "
-        "sans en altérer le sens, et renvoie le texte nettoyé en français :\\n\\n"
+        "sans en altérer le sens. Formate le texte avec des paragraphes "
+        "et une ponctuation soignée pour une lisibilité maximale. "
+        "Renvoie uniquement le texte nettoyé en français :\\n\\n"
         f"{text}"
     )
     res = _call_albert(prompt)

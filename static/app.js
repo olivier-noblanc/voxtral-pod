@@ -334,7 +334,9 @@ async function loadHistory() {
     try {
 const res = await fetch('/transcriptions/?client_id=' + getClientId());
         const files = await res.json();
-        list.innerHTML = files.map(function(f) {
+        list.innerHTML = files.map(function(item) {
+            var f = item.name;
+            var hasCleanup = item.has_cleanup;
             var isBatch = f.startsWith('batch_');
             var audioFilename;
             if (isBatch) {
@@ -346,17 +348,17 @@ const res = await fetch('/transcriptions/?client_id=' + getClientId());
             }
             var downloadUrl = '/download_audio/' + getClientId() + '/' + audioFilename;
             var transcriptUrl = '/download_transcript/' + getClientId() + '/' + f;
+            var voirLabel = hasCleanup ? "Voir" : "Voir (temporaire)";
 return '<div class="fr-col-12 fr-col-md-4">' +
     '<div class="fr-card fr-card--sm" style="padding:1rem; border:1px solid #3a3a3a;">' +
     '<h4 class="fr-card__title" style="font-size:0.8rem">' + f + '</h4>' +
-        '<a href="/view/' + getClientId() + '/' + f + '" class="fr-btn fr-btn--sm fr-mt-1w">Voir (temporaire)</a>' +
+        '<a href="/view/' + getClientId() + '/' + f + '" class="fr-btn fr-btn--sm fr-mt-1w">' + voirLabel + '</a>' +
         '<button class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" data-filename="' + f + '" onclick="deleteTranscription(this)" style="color:#c00;">&#x2716;</button>' +
     '<a href="' + downloadUrl + '" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger audio</a>' +
     '<a href="' + transcriptUrl + '" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger texte</a>' +
     '<br>' +
     '<button class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w" data-filename="' + f + '" onclick="generateSummary(this)">📄 Compte Rendu (Albert)</button>' +
     '<button class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w" data-filename="' + f + '" onclick="generateActions(this)">📝 Actions (Albert)</button>' +
-    '<button class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" data-filename="' + f + '" onclick="cleanText(this)">✨ Nettoyer (Albert)</button>' +
     '</div></div>';
         }).join('') || "Aucune.";
     } catch {
@@ -392,12 +394,6 @@ async function generateActions(btn) {
 window.generateActions = generateActions;
 
 
-async function cleanText(btn) {
-    const filename = btn.getAttribute('data-filename');
-    const clientId = getClientId();
-    window.open("/view_cleanup/" + clientId + "/" + encodeURIComponent(filename), "_blank");
-}
-window.cleanText = cleanText;
 
 
  // ========================= CONFIGURATION MODELE =========================

@@ -13,12 +13,10 @@ def test_ai_buttons_exist_in_frontend():
     # HTML Buttons injection
     assert 'generateSummary(this)' in js_code, "Régression: le bouton 'Compte Rendu' a disparu de l'historique."
     assert 'generateActions(this)' in js_code, "Régression: le bouton 'Actions' a disparu de l'historique."
-    assert 'cleanText(this)' in js_code, "Régression: le bouton 'Nettoyer' a disparu de l'historique."
 
     # JS Implementation
     assert 'async function generateSummary' in js_code, "Régression: implémentation manquante pour generateSummary."
     assert 'async function generateActions' in js_code, "Régression: implémentation manquante pour generateActions."
-    assert 'async function cleanText' in js_code, "Régression: implémentation manquante pour cleanText."
 
 def test_model_selector_is_wired():
     """Vérifie que le menu de sélection de modèle ASR est fonctionnel et envoie 

@@ -4,11 +4,11 @@ Provides a simple implementation using webrtcvad and silero_vad.
 """
 
 import warnings
+import threading
 import torch
 import webrtcvad
 import numpy as np
 from silero_vad import load_silero_vad
-import threading
 
 # Suppress noisy UserWarning from webrtcvad about pkg_resources
 warnings.filterwarnings("ignore", category=UserWarning, module="webrtcvad")
@@ -37,15 +37,14 @@ class VADManagerRef:
         self.silero_sensitivity = silero_sensitivity
         self.aggressive = aggressive
 
-        self.is_webrtc_active = False
-        self.is_silero_active = False
+        self.state = {"webrtc": False, "silero": False}
         self._working = False
         self._lock = threading.Lock()
 
     def reset(self):
         """Reset detection flags."""
-        self.is_webrtc_active = False
-        self.is_silero_active = False
+        self.state["webrtc"] = False
+        self.state["silero"] = False
 
     def _check_webrtc(self, chunk: bytes, all_frames: bool = False) -> bool:
         """Check voice activity using webrtcvad."""
@@ -58,15 +57,15 @@ class VADManagerRef:
             if self.webrtc_vad.is_speech(frame, 16000):
                 speech_frames += 1
                 if not all_frames:
-                    self.is_webrtc_active = True
+                    self.state["webrtc"] = True
                     return True
 
         if all_frames:
             active = speech_frames == num_frames
-            self.is_webrtc_active = active
+            self.state["webrtc"] = active
             return active
 
-        self.is_webrtc_active = False
+        self.state["webrtc"] = False
         return False
 
     def _run_silero(self, chunk: bytes) -> float:
@@ -82,8 +81,7 @@ class VADManagerRef:
             if len(piece) < 512:
                 piece = np.pad(piece, (0, 512 - len(piece)))
             prob = self.silero_model(torch.from_numpy(piece), 16000).item()
-            if prob > max_prob:
-                max_prob = prob
+            max_prob = max(max_prob, prob)
         return max_prob
 
     def _check_silero(self, chunk: bytes) -> None:
@@ -92,7 +90,7 @@ class VADManagerRef:
             self._working = True
             try:
                 prob = self._run_silero(chunk)
-                self.is_silero_active = prob > (1 - self.silero_sensitivity)
+                self.state["silero"] = prob > (1 - self.silero_sensitivity)
             finally:
                 self._working = False
 
@@ -100,7 +98,7 @@ class VADManagerRef:
         """Public method to start voice activity detection."""
         self._check_webrtc(chunk)
 
-        if self.is_webrtc_active and not self._working:
+        if self.state["webrtc"] and not self._working:
             threading.Thread(
                 target=self._check_silero,
                 args=(chunk,),
@@ -109,4 +107,4 @@ class VADManagerRef:
 
     def is_voice_active(self) -> bool:
         """Return True when both detectors agree."""
-        return self.is_webrtc_active and self.is_silero_active
+        return self.state["webrtc"] and self.state["silero"]

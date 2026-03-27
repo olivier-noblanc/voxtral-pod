@@ -129,7 +129,12 @@ async def list_trans(client_id: str):
     p = _safe_join(TRANSCRIPTIONS_DIR, client_id)
     if not os.path.isdir(p):
         return []
-    return sorted([f for f in os.listdir(p) if f.endswith(".txt")], reverse=True)
+    files = sorted([f for f in os.listdir(p) if f.endswith(".txt")], reverse=True)
+    result = []
+    for f in files:
+        has_cleanup = os.path.isfile(os.path.join(p, f.replace(".txt", ".cleaned.md")))
+        result.append({"name": f, "has_cleanup": has_cleanup})
+    return result
 
 @router.get("/transcriptions/")
 async def list_trans_slash(client_id: str):
@@ -255,7 +260,14 @@ async def download_transcript(client_id: str, filename: str):
 @router.get("/view/{client_id}/{filename}")
 async def view_transcription(client_id: str, filename: str, request: Request):
     client_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
-    if os.path.isfile(client_path):
+    cleaned_path = client_path.replace(".txt", ".cleaned.md")
+    
+    show_cleaned = False
+    if os.path.isfile(cleaned_path):
+        file_path = cleaned_path
+        show_cleaned = True
+        is_temp = False
+    elif os.path.isfile(client_path):
         file_path = client_path
         is_temp = False
     else:
@@ -267,8 +279,32 @@ async def view_transcription(client_id: str, filename: str, request: Request):
             is_temp = True
         else:
             raise HTTPException(status_code=404, detail="Fichier introuvable.")
+            
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
+
+    if show_cleaned:
+        # Render markdown for the cleaned version
+        safe_title = html_escape(filename)
+        rendered_content = markdown.markdown(content, extensions=['extra', 'nl2br'])
+        html = f"""<!DOCTYPE html>
+<html lang="fr" data-fr-scheme="dark">
+<head>
+    <meta charset="UTF-8"><title>{safe_title} – Voxtral Pod</title>
+    <link rel="stylesheet" href="/static/dsfr.min.css">
+    <link rel="stylesheet" href="/static/postprocess.css">
+</head>
+<body>
+<div class="fr-container fr-py-4w">
+    <a href="/" class="fr-link fr-icon-arrow-left-line fr-link--icon-left fr-mb-2w">Retour à l'accueil</a>
+    <h1>{safe_title} (Version Nettoyée Albert)</h1>
+    <div class="content-area fr-text--md fr-p-4w" style="background: var(--background-alt-blue-france); border-radius: 8px;">
+        {rendered_content}
+    </div>
+</div>
+</body></html>"""
+        return HTMLResponse(html)
+
     segments_html = "\n".join(format_transcription(line) for line in content.splitlines() if line.strip())
     safe_file = html_escape(filename)
     temp_notice = "<p class=\"fr-text--sm fr-mb-2w\"><em>Version temporaire (en cours de nettoyage)</em></p>" if is_temp else ""
@@ -600,6 +636,17 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
         txt_path = os.path.join(client_dir, txt_name)
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(transcript)
+        
+        # Cleanup Albert automatique
+        try:
+            from backend.core.postprocess import clean_text
+            cleaned = await asyncio.to_thread(clean_text, transcript)
+            cleaned_path = txt_path.replace(".txt", ".cleaned.md")
+            with open(cleaned_path, "w", encoding="utf-8") as f:
+                f.write(cleaned)
+        except Exception as ce:
+            print(f"[!] Erreur nettoyage Albert auto (Batch): {ce}")
+
         add_job(file_id, {"status": "terminé", "progress": 100, "result_file": txt_name})
         try:
             batch_audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "batch_audio")
@@ -646,6 +693,16 @@ async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp:
         txt_path = os.path.join(client_dir, txt_name)
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(transcript)
+
+        # Cleanup Albert automatique
+        try:
+            from backend.core.postprocess import clean_text
+            cleaned = await asyncio.to_thread(clean_text, transcript)
+            cleaned_path = txt_path.replace(".txt", ".cleaned.md")
+            with open(cleaned_path, "w", encoding="utf-8") as f:
+                f.write(cleaned)
+        except Exception as ce:
+            print(f"[!] Erreur nettoyage Albert auto (Live): {ce}")
 
         add_job(job_id, {"status": "terminé", "progress": 100, "result_file": txt_name})
     except Exception as e:
