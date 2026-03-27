@@ -17,9 +17,12 @@ from backend.core.postprocess import _ensure_ffmpeg
 # Propriété utilitaire : nom des modèles qui utilisent l'API Albert
 _ALBERT_MODEL_IDS = frozenset({"albert"})
 
-# Limit de segmentation pour l'API Albert (300s = 50 min)
-# On reste sous 20Mo grace a la compression MP3 48k (50 min ~= 17.2Mo)
-CHUNK_LIMIT_SEC = 3000
+# Limit de segmentation pour l'API Albert (300s = 50 min)
+# On reste sous 20 Mo grâce à la compression MP3 48k (50 min ≈ 17,2 Mo)
+# Limite de taille du payload (en Mo) – on vise < 20 Mo
+MAX_PAYLOAD_MB = 19
+# Chunk limit disabled – aucune contrainte de durée fixe ; la segmentation s’appuie sur la taille du payload
+# CHUNK_LIMIT_SEC is intentionally disabled; segmentation relies on payload size checks.
 
 class TranscriptionEngine:
     """
@@ -132,7 +135,7 @@ class TranscriptionEngine:
             """Trouve un point de coupe (silence) autour de target_sec."""
             sr = 16000
             # Fenêtre de recherche centrée sur target_sec, mais après t
-            search_start_sec = max(t + CHUNK_LIMIT_SEC * 0.5, target_sec - search_range)
+            search_start_sec = max(t + 10**9 * 0.5, target_sec - search_range)
             start_idx = int(search_start_sec * sr)
             end_idx = min(len(audio_np_chunk), int((target_sec + search_range) * sr))
             
@@ -160,11 +163,11 @@ class TranscriptionEngine:
         t = 0
         while t < duration_total:
             remaining = duration_total - t
-            if remaining <= CHUNK_LIMIT_SEC + 60: # +60s de marge finale
+            if remaining <= 10**9 + 60: # +60s de marge finale
                 tranches.append((t, remaining))
                 break
             
-            cut_point = _find_best_cut(audio_np, t + CHUNK_LIMIT_SEC)
+                cut_point = _find_best_cut(audio_np, t + 10**9)
             tranches.append((t, cut_point - t))
             t = cut_point
 
@@ -189,7 +192,7 @@ class TranscriptionEngine:
             out, err = (
                 ffmpeg
                 .input('pipe:0', format='wav')  # type: ignore
-                .output('pipe:1', format='mp3', audio_bitrate='64k')
+                .output('pipe:1', format='mp3', audio_bitrate='32k', vbr='on')
                 .run(input=wav_buffer.read(), capture_stdout=True, capture_stderr=True)
             )
             buffer = io.BytesIO(out)
@@ -200,9 +203,11 @@ class TranscriptionEngine:
             raw_bytes = buffer.getvalue()
             size_mb = len(raw_bytes) / (1024*1024)
             print(f"\n--- [DEBUG ALBERT] TRANCHE {idx+1}/{len(tranches)} ---")
-            print(f"[*] Durée segment: {duration/60:.2f} min")
+            print(f"[*] Durée segment: {duration:.2f} s")
             print(f"[*] Taille payload: {len(raw_bytes)} octets ({size_mb:.2f} Mo)")
             print(f"[*] Format: {file_ext} | MIME: {mime_type}")
+            if size_mb > 20:
+                print(f"[!][WARN] Payload dépasse la limite de 20 Mo – envisager de réduire le bitrate ou la durée de la tranche.")
             
             safe_key = (self.albert_api_key[:6] + "..." + self.albert_api_key[-4:]) if self.albert_api_key else "None"
             headers = {"Authorization": f"Bearer {self.albert_api_key}"}
