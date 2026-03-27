@@ -1,6 +1,10 @@
-import os
+import sys
+from unittest.mock import MagicMock, patch
+
+# Mock torch BEFORE importing backend.core.transcription to avoid long hang
+sys.modules['torch'] = MagicMock()
+
 import unittest
-from unittest.mock import patch, MagicMock
 import numpy as np
 from backend.core.transcription import TranscriptionEngine
 
@@ -20,8 +24,12 @@ class TestAlbertSegmentation(unittest.TestCase):
         # Mock FFmpeg output (dummy bytes)
         mock_ffmpeg.return_value = (b"fake_mp3_data", b"")
         
-        # Audio de 100s
-        duration_sec = 100
+        # Audio de 150s. Avec segments de 40s et marge de 60s:
+        # 150s > 40s + 60s -> Decoupe.
+        # Tranche 1: 0-40s
+        # Tranche 2: 40-80s
+        # Tranche 3: 80-150s
+        duration_sec = 150
         sr = 16000
         audio_np = np.zeros(duration_sec * sr, dtype=np.float32)
         
