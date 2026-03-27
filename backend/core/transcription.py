@@ -1,13 +1,16 @@
 import os
 import io
+import sys
+import time
+import requests
 import numpy as np
 
 # Propriété utilitaire : nom des modèles qui utilisent l'API Albert
 _ALBERT_MODEL_IDS = frozenset({"albert"})
 
-# Limite de segmentation pour l'API Albert (3600s = 1h)
-# On reste sous 25Mo grace a la compression MP3 48k (1h ~= 21.6Mo)
-CHUNK_LIMIT_SEC = 3600
+# Limite de segmentation pour l'API Albert (3000s = 50 min)
+# On reste sous 20Mo grace a la compression MP3 48k (50 min ~= 17.2Mo)
+CHUNK_LIMIT_SEC = 3000
 
 class TranscriptionEngine:
     def __init__(self, model_id="whisper", device=None):
@@ -110,12 +113,6 @@ class TranscriptionEngine:
             return all_words, len(audio_np) / 16000
 
     def _transcribe_albert(self, audio_np, language="fr", progress_callback=None):
-        import ffmpeg
-        import io
-        import requests
-        import time
-        import sys
-
         duration_total = len(audio_np) / 16000
 
         def _find_best_cut(audio_np, target_sec, search_range=90):
@@ -165,7 +162,9 @@ class TranscriptionEngine:
                 progress_callback(f"Albert ({idx+1}/{len(tranches)})", prog_base)
 
             chunk_audio = audio_np[int(start_time*16000) : int((start_time+duration)*16000)]
-
+            
+            import ffmpeg
+            
             # 1. Compression MP3
             try:
                 from backend.core.audio import float32_to_pcm16

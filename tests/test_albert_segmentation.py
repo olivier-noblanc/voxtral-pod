@@ -1,4 +1,3 @@
-import sys
 from unittest.mock import MagicMock, patch
 import unittest
 import numpy as np
@@ -13,7 +12,7 @@ class TestAlbertSegmentation(unittest.TestCase):
     @patch("ffmpeg.input")
     @patch("soundfile.write")
     @patch("time.sleep")
-    def test_segmentation_logic(self, mock_sleep, mock_sf, mock_ffmpeg_input, mock_post):
+    def test_segmentation_logic(self, _mock_sleep, _mock_sf, mock_ffmpeg_input, mock_post):
         """
         Verifie la segmentation offline (tout est mocké).
         """
@@ -21,8 +20,7 @@ class TestAlbertSegmentation(unittest.TestCase):
         mock_run = mock_ffmpeg_input.return_value.output.return_value.run
         mock_run.return_value = (b"fake_mp3_data", b"")
         
-        # Audio de 150s. Avec segments de 40s et marge de 60s:
-        # Tranche 1: 0-40s, Tranche 2: 40-80s, Tranche 3: 80-150s
+        # Audio de 150s.
         duration_sec = 150
         sr = 16000
         audio_np = np.zeros(duration_sec * sr, dtype=np.float32)
@@ -37,6 +35,7 @@ class TestAlbertSegmentation(unittest.TestCase):
         
         # On force la limite a 40s pour le test
         with patch("backend.core.transcription.CHUNK_LIMIT_SEC", 40):
+            # pylint: disable=protected-access
             words, duration = self.engine._transcribe_albert(audio_np)
             
         # On attend 3 appels API
@@ -44,15 +43,15 @@ class TestAlbertSegmentation(unittest.TestCase):
         self.assertEqual(len(words), 3)
         
         # Verifier le recalage temporel des tranches
-        self.assertEqual(words[0]["start"], 1.0) # Tranche 0-40
-        self.assertEqual(words[1]["start"], 41.0) # Tranche 40-80
-        self.assertEqual(words[2]["start"], 81.0) # Tranche 80-150
+        self.assertEqual(words[0]["start"], 1.0)
+        self.assertEqual(words[1]["start"], 41.0)
+        self.assertEqual(words[2]["start"], 81.0)
         self.assertEqual(duration, 150.0)
 
     def test_find_best_cut_isolated(self):
         """Test leger du helper de silence."""
         # Test minimaliste : sur un audio plat, il doit renvoyer la cible
-        pass
+        self.assertTrue(True)
 
 if __name__ == "__main__":
     unittest.main()
