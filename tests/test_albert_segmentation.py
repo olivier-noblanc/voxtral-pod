@@ -1,9 +1,5 @@
 import sys
 from unittest.mock import MagicMock, patch
-
-# Mock torch BEFORE importing backend.core.transcription to avoid long hang
-sys.modules['torch'] = MagicMock()
-
 import unittest
 import numpy as np
 from backend.core.transcription import TranscriptionEngine

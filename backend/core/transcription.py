@@ -1,12 +1,9 @@
 import os
 import io
-
 import numpy as np
-
 
 # Propriété utilitaire : nom des modèles qui utilisent l'API Albert
 _ALBERT_MODEL_IDS = frozenset({"albert"})
-
 
 # Limite de segmentation pour l'API Albert (3600s = 1h)
 # On reste sous 25Mo grace a la compression MP3 48k (1h ~= 21.6Mo)
@@ -28,7 +25,7 @@ class TranscriptionEngine:
 
         self.model = None
         self.albert_api_key = os.getenv("ALBERT_API_KEY")
-        self.albert_base_url = "https://albert.api.etalab.gouv.fr/v1"
+        self.albert_base_url = os.getenv("ALBERT_BASE_URL", "https://albert.api.etalab.gouv.fr/v1")
         self.albert_model_id = os.getenv("ALBERT_MODEL_ID", "openai/whisper-large-v3")
 
     @property
@@ -44,7 +41,6 @@ class TranscriptionEngine:
         if self.model_id == "whisper":
             print(f"[*] Loading Faster-Whisper (large-v3) on {self.device}...")
             compute_type = "float16" if self.device == "cuda" else "int8"
-            # Lazy import of faster_whisper
             import faster_whisper
             self.model = faster_whisper.WhisperModel(
                 "large-v3",
@@ -52,9 +48,7 @@ class TranscriptionEngine:
                 compute_type=compute_type,
             )
         else:
-            # Import Vosk uniquement quand nécessaire (lib lourde)
-            # Lazy import of vosk
-            import vosk  # noqa: PLC0415
+            import vosk
             print(f"[*] Loading Vosk model: {self.model_id}...")
             self.model = vosk.Model(f"models/{self.model_id}")
 
@@ -99,8 +93,8 @@ class TranscriptionEngine:
 
         else:
             # Vosk
-            import vosk  # noqa: PLC0415
             import json
+            import vosk
             rec = vosk.KaldiRecognizer(self.model, 16000)
             rec.SetWords(True)
 
@@ -118,8 +112,47 @@ class TranscriptionEngine:
     def _transcribe_albert(self, audio_np, language="fr", progress_callback=None):
         import ffmpeg
         import io
+        import requests
+        import time
+        import sys
+
+        duration_total = len(audio_np) / 16000
+
+        def _find_best_cut(audio_np, target_sec, search_range=90):
+            sr = 16000
+            # Fenetre de recherche centree sur target_sec, mais apres t
+            search_start_sec = max(t + CHUNK_LIMIT_SEC * 0.5, target_sec - search_range)
+            start_idx = int(search_start_sec * sr)
+            end_idx = min(len(audio_np), int((target_sec + search_range) * sr))
+            
+            chunk_to_search = audio_np[start_idx:end_idx]
+            if len(chunk_to_search) < sr * 0.5:
+                return target_sec
+            
+            win_size = int(sr * 0.2) # 200ms
+            num_wins = len(chunk_to_search) // win_size
+            if num_wins == 0:
+                return target_sec
+            
+            wins = chunk_to_search[:num_wins*win_size].reshape(num_wins, win_size)
+            energies = np.sqrt(np.mean(wins**2, axis=1))
+            
+            # Penalité de distance pour preferer le point le plus proche de target_sec
+            win_times = search_start_sec + (np.arange(num_wins) * win_size) / sr
+            # On divise par un grand nombre pour que l'energie reste prioritaire
+            dist_penalty = np.abs(win_times - target_sec) * 1e-7
+            
+            best_win = np.argmin(energies + dist_penalty)
+            return win_times[best_win]
+
+        tranches = []
+        t = 0
+        while t < duration_total:
+            remaining = duration_total - t
+            if remaining <= CHUNK_LIMIT_SEC + 60: # +60s de marge finale
                 tranches.append((t, remaining))
                 break
+            
             cut_point = _find_best_cut(audio_np, t + CHUNK_LIMIT_SEC)
             tranches.append((t, cut_point - t))
             t = cut_point
@@ -144,7 +177,7 @@ class TranscriptionEngine:
                 )
                 buffer = io.BytesIO(out)
                 mime_type = "audio/mpeg"
-                file_extension = "mp3"
+                file_ext = "mp3"
             except Exception as e:
                 print(f"[!] Erreur compression MP3 (Tranche {idx+1}), repli WAV: {e}")
                 import soundfile as sf
@@ -152,7 +185,7 @@ class TranscriptionEngine:
                 sf.write(buffer, chunk_audio, 16000, format='WAV', subtype='PCM_16')
                 buffer.seek(0)
                 mime_type = "audio/wav"
-                file_extension = "wav"
+                file_ext = "wav"
 
             # 2. Diagnostics détaillés
             raw_bytes = buffer.getvalue()
@@ -160,13 +193,13 @@ class TranscriptionEngine:
             print(f"\n--- [DEBUG ALBERT] TRANCHE {idx+1}/{len(tranches)} ---")
             print(f"[*] Durée segment: {duration/60:.2f} min")
             print(f"[*] Taille payload: {len(raw_bytes)} octets ({size_mb:.2f} Mo)")
-            print(f"[*] Format: {file_extension} | MIME: {mime_type}")
+            print(f"[*] Format: {file_ext} | MIME: {mime_type}")
             
             safe_key = (self.albert_api_key[:6] + "..." + self.albert_api_key[-4:]) if self.albert_api_key else "None"
             headers = {"Authorization": f"Bearer {self.albert_api_key}"}
             print(f"[*] Headers: {{'Authorization': 'Bearer {safe_key}', ...}}")
 
-            files = {"file": (f"audio.{file_extension}", buffer, mime_type)}
+            files = {"file": (f"audio.{file_ext}", buffer, mime_type)}
             data = {"model": self.albert_model_id, "language": language, "response_format": "verbose_json"}
             
             # 3. Requête avec Retry et Timings
