@@ -126,55 +126,59 @@ class TranscriptionEngine:
 
             return all_words, len(audio_np) / 16000
 
+    def _find_best_cut(self, audio_np, target_sec, current_t=0):
+        """
+        Trouve le meilleur point de coupe (silence) près de target_sec.
+        On recherche dans une fenêtre réduite à la fin du segment (180s)
+        afin de maximiser la durée de la tranche.
+        """
+        sr = 16000
+        # Fenêtre de recherche : les 3 dernières minutes du segment cible
+        search_range_sec = 180
+        start_sec = max(current_t, target_sec - search_range_sec)
+        end_sec = min(len(audio_np) / sr, target_sec)
+        
+        start_idx = int(start_sec * sr)
+        end_idx = int(end_sec * sr)
+
+        segment = audio_np[start_idx:end_idx]
+        if len(segment) == 0:
+            return target_sec
+
+        # Analyse d'énergie par fenêtres de 200ms
+        frame_len = int(sr * 0.2)
+        num_frames = len(segment) // frame_len
+        if num_frames == 0:
+            return target_sec
+
+        frames = segment[:num_frames * frame_len].reshape(num_frames, frame_len)
+        energies = np.sqrt(np.mean(frames.astype(np.float64) ** 2, axis=1))
+
+        # Seuil d'énergie de silence
+        SILENCE_THRESHOLD = 1e-3
+
+        # On cherche le DERNIER silence dans cette fenêtre de recherche
+        silent_indices = np.where(energies < SILENCE_THRESHOLD)[0]
+        if silent_indices.size > 0:
+            last_silent = silent_indices[-1]
+            cut_sec = start_sec + (last_silent * frame_len) / sr
+            # Si le silence est très proche de la fin ou du début, on ajuste
+            if cut_sec >= target_sec - 0.5 or cut_sec <= start_sec + 0.5:
+                return target_sec
+            return cut_sec
+
+        # Fallback : cadre avec l'énergie la plus faible
+        min_idx = np.argmin(energies)
+        cut_sec = start_sec + (min_idx * frame_len) / sr
+        if cut_sec >= target_sec - 0.5 or cut_sec <= start_sec + 0.5:
+            return target_sec
+        return cut_sec
+
     def _transcribe_albert(self, audio_np, language="fr", progress_callback=None):
         """
         Découpe l'audio en tranches et les envoie à l'API Albert.
         """
         duration_total = len(audio_np) / 16000
-
-        def _find_best_cut(audio_np, target_sec, search_range=90):
-            """Trouve le meilleur point de coupe (silence) entre le début du chunk et target_sec.
-            Le chunk commence à t (déjà traité) et on veut couper avant ou à target_sec (t + CHUNK_LIMIT_SEC).
-            On recherche le cadre le plus silencieux dans la fenêtre [t, target_sec] (soit CHUNK_LIMIT_SEC de durée)
-            afin d’éviter de couper dans le blanc et de rester sous la limite de taille.
-            Si aucun silence suffisamment bas n’est trouvé, on retourne target_sec (cut à la limite maximale)."""
-            sr = 16000
-            # La fenêtre de recherche commence à target_sec - CHUNK_LIMIT_SEC (c’est‑à‑dire le début du chunk)
-            start_sec = max(0, target_sec - CHUNK_LIMIT_SEC)
-            end_sec = min(len(audio_np) / sr, target_sec)
-            start_idx = int(start_sec * sr)
-            end_idx = int(end_sec * sr)
-
-            segment = audio_np[start_idx:end_idx]
-            if len(segment) == 0:
-                return target_sec
-
-            # Découper le segment en fenêtres de 200 ms pour analyser l’énergie
-            frame_len = int(sr * 0.2)  # 200 ms
-            num_frames = len(segment) // frame_len
-            if num_frames == 0:
-                return target_sec
-
-            frames = segment[:num_frames * frame_len].reshape(num_frames, frame_len)
-            energies = np.sqrt(np.mean(frames.astype(np.float64) ** 2, axis=1))
-
-            # Seuil d’énergie pour considérer un cadre comme « silence »
-            SILENCE_THRESHOLD = 1e-3
-
-            # Trouver le premier cadre dont l’énergie est en dessous du seuil
-            silent_indices = np.where(energies < SILENCE_THRESHOLD)[0]
-            if silent_indices.size > 0:
-                first_silent = silent_indices[0]
-                cut_sec = start_sec + (first_silent * frame_len) / sr
-                # Si le silence détecté est au tout début du segment, on garde la coupe à la cible
-                if cut_sec <= start_sec:
-                    return target_sec
-                return cut_sec
-
-            # Sinon, choisir le cadre avec l’énergie la plus faible (fallback)
-            min_idx = np.argmin(energies)
-            cut_sec = start_sec + (min_idx * frame_len) / sr
-            return cut_sec
 
         tranches = []
         t = 0
@@ -184,7 +188,7 @@ class TranscriptionEngine:
                 tranches.append((t, remaining))
                 break
 
-            cut_point = _find_best_cut(audio_np, t + CHUNK_LIMIT_SEC)
+            cut_point = self._find_best_cut(audio_np, t + CHUNK_LIMIT_SEC, current_t=t)
             tranches.append((t, cut_point - t))
             t = cut_point
 
@@ -198,25 +202,18 @@ class TranscriptionEngine:
             chunk_audio = audio_np[int(start_time*16000) : int((start_time+duration)*16000)]
             
             # 1. Compression (fallback to MP3) – utilise ffmpeg via ffmpeg‑python
-            # Vérifie que ffmpeg est disponible
             _ensure_ffmpeg()
-            # Écriture temporaire du WAV en mémoire
             wav_buffer = io.BytesIO()
             sf.write(wav_buffer, chunk_audio, 16000, format='WAV', subtype='PCM_16')
             wav_buffer.seek(0)
 
-            # Conversion du WAV en MP3 avec ffmpeg (ffmpeg‑python)
-            # Conversion du WAV en MP3 avec ffmpeg (ffmpeg‑python) – bitrate fixe à 32 kbit/s (qualité préservée)
-            # Conversion du WAV en MP3 avec un bitrate plus élevé (≈ 96 kbit/s) afin d’atteindre
-            # une taille de payload proche de la limite de 20 Mo tout en restant sous 20 Mo
-            # pour un chunk de 30 min (1800 s). Le VBR reste activé pour une meilleure qualité.
+            # Conversion MP3 64k
             out, err = (
                 ffmpeg
                 .input('pipe:0', format='wav')  # type: ignore
                 .output('pipe:1', format='mp3', audio_bitrate='64k', vbr='on')
                 .run(input=wav_buffer.read(), capture_stdout=True, capture_stderr=True)
             )
-            # out now contains le MP3 du chunk (30 min max) ; la taille devrait rester < 20 Mo avec ce bitrate
             buffer = io.BytesIO(out)
             mime_type = "audio/mpeg"
             file_ext = "mp3"
@@ -228,17 +225,12 @@ class TranscriptionEngine:
             print(f"[*] Durée segment: {duration:.2f} s")
             print(f"[*] Taille payload: {len(raw_bytes)} octets ({size_mb:.2f} Mo)")
             print(f"[*] Format: {file_ext} | MIME: {mime_type}")
-            if size_mb > 20:
-                print(f"[!][WARN] Payload dépasse la limite de 20 Mo – envisager de réduire le bitrate ou la durée de la tranche.")
             
-            safe_key = (self.albert_api_key[:6] + "..." + self.albert_api_key[-4:]) if self.albert_api_key else "None"
             headers = {"Authorization": f"Bearer {self.albert_api_key}"}
-            print(f"[*] Headers: {{'Authorization': 'Bearer {safe_key}', ...}}")
-
             files = {"file": (f"audio.{file_ext}", buffer, mime_type)}
             data = {"model": self.albert_model_id, "language": language, "response_format": "verbose_json"}
             
-            # 3. Requête avec Retry et Timings
+            # 3. Requête avec Retry
             last_err = None
             response = None
             for attempt in range(3):
@@ -247,8 +239,7 @@ class TranscriptionEngine:
                     buffer.seek(0)
                     print(f"[*] Tentative {attempt+1}/3 - Envoi en cours...")
                     response = requests.post(f"{self.albert_base_url}/audio/transcriptions", headers=headers, files=files, data=data, timeout=1800)
-                    end_req = time.time()
-                    print(f"[*] Réponse reçue en {end_req - start_req:.2f}s (Statut: {response.status_code})")
+                    print(f"[*] Réponse reçue en {time.time() - start_req:.2f}s (Statut: {response.status_code})")
                     if response.status_code == 200:
                         break
                     else:
@@ -258,25 +249,25 @@ class TranscriptionEngine:
                         else:
                             break
                 except Exception as e:
-                    end_req = time.time()
                     last_err = e
-                    print(f"[!] Exception réseau tranche {idx+1} après {end_req - start_req:.2f}s: {type(e).__name__} - {e}")
-                    if attempt < 2:
-                        time.sleep(2**attempt)
-                    else:
-                        raise last_err
+                    print(f"[!] Exception réseau tranche {idx+1}: {type(e).__name__} - {e}")
+                    time.sleep(2**attempt) if attempt < 2 else None
 
             if not response or response.status_code != 200:
-                raise Exception(f"Échec Tranche {idx+1} (Statut {response.status_code if response else 'N/A'}): {response.text if response else str(last_err)}")
+                raise Exception(f"Échec Tranche {idx+1} (Statut {response.status_code if response else 'N/A'})")
 
-            # 4. Traitement des mots
+            # 4. Traitement des résultats
             result = response.json()
             chunk_words = []
             if result.get("words"):
-                for w in result["words"]: 
-                    chunk_words.append({"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"})
+                chunk_words = [
+                    {"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"}
+                    for w in result["words"]
+                ]
+                print(f"[*] Tranche {idx+1}: {len(chunk_words)} mots récupérés (format: words).")
             elif result.get("segments"):
-                for s in result["segments"]:
+                segments = result["segments"]
+                for s in segments:
                     if s.get("words"):
                         for w in s["words"]: 
                             chunk_words.append({"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"})
@@ -287,10 +278,14 @@ class TranscriptionEngine:
                             "word": s.get("text", "").strip(),
                             "speaker": "UNKNOWN"
                         })
+                print(f"[*] Tranche {idx+1}: {len(segments)} segments ({len(chunk_words)} mots) récupérés (format: segments).")
             elif result.get("text"):
                 chunk_words.append({"start": 0.0, "end": duration, "word": result["text"].strip(), "speaker": "UNKNOWN"})
+                print(f"[*] Tranche {idx+1}: Texte brut récupéré ({len(result['text'])} caractères).")
 
             # 5. Décalage des timestamps
+            if chunk_words:
+                print(f"[*] Tranche {idx+1}: Recalage temporel de {len(chunk_words)} éléments (+{start_time:.2f}s)...")
             for w in chunk_words:
                 all_final_words.append({
                     "start": w["start"] + start_time, 

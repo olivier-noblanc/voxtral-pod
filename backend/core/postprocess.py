@@ -98,16 +98,20 @@ def convert_audio(src_path: str, dst_path: str, format: str = "mp3") -> str:
 
 def summarize_text(text):
     """Generate a structured summary via Albert."""
+    print(f"[*] Post-traitement: Début de la synthèse Albert ({len(text.split())} mots)...")
     prompt = (
         "Résume de façon structurée le texte suivant, en français, "
         "en conservant les informations essentielles :\\n\\n"
         f"{text}"
     )
-    return _call_albert(prompt)
+    res = _call_albert(prompt)
+    print(f"[*] Post-traitement: Synthèse terminée.")
+    return res
 
 
 def extract_actions_text(text):
     """Extract decisions and TODO actions via Albert."""
+    print(f"[*] Post-traitement: Extraction des actions Albert ({len(text.split())} mots)...")
     assistant = AlbertAssistant()
     prompt = (
         "Liste les décisions, actions et points à faire (TODO) mentionnés dans le texte "
@@ -115,17 +119,22 @@ def extract_actions_text(text):
         f"{text}"
     )
     raw = asyncio.run(assistant.get_completion(prompt))
-    return [line.strip("- ").strip() for line in raw.splitlines() if line.strip()]
+    actions = [line.strip("- ").strip() for line in raw.splitlines() if line.strip()]
+    print(f"[*] Post-traitement: {len(actions)} actions identifiées.")
+    return actions
 
 
 def clean_text(text):
     """Remove speech tics (euh, bah, alors, …) via Albert."""
+    print(f"[*] Post-traitement: Nettoyage du texte Albert ({len(text.split())} mots)...")
     prompt = (
         "Supprime les tics de langage (euh, bah, alors, …) du texte suivant, "
         "sans en altérer le sens, et renvoie le texte nettoyé en français :\\n\\n"
         f"{text}"
     )
-    return _call_albert(prompt)
+    res = _call_albert(prompt)
+    print(f"[*] Post-traitement: Nettoyage terminé.")
+    return res
 
 
 def process_transcription(words):

@@ -154,13 +154,21 @@ class SotaASR:
             )
 
         # 4. Merge
+        print(f"[*] Post-traitement: Alignement de {len(words)} mots avec {len(diar_segments)} segments de locuteurs...")
         words_with_speakers = assign_speakers_to_words(words, diar_segments)
+        
+        print(f"[*] Post-traitement: Lissage des micro-tours de parole...")
         words_with_speakers = smooth_micro_turns(words_with_speakers)
+        
+        print(f"[*] Post-traitement: Reconstruction des segments par locuteur...")
         segments = build_speaker_segments(words_with_speakers)
+        print(f"[*] Post-traitement: {len(segments)} segments finaux générés.")
 
         # 5. Format final text
+        print(f"[*] Post-traitement: Formattage du texte final...")
         output_lines = []
         for s in segments:
             output_lines.append(f"[{s['start']:.2f}s -> {s['end']:.2f}s] [{s['speaker']}] {s['text']}")
 
+        print(f"[*] Post-traitement terminé. Transcript prêt.")
         return "\n".join(output_lines)
