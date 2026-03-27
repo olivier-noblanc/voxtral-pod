@@ -30,12 +30,26 @@ def _call_albert(prompt: str) -> str:
     }
 
     try:
-        response = requests.post(
-            f"{base_url}/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=30,
-        )
+        max_retries = 3
+        last_err = None
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(
+                    f"{base_url}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=1800, # 30 minutes
+                )
+                break
+            except (requests.exceptions.RequestException, Exception) as e:
+                last_err = e
+                if attempt < max_retries - 1:
+                    import time
+                    wait = 2 ** attempt
+                    print(f"[!] Albert API (LLM) Error (attempt {attempt+1}/{max_retries}): {e}. Retrying in {wait}s...")
+                    time.sleep(wait)
+                else:
+                    raise last_err
         # In test environments the mocked response may not implement raise_for_status correctly.
         if hasattr(response, "raise_for_status"):
             try:

@@ -136,13 +136,27 @@ class TranscriptionEngine:
                 "response_format": "verbose_json",
             }
 
-            response = requests.post(
-                f"{self.albert_base_url}/audio/transcriptions",
-                headers=headers,
-                files=files,
-                data=data,
-                timeout=30,
-            )
+            max_retries = 3
+            last_err = None
+            for attempt in range(max_retries):
+                try:
+                    response = requests.post(
+                        f"{self.albert_base_url}/audio/transcriptions",
+                        headers=headers,
+                        files=files,
+                        data=data,
+                        timeout=1800, # 30 minutes
+                    )
+                    break
+                except (requests.exceptions.RequestException, Exception) as e:
+                    last_err = e
+                    if attempt < max_retries - 1:
+                        import time
+                        wait = 2 ** attempt
+                        print(f"[!] Albert API Error (attempt {attempt+1}/{max_retries}): {e}. Retrying in {wait}s...")
+                        time.sleep(wait)
+                    else:
+                        raise last_err
 
             if response.status_code != 200:
                 print(f"[!] Albert API Error: {response.text}")
