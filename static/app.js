@@ -219,7 +219,7 @@ async function startRecording() {
                     if (existingPartial) {
                         // Reuse the same row — just update the text
                         const partialSpan = existingPartial.querySelector("span.partial-text");
-                        if (partialSpan) partialSpan.textContent = data.text + " ...";
+                        if (partialSpan) partialSpan.innerHTML = data.text + '<span class="dots-animated">...</span>';
                     } else {
                         const row = document.createElement("div");
                         row.className = "sentence-row";
@@ -231,7 +231,7 @@ async function startRecording() {
                         if (data.speaker !== lastSpeaker) { s.textContent = "[" + data.speaker + "] "; lastSpeaker = data.speaker; }
                         const t = document.createElement("span");
                         t.className = "partial-text";
-                        t.textContent = data.text + " ...";
+                        t.innerHTML = data.text + '<span class="dots-animated">...</span>';
                         row.append(s, t);
                         // Drag‑and‑drop handlers (same as for finalized rows)
                         row.addEventListener("dragstart", e => {
