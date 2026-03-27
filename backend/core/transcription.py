@@ -1,3 +1,7 @@
+"""
+Moteur de transcription pour Voxtral Pod.
+Gère Whisper (local), Vosk (local) et l'API Albert (distant).
+"""
 import os
 import io
 import sys
@@ -8,11 +12,14 @@ import numpy as np
 # Propriété utilitaire : nom des modèles qui utilisent l'API Albert
 _ALBERT_MODEL_IDS = frozenset({"albert"})
 
-# Limite de segmentation pour l'API Albert (3000s = 50 min)
+# Limit de segmentation pour l'API Albert (300s = 50 min)
 # On reste sous 20Mo grace a la compression MP3 48k (50 min ~= 17.2Mo)
 CHUNK_LIMIT_SEC = 3000
 
 class TranscriptionEngine:
+    """
+    Orchestrateur de transcription multi-moteur.
+    """
     def __init__(self, model_id="whisper", device=None):
         self.model_id = model_id
 
@@ -37,6 +44,7 @@ class TranscriptionEngine:
         return self.model_id in _ALBERT_MODEL_IDS or bool(self.albert_api_key)
 
     def load(self):
+        """Charge les modèles en mémoire (Whisper ou Vosk)."""
         if self.use_albert or self.model_id == "mock":
             print(f"[*] Transcription engine in {self.model_id} mode (no local weights needed).")
             return
@@ -113,16 +121,20 @@ class TranscriptionEngine:
             return all_words, len(audio_np) / 16000
 
     def _transcribe_albert(self, audio_np, language="fr", progress_callback=None):
+        """
+        Découpe l'audio en tranches et les envoie à l'API Albert.
+        """
         duration_total = len(audio_np) / 16000
 
-        def _find_best_cut(audio_np, target_sec, search_range=90):
+        def _find_best_cut(audio_np_chunk, target_sec, search_range=90):
+            """Trouve un point de coupe (silence) autour de target_sec."""
             sr = 16000
-            # Fenetre de recherche centree sur target_sec, mais apres t
+            # Fenêtre de recherche centrée sur target_sec, mais après t
             search_start_sec = max(t + CHUNK_LIMIT_SEC * 0.5, target_sec - search_range)
             start_idx = int(search_start_sec * sr)
-            end_idx = min(len(audio_np), int((target_sec + search_range) * sr))
+            end_idx = min(len(audio_np_chunk), int((target_sec + search_range) * sr))
             
-            chunk_to_search = audio_np[start_idx:end_idx]
+            chunk_to_search = audio_np_chunk[start_idx:end_idx]
             if len(chunk_to_search) < sr * 0.5:
                 return target_sec
             
@@ -134,9 +146,9 @@ class TranscriptionEngine:
             wins = chunk_to_search[:num_wins*win_size].reshape(num_wins, win_size)
             energies = np.sqrt(np.mean(wins**2, axis=1))
             
-            # Penalité de distance pour preferer le point le plus proche de target_sec
+            # Pénalité de distance pour préférer le point le plus proche de target_sec
             win_times = search_start_sec + (np.arange(num_wins) * win_size) / sr
-            # On divise par un grand nombre pour que l'energie reste prioritaire
+            # On divise par un grand nombre pour que l'énergie reste prioritaire
             dist_penalty = np.abs(win_times - target_sec) * 1e-7
             
             best_win = np.argmin(energies + dist_penalty)
@@ -167,9 +179,10 @@ class TranscriptionEngine:
             
             # 1. Compression MP3
             try:
+                import ffmpeg
                 from backend.core.audio import float32_to_pcm16
                 pcm16_bytes = float32_to_pcm16(chunk_audio)
-                out, err = (
+                out, _ = (
                     ffmpeg.input("pipe:0", format="s16le", ar=16000, ac=1)
                     .output("pipe:0", format="mp3", acodec="libmp3lame", audio_bitrate="48k")
                     .run(input=pcm16_bytes, capture_stdout=True, capture_stderr=True, quiet=True)
@@ -177,16 +190,19 @@ class TranscriptionEngine:
                 buffer = io.BytesIO(out)
                 mime_type = "audio/mpeg"
                 file_ext = "mp3"
-            except Exception as e:
-                print(f"\n[!] ERREUR CRITIQUE COMPRESSION MP3 (Tranche {idx+1})")
-                print(f"[!] Erreur: {e}")
-                if hasattr(e, "stderr") and e.stderr:
-                    print(f"[!] FFmpeg STDERR:\n{e.stderr.decode()}")
+            except Exception as e: # pylint: disable=broad-except
                 import traceback
-                traceback.print_exc()
-                sys.stdout.flush()
-                
                 import soundfile as sf
+                error_detail = f"\n[!] ERREUR CRITIQUE COMPRESSION MP3 (Tranche {idx+1})\n"
+                error_detail += f"[!] Erreur: {e}\n"
+                
+                # Write to both stdout and stderr to be sure
+                sys.stderr.write(error_detail)
+                sys.stderr.flush()
+                print(error_detail)
+                sys.stdout.flush()
+                traceback.print_exc()
+                
                 buffer = io.BytesIO()
                 sf.write(buffer, chunk_audio, 16000, format='WAV', subtype='PCM_16')
                 buffer.seek(0)
@@ -243,19 +259,29 @@ class TranscriptionEngine:
             result = response.json()
             chunk_words = []
             if result.get("words"):
-                for w in result["words"]: chunk_words.append({"start": w["start"], "end": w["end"], "word": w["word"]})
+                for w in result["words"]: 
+                    chunk_words.append({"start": w["start"], "end": w["end"], "word": w["word"]})
             elif result.get("segments"):
                 for s in result["segments"]:
                     if s.get("words"):
-                        for w in s["words"]: chunk_words.append({"start": w["start"], "end": w["end"], "word": w["word"]})
+                        for w in s["words"]: 
+                            chunk_words.append({"start": w["start"], "end": w["end"], "word": w["word"]})
                     else:
-                        chunk_words.append({"start": s.get("start", 0.0), "end": s.get("end", duration), "word": s.get("text", "").strip()})
+                        chunk_words.append({
+                            "start": s.get("start", 0.0), 
+                            "end": s.get("end", duration), 
+                            "word": s.get("text", "").strip()
+                        })
             elif result.get("text"):
                 chunk_words.append({"start": 0.0, "end": duration, "word": result["text"].strip()})
 
             # 5. Décalage des timestamps
             for w in chunk_words:
-                all_final_words.append({"start": w["start"] + start_time, "end": w["end"] + start_time, "word": w["word"]})
+                all_final_words.append({
+                    "start": w["start"] + start_time, 
+                    "end": w["end"] + start_time, 
+                    "word": w["word"]
+                })
             
             buffer.close()
 

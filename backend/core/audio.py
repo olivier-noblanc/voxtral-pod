@@ -1,3 +1,7 @@
+"""
+Core audio utilities for decoding and converting audio files using FFmpeg and SoundFile.
+"""
+import sys
 import numpy as np
 import soundfile as sf
 import ffmpeg
@@ -14,18 +18,17 @@ def decode_audio(audio_path: str, sample_rate: int = 16000) -> np.ndarray:
         # f32le: float 32-bit little-endian
         # ac: 1 (mono)
         # ar: resample to target sample_rate
-        out, err = (
+        out, _ = (
             ffmpeg.input(audio_path)
             .output("pipe:", format="f32le", acodec="pcm_f32le", ac=1, ar=sample_rate)
             .run(capture_stdout=True, capture_stderr=True, quiet=True)
         )
         return np.frombuffer(out, dtype=np.float32)
-    except Exception as e:
-        import sys
-        if hasattr(e, "stderr") and e.stderr:
+    except ffmpeg.Error as e:
+        if e.stderr:
             sys.stderr.write(f"\n[!] FFmpeg DECODE ERROR:\n{e.stderr.decode()}\n")
             sys.stderr.flush()
-        
+
         # Fallback: if ffmpeg fails, try soundfile (legacy behavior for standard WAVs)
         try:
             data, native_sr = sf.read(audio_path, dtype="float32")
@@ -34,7 +37,7 @@ def decode_audio(audio_path: str, sample_rate: int = 16000) -> np.ndarray:
             if native_sr != sample_rate:
                 # Still need to resample if SR mismatch
                 in_bytes = data.tobytes()
-                out_res, err_res = (
+                out_res, _ = (
                     ffmpeg.input("pipe:0", format="f32le", ar=native_sr, ac=1)
                     .output("pipe:0", format="f32le", ar=sample_rate, ac=1)
                     .run(input=in_bytes, capture_stdout=True, capture_stderr=True, quiet=True)
@@ -42,7 +45,9 @@ def decode_audio(audio_path: str, sample_rate: int = 16000) -> np.ndarray:
                 data = np.frombuffer(out_res, dtype=np.float32)
             return data.astype(np.float32)
         except Exception as fallback_err:
-            raise RuntimeError(f"Échec du décodage audio (FFmpeg et SoundFile) : {e} / {fallback_err}")
+            raise RuntimeError(
+                f"Échec du décodage audio (FFmpeg et SoundFile) : {e} / {fallback_err}"
+            ) from fallback_err
 
 
 def pcm_to_float32(pcm: np.ndarray) -> np.ndarray:
@@ -58,4 +63,4 @@ def float32_to_pcm16(audio_np: np.ndarray) -> bytes:
     Positive values are scaled to ``32767`` and negative values to ``-32768``.
     """
     scaled = np.where(audio_np >= 0, audio_np * 32767.0, audio_np * 32768.0)
-    return scaled.astype(np.int16).tobytes()
+    return scaled.astype(np.int16).tobytes()
