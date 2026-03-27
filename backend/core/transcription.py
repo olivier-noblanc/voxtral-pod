@@ -193,7 +193,7 @@ class TranscriptionEngine:
             return all_words, duration
 
         except Exception as e:
-            print(f"[!] Albert API Inference error: {e}")
-            return [], 0
+            print(f"[!] Albert API Inference error after retries: {e}")
+            raise
         finally:
             buffer.close()
