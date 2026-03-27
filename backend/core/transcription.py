@@ -196,7 +196,10 @@ class TranscriptionEngine:
             try:
                 headers = {"Authorization": f"Bearer {self.albert_api_key}"}
                 size_mb = len(buffer.getvalue()) / (1024 * 1024)
-                print(f"[*] Tranche {idx+1}/{len(tranches)} : Envoi du payload {file_extension} à Albert ({size_mb:.2f} Mo)")
+                # Log ultra-clair pour la console serveur
+                print(f"[*] [Albert] Envoi Tranche {idx+1}/{len(tranches)} | Durée: {duration/60:.1f} min | Taille: {size_mb:.2f} Mo")
+                import sys
+                sys.stdout.flush()
 
                 files = {"file": (f"audio.{file_extension}", buffer, mime_type)}
                 data = {
@@ -210,6 +213,7 @@ class TranscriptionEngine:
                 response = None
                 for attempt in range(max_retries):
                     try:
+                        buffer.seek(0) # IMPORTANT: Remettre au debut pour chaque tentative
                         response = requests.post(
                             f"{self.albert_base_url}/audio/transcriptions",
                             headers=headers,
@@ -229,16 +233,16 @@ class TranscriptionEngine:
                                 break
                     except (requests.exceptions.RequestException, Exception) as e:
                         last_err = e
+                        print(f"[!] Erreur reseau Albert (tentative {attempt+1}): {e}")
                         if attempt < max_retries - 1:
                             wait = 2 ** attempt
-                            print(f"[!] Albert API Network Error (attempt {attempt+1}/{max_retries}): {e}. Retrying in {wait}s...")
                             time.sleep(wait)
                         else:
                             raise last_err
 
                 if not response or response.status_code != 200:
                     status = response.status_code if response else "N/A"
-                    txt = response.text if response else "Pas de réponse"
+                    txt = response.text if response else str(last_err)
                     raise Exception(f"Échec transcription tranche {idx+1} (Statut {status}): {txt}")
 
                 result = response.json()

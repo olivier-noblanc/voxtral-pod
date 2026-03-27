@@ -684,7 +684,7 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
             pass
 
     except Exception as e:
-        print(f"[!] Error in GPU Job {file_id}: {e}")
+        print(f"[!] Error in Transcription Job {file_id}: {e}")
         # En cas de plantage (OOM, fichier illisible, API Albert HS, etc.), informer directement le client
         from backend.state import update_job
         update_job(file_id, {"status": "erreur", "progress": 0, "error_details": str(e)})
