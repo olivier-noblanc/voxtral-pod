@@ -118,33 +118,6 @@ class TranscriptionEngine:
     def _transcribe_albert(self, audio_np, language="fr", progress_callback=None):
         import ffmpeg
         import io
-        import requests
-        import time
-        import sys
-
-        duration_total = len(audio_np) / 16000
-
-        def _find_best_cut(audio_np, target_sec, search_range=90):
-            sr = 16000
-            start_idx = max(0, int((target_sec - search_range) * sr))
-            end_idx = min(len(audio_np), int((target_sec + search_range) * sr))
-            chunk_to_search = audio_np[start_idx:end_idx]
-            if len(chunk_to_search) < sr * 0.1:
-                return target_sec
-            win_size = int(sr * 0.1) # 100ms
-            num_wins = len(chunk_to_search) // win_size
-            if num_wins == 0:
-                return target_sec
-            wins = chunk_to_search[:num_wins*win_size].reshape(num_wins, win_size)
-            energies = np.sqrt(np.mean(wins**2, axis=1))
-            best_win = np.argmin(energies)
-            return (start_idx + best_win * win_size) / sr
-
-        tranches = []
-        t = 0
-        while t < duration_total:
-            remaining = duration_total - t
-            if remaining <= CHUNK_LIMIT_SEC + 60:
                 tranches.append((t, remaining))
                 break
             cut_point = _find_best_cut(audio_np, t + CHUNK_LIMIT_SEC)
