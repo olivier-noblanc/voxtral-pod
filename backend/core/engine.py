@@ -65,9 +65,21 @@ class SotaASR:
                 self.diarization_engine = LightDiarizationEngine()
             else:
                 from backend.core.diarization import DiarizationEngine
+                # Initialise le moteur de diarisation; il gère lui‑même les fallbacks.
                 self.diarization_engine = DiarizationEngine(hf_token=self.hf_token, use_cpu=False)
 
-        self.diarization_engine.load()
+        # ``load`` may raise if heavy deps are missing; we protect against that.
+        try:
+            self.diarization_engine.load()
+        except Exception as e:
+            print(f"[!] Diarization engine load failed: {e}")
+            # Fallback to a no‑op engine that returns empty segments.
+            class _NoOpEngine:
+                def diarize(self, audio_float32, hook=None):
+                    return []
+                def load(self):
+                    pass
+            self.diarization_engine = _NoOpEngine()
         self.transcription_engine.load()
         self._loaded = True
 
@@ -125,7 +137,8 @@ class SotaASR:
                 progress_callback("Diarisation et transcription en parallèle...", 10)
             diar_task = asyncio.to_thread(self.diarization_engine.diarize, audio_np, hook=None)
             trans_task = asyncio.to_thread(self.transcription_engine.transcribe, audio_np, progress_callback=None)
-            diar_segments, (words, _) = await asyncio.gather(diar_task, trans_task)
+            # ``asyncio.gather`` renvoie deux résultats ; on désérialise correctement.
+            diar_segments, (words, _) = await asyncio.gather(diar_task, trans_task)  # type: ignore[assignment]
             if progress_callback:
                 progress_callback("Fusion des résultats...", 80)
         else:

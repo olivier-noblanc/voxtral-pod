@@ -8,3 +8,6 @@ n'utilise pas de cdn au pire demande moi de télécharger le fichier pour l'host
 privilégie les contrôles HTML5 plutot qu'une explosion de javascript
 privilégie le server side rendering quand c'est possible. (pour diminuer la part de javascript)
 si tu vois qu'il manque un module dans le testing signale le moi plutot que de contourner je vais l'installer
+toujours faire du lazy import de modules
+> **⚠️ Aucun fallback n’est autorisé** – si une dépendance est manquante, le démarrage doit échouer afin que vous puissiez l’installer correctement.
+l'environnement de test n'as pas accès au réseau web donc ne pas chercher a atteindre des api sur le net en testing

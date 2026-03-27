@@ -102,7 +102,9 @@ class LiveSession:
                         if len(pcm_data) >= self.min_segment_bytes:
                             await self._transcribe_segment(pcm_data, final=True)
 
-    async def save_wav_only(self) -> tuple[str, str]:
+    # Retourne ``(None, None)`` lorsqu'aucune donnée audio n'est disponible.
+    # Le typage indique explicitement que les deux valeurs peuvent être ``None``.
+    async def save_wav_only(self) -> tuple[None | str, None | str]:
         """Sauvegarde les données audio de la session dans un fichier WAV valide."""
         if not self.full_session_audio:
             return None, None

@@ -18,11 +18,26 @@ for _k, _v in [
 
 # === GPU PERFORMANCE OPTIMIZATION (Ampere+) ===
 def setup_gpu():
+    """
+    Initialise les paramètres GPU/CPU de torch.
+    Désactive NNPACK si demandé et configure les threads CPU si aucun GPU n'est disponible.
+    """
     global _CPU_THREADS_CONFIGURED
-    import torch  # lazy
+    import torch  # lazy import
+
+    # Désactivation de NNPACK si demandé. Certaines versions de torch n'exposent pas
+    # l'attribut ``enabled`` ; on vérifie donc sa présence avant de l'utiliser.
     disable_nnpack = os.getenv("DISABLE_NNPACK", "0").lower() in ("1", "true", "yes", "on")
-    if disable_nnpack and hasattr(torch.backends, "nnpack") and hasattr(torch.backends.nnpack, "enabled"):
-        torch.backends.nnpack.enabled = False
+    if disable_nnpack and hasattr(torch.backends, "nnpack"):
+        if hasattr(torch.backends.nnpack, "enabled"):
+            # ``enabled`` peut ne pas être présent dans toutes les builds de torch.
+            # Le ``# type: ignore`` indique à l'analyseur de type d'ignorer cette
+            # possible absence d'attribut.
+            torch.backends.nnpack.enabled = False  # type: ignore[attr-defined]
+        elif hasattr(torch.backends.nnpack, "is_available"):
+            # Aucun moyen direct de désactiver, on laisse le comportement par défaut.
+            pass
+
     if torch.cuda.is_available():
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True

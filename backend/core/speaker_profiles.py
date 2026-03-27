@@ -80,6 +80,8 @@ def save_profile(speaker_id: str, name: str, embedding: Optional[np.ndarray] = N
 
 
 def get_name(speaker_id: str) -> Optional[str]:
+    # ``speaker_id`` peut être ``None`` dans certains flux ; on le normalise.
+    speaker_id = speaker_id or ""
     """Return the stored name for a speaker_id, or None if not found."""
     conn = _get_connection()
     cur = conn.cursor()
@@ -90,6 +92,8 @@ def get_name(speaker_id: str) -> Optional[str]:
 
 
 def set_name(speaker_id: str, new_name: str) -> None:
+    # Normalisation du ``speaker_id``.
+    speaker_id = speaker_id or ""
     """Rename an existing profile (does nothing if the profile does not exist)."""
     conn = _get_connection()
     conn.execute(
@@ -111,6 +115,9 @@ def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 def match_embedding(
     embedding: np.ndarray, threshold: float = THRESHOLD
 ) -> Optional[Tuple[str, str]]:
+    # ``embedding`` peut être ``None`` dans des scénarios de test ; on le protège.
+    if embedding is None:  # pragma: no cover
+        return None
     # Ignore the default placeholder profile if present
     # (prevents false positives in tests when a default SPEAKER_00 entry exists)
     # This filter can be removed once the placeholder is eliminated.

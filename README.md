@@ -12,6 +12,17 @@ pip install pre-commit
 pre-commit install
 ```
 
+## Prérequis obligatoires
+
+Le projet dépend des bibliothèques listées dans **requirements.txt**.  
+Avant de lancer l’application, installez‑les :
+
+```bash
+pip install -r requirements.txt
+```
+
+> **⚠️ Aucun fallback n’est autorisé** – si une dépendance est manquante, le démarrage doit échouer afin que vous puissiez l’installer correctement.
+
 Le hook `check-dom-contract` sera exécuté automatiquement à chaque `git commit` :
 
 * Il analyse les IDs référencés dans le JavaScript (`getElementById`, `querySelector('#…')`).
