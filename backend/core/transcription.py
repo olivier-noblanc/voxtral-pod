@@ -22,8 +22,8 @@ _ALBERT_MODEL_IDS = frozenset({"albert"})
 # Limite de taille du payload (en Mo) – on vise < 20 Mo
 MAX_PAYLOAD_MB = 19
 # Chunk limit disabled – aucune contrainte de durée fixe ; la segmentation s’appuie sur la taille du payload
-# Nous limitons la durée maximale d’un chunk à 30 minutes (1800 s) pour garantir que le MP3 reste < 20 Mo avec le bitrate actuel.
-CHUNK_LIMIT_SEC = 1800
+# Nous limitons la durée maximale d’un chunk à 40 minutes (2400 s). Le bitrate est ajusté à 64 kbit/s afin que le MP3 reste < 20 Mo même pour la durée maximale.
+CHUNK_LIMIT_SEC = 2400
 
 class TranscriptionEngine:
     """
@@ -197,10 +197,13 @@ class TranscriptionEngine:
 
             # Conversion du WAV en MP3 avec ffmpeg (ffmpeg‑python)
             # Conversion du WAV en MP3 avec ffmpeg (ffmpeg‑python) – bitrate fixe à 32 kbit/s (qualité préservée)
+            # Conversion du WAV en MP3 avec un bitrate plus élevé (≈ 96 kbit/s) afin d’atteindre
+            # une taille de payload proche de la limite de 20 Mo tout en restant sous 20 Mo
+            # pour un chunk de 30 min (1800 s). Le VBR reste activé pour une meilleure qualité.
             out, err = (
                 ffmpeg
                 .input('pipe:0', format='wav')  # type: ignore
-                .output('pipe:1', format='mp3', audio_bitrate='32k', vbr='on')
+                .output('pipe:1', format='mp3', audio_bitrate='64k', vbr='on')
                 .run(input=wav_buffer.read(), capture_stdout=True, capture_stderr=True)
             )
             # out now contains le MP3 du chunk (30 min max) ; la taille devrait rester < 20 Mo avec ce bitrate
