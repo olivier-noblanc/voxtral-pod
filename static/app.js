@@ -473,7 +473,9 @@ async function uploadFile() {
     localStorage.setItem('pending_job', id);
     document.getElementById('uploadBtn').disabled = true;
     document.getElementById('uploadProgressContainer').style.display = 'block';
+    const statusElem = document.getElementById('batchStatus');
     for (let i = 0; i < total; i++) {
+        if (statusElem) statusElem.innerText = `⏳ Téléchargement morceau ${i+1}/${total}...`;
         const formData = new FormData();
         formData.append("file_id", id);
         formData.append("client_id", getClientId());
@@ -481,7 +483,14 @@ async function uploadFile() {
         formData.append("total_chunks", total);
         formData.append("file", file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE));
         await fetch('/batch_chunk', { method: 'POST', body: formData });
-        document.getElementById('uploadProgressFill').style.width = ((i + 1) / total * 100) + '%';
+        const pct = Math.round((i + 1) / total * 100);
+        const fill = document.getElementById('uploadProgressFill');
+        if (fill) {
+            fill.style.width = pct + '%';
+            fill.style.setProperty('--progress', pct + '%');
+        }
+        const container = document.getElementById('uploadProgressContainer');
+        if (container) container.setAttribute('aria-valuenow', pct);
     }
     pollStatus(id);
 }
@@ -520,8 +529,16 @@ async function pollStatus(id) {
                 const statusLabel = (data.status && data.status.includes(":")) ? data.status.split(":")[1] : (data.status || "unknown");
                 document.getElementById('batchStatus').innerText = "⏳ " + statusLabel + " — " + pct + "%" + eta;
                 document.getElementById('uploadBtn').disabled = true;
-                document.getElementById('uploadProgressFill').style.width = pct + '%';
-                document.getElementById('uploadProgressContainer').style.display = 'block';
+                const fill = document.getElementById('uploadProgressFill');
+                if (fill) {
+                    fill.style.width = pct + '%';
+                    fill.style.setProperty('--progress', pct + '%');
+                }
+                const container = document.getElementById('uploadProgressContainer');
+                if (container) {
+                    container.style.display = 'block';
+                    container.setAttribute('aria-valuenow', pct);
+                }
             }
         } catch (e) {
             console.warn('pollStatus error:', e);
@@ -661,11 +678,20 @@ if (modelDisplay && modelSelect) {
                     loadHistory();
                 } else {
                     // Job reellement en cours : afficher la progression
-                    if (uploadBtn) uploadBtn.disabled = true;
-                    if (progressContainer) progressContainer.style.display = 'block';
                     const pct = data.progress || 0;
                     const eta = data.eta ? ' (ETA: ' + data.eta + 's)' : '';
                     const statusLabel = (data.status && data.status.includes(':')) ? data.status.split(':')[1] : (data.status || 'traitement');
+
+                    if (uploadBtn) uploadBtn.disabled = true;
+                    if (progressContainer) {
+                        progressContainer.style.display = 'block';
+                        progressContainer.setAttribute('aria-valuenow', pct);
+                    }
+                    const fill = document.getElementById('uploadProgressFill');
+                    if (fill) {
+                        fill.style.width = pct + '%';
+                        fill.style.setProperty('--progress', pct + '%');
+                    }
                     if (statusElem) statusElem.innerText = '⏳ ' + statusLabel + ' — ' + pct + '%' + eta;
                     pollStatus(pendingJob);
                 }

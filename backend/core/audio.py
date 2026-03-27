@@ -5,34 +5,39 @@ import ffmpeg
 
 def decode_audio(audio_path: str, sample_rate: int = 16000) -> np.ndarray:
     """
-    Decode an audio file to a mono ``float32`` NumPy array.
-
-    The function first reads the file with ``soundfile`` which natively returns
-    ``float32`` data.  If the file's native sample rate differs from the requested
-    ``sample_rate`` the audio is resampled using ``ffmpeg‑python``.  The result is
-    always a one‑dimensional array (mono) with values in the range ``[-1.0, 1.0]``.
+    Decode an audio file to a mono ``float32`` NumPy array using FFmpeg.
+    FFmpeg is used as the primary decoder because it supports almost all audio formats
+    (MP3, M4A, WAV, FLAC, etc.) and performs resampling in a single pass.
     """
-    # Load audio with soundfile – returns data as float32 and the original SR.
-    data, native_sr = sf.read(audio_path, dtype="float32")
-    # Ensure mono: if the file has multiple channels, average them.
-    if data.ndim > 1:
-        data = np.mean(data, axis=1)
-
-    # Resample only when necessary.
-    if native_sr != sample_rate:
-        # ``ffmpeg`` works with raw PCM data; we pipe the float32 PCM.
-        # Convert NumPy array to raw bytes (little‑endian float32).
-        in_bytes = data.tobytes()
-        # Run ffmpeg to resample.
+    try:
+        # Use ffmpeg to decode and resample in one go
+        # f32le: float 32-bit little-endian
+        # ac: 1 (mono)
+        # ar: resample to target sample_rate
         out, _ = (
-            ffmpeg.input("pipe:0", format="f32le", ar=native_sr, ac=1)
-            .output("pipe:0", format="f32le", ar=sample_rate, ac=1)
-            .run(input=in_bytes, capture_stdout=True, capture_stderr=True)
+            ffmpeg.input(audio_path)
+            .output("pipe:", format="f32le", acodec="pcm_f32le", ac=1, ar=sample_rate)
+            .run(capture_stdout=True, capture_stderr=True, quiet=True)
         )
-        # Convert the output bytes back to a NumPy array.
-        data = np.frombuffer(out, dtype=np.float32)
-
-    return data.astype(np.float32)
+        return np.frombuffer(out, dtype=np.float32)
+    except Exception as e:
+        # Fallback: if ffmpeg fails, try soundfile (legacy behavior for standard WAVs)
+        try:
+            data, native_sr = sf.read(audio_path, dtype="float32")
+            if data.ndim > 1:
+                data = np.mean(data, axis=1)
+            if native_sr != sample_rate:
+                # Still need to resample if SR mismatch
+                in_bytes = data.tobytes()
+                out, _ = (
+                    ffmpeg.input("pipe:0", format="f32le", ar=native_sr, ac=1)
+                    .output("pipe:0", format="f32le", ar=sample_rate, ac=1)
+                    .run(input=in_bytes, capture_stdout=True, capture_stderr=True, quiet=True)
+                )
+                data = np.frombuffer(out, dtype=np.float32)
+            return data.astype(np.float32)
+        except Exception as fallback_err:
+            raise RuntimeError(f"Échec du décodage audio (FFmpeg et SoundFile) : {e} / {fallback_err}")
 
 
 def pcm_to_float32(pcm: np.ndarray) -> np.ndarray:

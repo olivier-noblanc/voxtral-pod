@@ -93,8 +93,8 @@ HTML_UI = r"""<!DOCTYPE html>
                         </div>
 <button id="uploadBtn" class="fr-btn fr-mt-2w">Transcrire</button>
                         <div id="batchStatus" class="fr-text--bold fr-mt-1w"></div>
-                        <div class="fr-progress-bar fr-mt-1w" id="uploadProgressContainer" style="display:none;" role="progressbar">
-                            <div class="fr-progress-bar__bar"><div class="fr-progress-bar__fill" id="uploadProgressFill" style="width: 0%"></div></div>
+                        <div class="fr-progress-bar fr-mt-1w" id="uploadProgressContainer" style="display:none;" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                            <div class="fr-progress-bar__bar" id="uploadProgressFill" style="width: 0%; --progress: 0%;"></div>
                         </div>
                         <div id="batchResult" class="live-box fr-mt-2w" style="display:none; height: 151px;"></div>
                     </section>

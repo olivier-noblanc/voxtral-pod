@@ -151,7 +151,7 @@ def test_pending_job_cleared_on_network_error():
     pending_block_start = content.find("if (pendingJob)")
     assert pending_block_start != -1, "pendingJob guard block not found in app.js"
 
-    block = content[pending_block_start: pending_block_start + 2000]
+    block = content[pending_block_start: pending_block_start + 4000]
     catch_pos = block.find(".catch(")
     assert catch_pos != -1, (
         "No .catch() handler found in the pendingJob fetch — "
@@ -180,4 +180,36 @@ def test_live_polling_initialization():
     )
     assert "pollStatus(window.currentLiveSessionId)" in content, (
         "pollStatus must be called with the live session ID when recording stops."
+    )
+
+def test_pending_job_cleared_on_uploading():
+    """
+    Regression guard: when /status returns 'uploading' during page load,
+    the app must call clearPendingJob() because a browser refresh kills
+    the upload loop, making the 'uploading' state stale.
+    """
+    content = APP_JS_PATH.read_text(encoding="utf-8")
+    assert "uploading" in content, "Status 'uploading' is not handled in app.js"
+    
+    # Check if 'uploading' block calls clearPendingJob
+    uploading_idx = content.find("'uploading'")
+    if uploading_idx == -1:
+        uploading_idx = content.find('"uploading"')
+    assert uploading_idx != -1, "uploading status handling is missing from app.js"
+    
+    snippet = content[uploading_idx: uploading_idx + 200]
+    assert "clearPendingJob" in snippet, (
+        "Stale 'uploading' job is not cleared on page load — "
+        "the UI will remain stuck at 0%."
+    )
+
+def test_upload_progress_updates_dsfr_var():
+    """
+    Regression guard: Ensure that upload progress updates both `style.width`
+    and the DSFR-specific `--progress` CSS variable.
+    """
+    content = APP_JS_PATH.read_text(encoding="utf-8")
+    assert "style.width" in content, "style.width update missing"
+    assert "--progress" in content or "setProperty('--progress'" in content, (
+        "DSFR --progress CSS variable is not updated, progress bar may be invisible."
     )

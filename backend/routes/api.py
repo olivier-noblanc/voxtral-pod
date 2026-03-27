@@ -631,7 +631,7 @@ async def batch_chunk_route(
     if chunk_index == total_chunks - 1:
         # All chunks received – assemble and process
         _update_job_status(file_id, "processing:Réassemblage...", 0)
-        assembled_path = os.path.join(upload_dir, "audio_full.wav")
+        assembled_path = os.path.join(upload_dir, "audio_full.tmp")
         await asyncio.to_thread(_assemble_chunks, assembled_path, total_chunks, upload_dir)
         background_tasks.add_task(_gpu_job, assembled_path, file_id, client_id)
     return {"status": "ok"}
