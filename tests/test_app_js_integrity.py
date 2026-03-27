@@ -132,7 +132,7 @@ def test_pending_job_cleared_on_not_found():
         not_found_idx = content.find('"not_found"')
     assert not_found_idx != -1, "not_found handling is missing from app.js"
 
-    snippet = content[not_found_idx: not_found_idx + 300]
+    snippet = content[not_found_idx: not_found_idx + 500]
     assert "clearPendingJob" in snippet or "localStorage.removeItem('pending_job')" in snippet, (
         "pending_job is not removed from localStorage on 'not_found' — "
         "the UI will remain blocked for the user."

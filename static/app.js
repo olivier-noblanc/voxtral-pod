@@ -500,7 +500,10 @@ async function pollStatus(id) {
                 document.getElementById('uploadBtn').disabled = false;
                 document.getElementById('batchStatus').innerText = "✓ Terminé.";
                 loadHistory();
-            } else if (data.status === "not_found") {
+            } else if (data.status === "not_found" || data.status === "erreur") {
+                if (data.status === "erreur" && data.error_details) {
+                    alert("Erreur lors du traitement : " + data.error_details);
+                }
                 clearInterval(interval);
                 localStorage.removeItem('pending_job');
                 document.getElementById('uploadBtn').disabled = false;
@@ -640,7 +643,10 @@ if (modelDisplay && modelSelect) {
                     if (statusElem) statusElem.innerText = '✓ Terminé.';
                     loadHistory();
                 } else if (data.status === 'not_found' || !data.status || data.status === 'erreur') {
-                    // Job orphelin : nettoyage silencieux
+                    if (data.status === 'erreur' && data.error_details) {
+                        alert("Erreur lors du traitement : " + data.error_details);
+                    }
+                    // Job orphelin/erreur : nettoyage
                     clearPendingJob();
                     loadHistory();
                 } else {

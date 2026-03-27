@@ -625,45 +625,56 @@ def _assemble_chunks(assembled_path: str, total_chunks: int, upload_dir: str) ->
 async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
     """Process a batch audio file, store transcript, and update job status."""
     print(f"[*] Starting GPU Job for {file_id} (Client: {client_id})")
-    # Update status to indicate transcription start
-    _update_job_status(file_id, "processing:Transcription...", 10)
-    # Ensure the ASR engine is loaded
-    engine = get_asr_engine(load_model=True)
-    # Progress callback updates job status
-    def progress_callback(step: str, pct: int):
-        pct = max(0, min(100, pct))
-        print(f"[*] [Batch {file_id}] {step} : {pct}%")
-        _update_job_status(file_id, f"processing:{step}", pct)
-    # Run the ASR processing pipeline
-    transcript = await engine.process_file(assembled_path, progress_callback=progress_callback)
-    # Save transcript in client‑specific directory
-    client_dir = os.path.join(TRANSCRIPTIONS_DIR, client_id)
-    os.makedirs(client_dir, exist_ok=True)
-    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    txt_name = f"batch_{ts}.txt"
-    txt_path = os.path.join(client_dir, txt_name)
-    with open(txt_path, "w", encoding="utf-8") as f:
-        f.write(transcript)
-    # Update job entry using add_job (replace existing entry)
-    add_job(file_id, {"status": "terminé", "progress": 100, "result_file": txt_name})
-    
-    # Save audio for history before cleanup
     try:
-        batch_audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "batch_audio")
-        os.makedirs(batch_audio_dir, exist_ok=True)
-        # Expected filename format for frontend: batch_{client_id}_{ts}.wav
-        archived_audio_name = f"batch_{client_id}_{ts}.wav"
-        archived_audio_path = os.path.join(batch_audio_dir, archived_audio_name)
-        shutil.copy2(assembled_path, archived_audio_path)
-    except Exception:
-        pass
+        # Update status to indicate transcription start
+        _update_job_status(file_id, "processing:Transcription...", 10)
+        # Ensure the ASR engine is loaded
+        engine = get_asr_engine(load_model=True)
+        # Progress callback updates job status
+        def progress_callback(step: str, pct: int):
+            pct = max(0, min(100, pct))
+            print(f"[*] [Batch {file_id}] {step} : {pct}%")
+            _update_job_status(file_id, f"processing:{step}", pct)
+        # Run the ASR processing pipeline
+        transcript = await engine.process_file(assembled_path, progress_callback=progress_callback)
+        # Save transcript in client‑specific directory
+        client_dir = os.path.join(TRANSCRIPTIONS_DIR, client_id)
+        os.makedirs(client_dir, exist_ok=True)
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        txt_name = f"batch_{ts}.txt"
+        txt_path = os.path.join(client_dir, txt_name)
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(transcript)
+        # Update job entry using add_job (replace existing entry)
+        add_job(file_id, {"status": "terminé", "progress": 100, "result_file": txt_name})
+        
+        # Save audio for history before cleanup
+        try:
+            batch_audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "batch_audio")
+            os.makedirs(batch_audio_dir, exist_ok=True)
+            # Expected filename format for frontend: batch_{client_id}_{ts}.wav
+            archived_audio_name = f"batch_{client_id}_{ts}.wav"
+            archived_audio_path = os.path.join(batch_audio_dir, archived_audio_name)
+            shutil.copy2(assembled_path, archived_audio_path)
+        except Exception:
+            pass
 
-    # Cleanup temporary files
-    try:
-        os.remove(assembled_path)
-        os.rmdir(os.path.dirname(assembled_path))
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[!] Error in GPU Job {file_id}: {e}")
+        # En cas de plantage (OOM, fichier illisible, API Albert HS, etc.), informer directement le client
+        from backend.state import update_job
+        update_job(file_id, {"status": "erreur", "progress": 0, "error_details": str(e)})
+
+    finally:
+        # Cleanup temporary files (exécuté quoi qu'il arrive)
+        try:
+            if os.path.exists(assembled_path):
+                os.remove(assembled_path)
+            upload_dir = os.path.dirname(assembled_path)
+            if os.path.exists(upload_dir) and not os.listdir(upload_dir):
+                os.rmdir(upload_dir)
+        except Exception:
+            pass
 
 # ---------- WebSocket ----------
 @router.websocket("/live")

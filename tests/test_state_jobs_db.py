@@ -33,3 +33,30 @@ def test_add_job_overwrites_existing():
 def test_get_job_missing_returns_empty():
     result = get_job("nonexistent")
     assert result == {}
+
+
+def test_cleanup_stuck_jobs_on_init():
+    """
+    Test that jobs stuck in 'uploading' or 'processing:...' states
+    are properly moved to 'erreur' when the DB is re-initialized (or explicitly cleaned).
+    """
+    state.add_job("stuck1", {"status": "uploading", "progress": 50})
+    state.add_job("stuck2", {"status": "processing:Transcription", "progress": 10})
+    state.add_job("ok_job", {"status": "terminé", "progress": 100})
+    state.add_job("not_found_job", {"status": "not_found", "progress": 0})
+    state.add_job("error_job", {"status": "erreur", "progress": 0})
+
+    state.cleanup_stuck_jobs()
+
+    # Verify stuck jobs are now errors
+    stuck1 = get_job("stuck1")
+    assert stuck1["status"] == "erreur"
+    assert "Job interrompu" in stuck1.get("error_details", "")
+
+    stuck2 = get_job("stuck2")
+    assert stuck2["status"] == "erreur"
+
+    # Verify other jobs are untouched
+    assert get_job("ok_job")["status"] == "terminé"
+    assert get_job("not_found_job")["status"] == "not_found"
+    assert get_job("error_job")["status"] == "erreur"

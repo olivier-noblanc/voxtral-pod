@@ -32,7 +32,32 @@ def init_db():
             default_model = os.getenv("ASR_MODEL", "whisper").lower()
             conn.execute("INSERT INTO config (key, value) VALUES ('current_model', ?)", (default_model,))
         conn.commit()
+    cleanup_stuck_jobs()
 
+
+def cleanup_stuck_jobs():
+    """
+    Parcourt la base SQLite au démarrage pour trouver les jobs restés en 
+    'uploading' ou 'processing:...' (interrompus par un crash/redémarrage).
+    Les marque comme 'erreur' pour que le client ne reste pas bloqué indéfiniment.
+    """
+    try:
+        with get_db() as conn:
+            cursor = conn.execute("SELECT job_id, data FROM jobs")
+            rows = cursor.fetchall()
+            for row in rows:
+                try:
+                    data = json.loads(row['data'])
+                    status = data.get("status", "")
+                    if status not in ("terminé", "not_found", "erreur") and (status.startswith("processing:") or status == "uploading"):
+                        data["status"] = "erreur"
+                        data["error_details"] = "Job interrompu (redémarrage du serveur)"
+                        conn.execute("UPDATE jobs SET data=? WHERE job_id=?", (json.dumps(data, ensure_ascii=False), row['job_id']))
+                except Exception:
+                    pass
+            conn.commit()
+    except Exception as e:
+        print(f"Erreur lors du nettoyage des jobs SQLite : {e}")
 
 # init_db()  # Removed automatic DB initialization at import time
 
