@@ -2,7 +2,7 @@ import os
 import subprocess
 import numpy as np
 
-def decode_audio(audio_path: str, sample_rate: int = 16000, timeout: int = 300) -> np.ndarray:
+def decode_audio(audio_path: str, sample_rate: int = 16000, timeout: int = 900) -> np.ndarray:
     """
     Decode an audio file to a mono ``float32`` NumPy array.
 
@@ -19,7 +19,7 @@ def decode_audio(audio_path: str, sample_rate: int = 16000, timeout: int = 300) 
     sample_rate: int, optional
         Desired output sample rate (default 16000 Hz).
     timeout: int, optional
-        Timeout for the ffmpeg process in seconds (default 300).
+        Timeout for the ffmpeg process in seconds (default 900).
 
     Returns
     -------
