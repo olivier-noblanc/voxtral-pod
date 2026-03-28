@@ -1,6 +1,9 @@
 import os
 import sqlite3
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "jobs.db")
 
@@ -9,6 +12,10 @@ JOBS_DB_MAX_SIZE = 500
 def get_db():
     conn = sqlite3.connect(DB_PATH, timeout=10.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+    except sqlite3.Error:
+        pass # Fallback if WAL is not supported, but usually it is
     return conn
 
 
@@ -30,8 +37,8 @@ def cleanup_stuck_jobs():
                         data["status"] = "erreur"
                         data["error_details"] = "Job interrompu (redémarrage du serveur)"
                         conn.execute("UPDATE jobs SET data=? WHERE job_id=?", (json.dumps(data, ensure_ascii=False), row['job_id']))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.error(f"Error processing job {row.get('job_id', 'unknown')} during stuck cleanup: {e}")
             conn.commit()
     except Exception as e:
         print(f"Erreur lors du nettoyage des jobs SQLite : {e}")
@@ -57,8 +64,8 @@ def cleanup_stale_jobs(hours: int = 4):
                         data["status"] = "erreur"
                         data["error_details"] = f"Job expiré (stale après {hours}h)"
                         conn.execute("UPDATE jobs SET data=? WHERE job_id=?", (json.dumps(data, ensure_ascii=False), row['job_id']))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.error(f"Error processing job {row.get('job_id', 'unknown')} during stale cleanup: {e}")
             conn.commit()
     except Exception as e:
         print(f"Erreur lors du nettoyage des jobs stale : {e}")

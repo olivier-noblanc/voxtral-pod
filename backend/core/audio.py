@@ -2,7 +2,7 @@ import os
 import subprocess
 import numpy as np
 
-def decode_audio(audio_path: str, sample_rate: int = 16000) -> np.ndarray:
+def decode_audio(audio_path: str, sample_rate: int = 16000, timeout: int = 300) -> np.ndarray:
     """
     Decode an audio file to a mono ``float32`` NumPy array.
 
@@ -18,6 +18,8 @@ def decode_audio(audio_path: str, sample_rate: int = 16000) -> np.ndarray:
         Path to the source audio file.
     sample_rate: int, optional
         Desired output sample rate (default 16000 Hz).
+    timeout: int, optional
+        Timeout for the ffmpeg process in seconds (default 300).
 
     Returns
     -------
@@ -46,7 +48,10 @@ def decode_audio(audio_path: str, sample_rate: int = 16000) -> np.ndarray:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=True,
+            timeout=timeout,
         )
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"ffmpeg timed out after {timeout} seconds.") from e
     except subprocess.CalledProcessError as e:
         # Include ffmpeg stderr for easier debugging
         raise RuntimeError(f"ffmpeg failed: {e.stderr.decode(errors='ignore')}") from e

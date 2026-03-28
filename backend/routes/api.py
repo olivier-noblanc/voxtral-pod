@@ -152,12 +152,12 @@ async def delete_trans(filename: str, client_id: str):
     if filename.startswith("batch_"):
         ts = filename.replace("batch_", "").replace(".txt", "")
         audio_name = f"batch_{client_id}_{ts}.wav"
-        audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "batch_audio")
+        audio_path = _safe_join(TRANSCRIPTIONS_DIR, "batch_audio", audio_name)
     else:
         ts = filename.replace("live_", "").replace(".txt", "")
         audio_name = f"live_{client_id}_{ts}.wav"
-        audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "live_audio")
-    audio_path = os.path.join(audio_dir, audio_name)
+        audio_path = _safe_join(TRANSCRIPTIONS_DIR, "live_audio", audio_name)
+    
     if os.path.isfile(audio_path):
         os.remove(audio_path)
 
@@ -473,7 +473,7 @@ async def update_segment_speaker(payload: dict, background_tasks: BackgroundTask
             ts = filename.replace("live_", "").replace(".txt", "")
             audio_name = f"live_{client_id}_{ts}.wav"
             audio_dir = "live_audio"
-        audio_path = os.path.join(TRANSCRIPTIONS_DIR, audio_dir, audio_name)
+        audio_path = _safe_join(TRANSCRIPTIONS_DIR, audio_dir, audio_name)
         background_tasks.add_task(_extract_and_save_profile_sync, audio_path, start_s, end_s, new_speaker)
     new_line = re.sub(
         r'(\[[^\]]*s\s*->\s*[^\]]*s\]\s*)\[[^\]]*\]',
@@ -534,9 +534,9 @@ async def batch_chunk_route(
     _validate_client_id(client_id)
     if chunk_index == 0:
         add_job(file_id, {"status": "uploading", "progress": 0})
-    upload_dir = os.path.join(TEMP_DIR, file_id)
+    upload_dir = _safe_join(TEMP_DIR, file_id)
     os.makedirs(upload_dir, exist_ok=True)
-    chunk_path = os.path.join(upload_dir, f"chunk_{chunk_index:04d}")
+    chunk_path = _safe_join(upload_dir, f"chunk_{chunk_index:04d}")
     with open(chunk_path, "wb") as f:
         f.write(await file.read())
     if chunk_index == total_chunks - 1:
@@ -564,7 +564,7 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
             print(f"[*] [Batch {file_id}] {step} : {pct}%")
             _update_job_status(file_id, f"processing:{step}", pct)
         transcript = await engine.process_file(assembled_path, progress_callback=progress_callback)
-        client_dir = os.path.join(TRANSCRIPTIONS_DIR, client_id)
+        client_dir = _safe_join(TRANSCRIPTIONS_DIR, client_id)
         os.makedirs(client_dir, exist_ok=True)
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         txt_name = f"batch_{ts}.txt"
@@ -584,10 +584,10 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
 
         add_job(file_id, {"status": "terminé", "progress": 100, "result_file": txt_name})
         try:
-            batch_audio_dir = os.path.join(TRANSCRIPTIONS_DIR, "batch_audio")
+            batch_audio_dir = _safe_join(TRANSCRIPTIONS_DIR, "batch_audio")
             os.makedirs(batch_audio_dir, exist_ok=True)
             archived_audio_name = f"batch_{client_id}_{ts}.wav"
-            archived_audio_path = os.path.join(batch_audio_dir, archived_audio_name)
+            archived_audio_path = _safe_join(batch_audio_dir, archived_audio_name)
             shutil.copy2(assembled_path, archived_audio_path)
         except Exception:
             pass
@@ -621,7 +621,7 @@ async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp:
 
         transcript = await engine.process_file(wav_path, progress_callback=progress_callback)
 
-        client_dir = os.path.join(TRANSCRIPTIONS_DIR, client_id)
+        client_dir = _safe_join(TRANSCRIPTIONS_DIR, client_id)
         os.makedirs(client_dir, exist_ok=True)
         ts = timestamp if timestamp is not None else datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         txt_name = f"live_{ts}.txt"

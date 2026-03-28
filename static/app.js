@@ -219,7 +219,13 @@ async function startRecording() {
                     if (existingPartial) {
                         // Reuse the same row — just update the text
                         const partialSpan = existingPartial.querySelector("span.partial-text");
-                        if (partialSpan) partialSpan.innerHTML = data.text + '<span class="dots-animated">...</span>';
+                        if (partialSpan) {
+                            partialSpan.textContent = data.text;
+                            const dots = document.createElement("span");
+                            dots.className = "dots-animated";
+                            dots.textContent = "...";
+                            partialSpan.appendChild(dots);
+                        }
                     } else {
                         const row = document.createElement("div");
                         row.className = "sentence-row";
@@ -231,7 +237,11 @@ async function startRecording() {
                         if (data.speaker !== lastSpeaker) { s.textContent = "[" + data.speaker + "] "; lastSpeaker = data.speaker; }
                         const t = document.createElement("span");
                         t.className = "partial-text";
-                        t.innerHTML = data.text + '<span class="dots-animated">...</span>';
+                        t.textContent = data.text;
+                        const dots = document.createElement("span");
+                        dots.className = "dots-animated";
+                        dots.textContent = "...";
+                        t.appendChild(dots);
                         row.append(s, t);
                         // Drag‑and‑drop handlers (same as for finalized rows)
                         row.addEventListener("dragstart", e => {
@@ -312,6 +322,8 @@ function stopRecording() {
         if (audioStream._sysStream) audioStream._sysStream.getTracks().forEach(t => t.stop());
         audioStream = null; 
     }
+    processor = null;
+    source = null;
     isRecording = false;
     const btnRecord = document.getElementById('recordBtn');
     const btnSystem = document.getElementById('systemBtn');
@@ -334,35 +346,95 @@ async function loadHistory() {
     try {
 const res = await fetch('/transcriptions/?client_id=' + getClientId());
         const files = await res.json();
-        list.innerHTML = files.map(function(item) {
-            var f = item.name;
-            var hasCleanup = item.has_cleanup;
-            var isBatch = f.startsWith('batch_');
-            var audioFilename;
+        list.innerHTML = "";
+        if (files.length === 0) {
+            list.textContent = "Aucune.";
+            return;
+        }
+
+        files.forEach(function(item) {
+            const f = item.name;
+            const hasCleanup = item.has_cleanup;
+            const isBatch = f.startsWith('batch_');
+            let audioFilename;
             if (isBatch) {
-                let ts = f.replace('batch_', '').replace('.txt', '');
+                const ts = f.replace('batch_', '').replace('.txt', '');
                 audioFilename = 'batch_' + getClientId() + '_' + ts + '.wav';
             } else {
-                let ts = f.replace('live_', '').replace('.txt', '');
+                const ts = f.replace('live_', '').replace('.txt', '');
                 audioFilename = 'live_' + getClientId() + '_' + ts + '.wav';
             }
-            var downloadUrl = '/download_audio/' + getClientId() + '/' + audioFilename;
-            var transcriptUrl = '/download_transcript/' + getClientId() + '/' + f;
-            var voirLabel = hasCleanup ? "Voir" : "Voir (temporaire)";
-return '<div class="fr-col-12 fr-col-md-4">' +
-    '<div class="fr-card fr-card--sm" style="padding:1rem; border:1px solid #3a3a3a;">' +
-    '<h4 class="fr-card__title" style="font-size:0.8rem">' + f + '</h4>' +
-        '<a href="/view/' + getClientId() + '/' + f + '" class="fr-btn fr-btn--sm fr-mt-1w">' + voirLabel + '</a>' +
-        '<button class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" data-filename="' + f + '" onclick="deleteTranscription(this)" style="color:#c00;">&#x2716;</button>' +
-    '<a href="' + downloadUrl + '" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger audio</a>' +
-    '<a href="' + transcriptUrl + '" class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w" download>Télécharger texte</a>' +
-    '<br>' +
-    '<button class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w" data-filename="' + f + '" onclick="generateSummary(this)">📄 Compte Rendu (Albert)</button>' +
-    '<button class="fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w" data-filename="' + f + '" onclick="generateActions(this)">📝 Actions (Albert)</button>' +
-    '</div></div>';
-        }).join('') || "Aucune.";
-    } catch {
-        list.innerHTML = "Erreur.";
+            const downloadUrl = '/download_audio/' + getClientId() + '/' + audioFilename;
+            const transcriptUrl = '/download_transcript/' + getClientId() + '/' + f;
+            const voirLabel = hasCleanup ? "Voir" : "Voir (temporaire)";
+
+            const colDiv = document.createElement('div');
+            colDiv.className = 'fr-col-12 fr-col-md-4';
+
+            const cardDiv = document.createElement('div');
+            cardDiv.className = 'fr-card fr-card--sm';
+            cardDiv.style.padding = '1rem';
+            cardDiv.style.border = '1px solid #3a3a3a';
+
+            const title = document.createElement('h4');
+            title.className = 'fr-card__title';
+            title.style.fontSize = '0.8rem';
+            title.textContent = f;
+
+            const viewLink = document.createElement('a');
+            viewLink.href = '/view/' + getClientId() + '/' + encodeURIComponent(f);
+            viewLink.className = 'fr-btn fr-btn--sm fr-mt-1w';
+            viewLink.textContent = voirLabel;
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w';
+            deleteBtn.dataset.filename = f;
+            deleteBtn.style.color = '#c00';
+            deleteBtn.innerHTML = '&#x2716;';
+            deleteBtn.onclick = function() { deleteTranscription(this); };
+
+            const downloadAudioLink = document.createElement('a');
+            downloadAudioLink.href = downloadUrl;
+            downloadAudioLink.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w';
+            downloadAudioLink.download = true;
+            downloadAudioLink.textContent = 'Télécharger audio';
+
+            const downloadTranscriptLink = document.createElement('a');
+            downloadTranscriptLink.href = transcriptUrl;
+            downloadTranscriptLink.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w';
+            downloadTranscriptLink.download = true;
+            downloadTranscriptLink.textContent = 'Télécharger texte';
+
+            const summaryBtn = document.createElement('button');
+            summaryBtn.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w';
+            summaryBtn.dataset.filename = f;
+            summaryBtn.textContent = '📄 Compte Rendu (Albert)';
+            summaryBtn.onclick = function() { generateSummary(this); };
+
+            const actionsBtn = document.createElement('button');
+            actionsBtn.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w';
+            actionsBtn.dataset.filename = f;
+            actionsBtn.textContent = '📝 Actions (Albert)';
+            actionsBtn.onclick = function() { generateActions(this); };
+
+            cardDiv.appendChild(title);
+            cardDiv.appendChild(viewLink);
+            cardDiv.appendChild(document.createTextNode(' '));
+            cardDiv.appendChild(deleteBtn);
+            cardDiv.appendChild(document.createTextNode(' '));
+            cardDiv.appendChild(downloadAudioLink);
+            cardDiv.appendChild(document.createTextNode(' '));
+            cardDiv.appendChild(downloadTranscriptLink);
+            cardDiv.appendChild(document.createElement('br'));
+            cardDiv.appendChild(summaryBtn);
+            cardDiv.appendChild(actionsBtn);
+
+            colDiv.appendChild(cardDiv);
+            list.appendChild(colDiv);
+        });
+    } catch (e) {
+        console.error("Error loading history:", e);
+        list.textContent = "Erreur.";
     }
 }
 async function deleteTranscription(btn) {
