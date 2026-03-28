@@ -19,3 +19,4 @@ test_skips.txt
 test_results.log
 -b
 test_cleanup_threads.txt
+cleaned_file_list.txt
