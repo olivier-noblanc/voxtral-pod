@@ -2,6 +2,7 @@ import os
 import json
 import subprocess
 import pytest
+import time
 from fastapi.testclient import TestClient
 
 # Import the FastAPI app defined in backend/main.py
@@ -70,21 +71,29 @@ def test_live_websocket_session_id_job_registration():
     """
     from backend.state import get_job
     import numpy as np
-    import time
     from unittest.mock import patch, MagicMock
 
-    # Create 0.5s of silent 16000Hz PCM16 audio
+    # Create 1.0s of silent 16000Hz PCM16 audio
     dummy_audio = np.zeros(16000, dtype=np.int16).tobytes()
 
     mock_engine = MagicMock()
     mock_engine.load = MagicMock()
+    # Mock return value to be a tuple (words, duration)
+    mock_engine.transcription_engine.transcribe.return_value = ([], 0.0)
 
     with patch("backend.routes.api.get_asr_engine", return_value=mock_engine):
         with client.websocket_connect("/live?client_id=user_testws&session_id=live_test_999") as websocket:
             websocket.send_bytes(dummy_audio)
+            # Ensure the server has received bytes before closing
+            time.sleep(0.1)
     
     # The finally block runs when the context manager exits.
-    time.sleep(0.5) # Yield slightly for async tasks to register the job
-    job = get_job("live_test_999", default=None)
-    assert job is not None, "Le job n'a pas été enregistré avec le session_id."
-    assert "status" in job, "Le job n'a pas de statut."
+    # Wait for the job to be registered in the database.
+    job = None
+    for _ in range(15):
+        time.sleep(0.2)
+        job = get_job("live_test_999", default=None)
+        if job and "status" in job:
+            break
+            
+    assert job and "status" in job, f"Le job n'a pas été enregistré ou n'a pas de statut valide: {job}"

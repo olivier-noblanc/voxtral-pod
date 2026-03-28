@@ -4,9 +4,8 @@ import datetime
 import asyncio
 import shutil
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, FileResponse, Response
-from html import escape as html_escape
-from backend.html_ui import HTML_UI
+from fastapi.responses import FileResponse, Response
+from fastapi.templating import Jinja2Templates
 import re
 import importlib.util
 
@@ -56,6 +55,7 @@ from backend.config import TEMP_DIR, TRANSCRIPTIONS_DIR, BASE_DIR
 from backend.utils import format_transcription
 
 router = APIRouter()
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "backend", "templates"))
 
 # ---------- Sécurité : anti path traversal ----------
 def _safe_join(base: str, *parts: str) -> str:
@@ -97,14 +97,13 @@ async def home(request: Request):
         commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()[:7]
     except Exception:
         commit = "unknown"
-    protocol = "wss" if request.url.scheme == "https" else "ws"
-    host = request.headers.get("host")
+    
     current_model = get_current_model()
     if os.getenv("TESTING") == "1":
         current_model = "mock"
+    
     engine = get_asr_engine(load_model=False)
-    no_gpu_str = str(engine.no_gpu).lower()
-    ws_url = f"{protocol}://{host}/live?client_id={{{{getClientId()}}}}&partial_albert={no_gpu_str}"
+    
     if engine.no_gpu:
         model_options = '<option value="albert" selected>API Albert (Étalab)</option>'
     else:
@@ -114,13 +113,16 @@ async def home(request: Request):
             '<option value="albert">API Albert (Étalab)</option>'
             '<option value="mock">MODE TEST (Mock ASR)</option>'
         )
-    return HTMLResponse(
-        content=HTML_UI
-        .replace("{{model_name}}", current_model)
-        .replace("{{device}}", "cuda" if not engine.no_gpu else "cpu")
-        .replace("{{commit}}", commit)
-        .replace("{{ws_url}}", ws_url)
-        .replace("{{model_options}}", model_options)
+    
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "model_name": current_model,
+            "device": "cuda" if not engine.no_gpu else "cpu",
+            "commit": commit,
+            "model_options": model_options
+        }
     )
 
 @router.get("/transcriptions")
@@ -178,7 +180,7 @@ async def generate_summary(filename: str, client_id: str):
         content = f.read()
     from backend.core.postprocess import summarize_text
     try:
-        summary = await asyncio.to_thread(summarize_text, content)
+        summary = await summarize_text(content)
         return {"status": "ok", "summary": summary}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -193,7 +195,7 @@ async def generate_actions(filename: str, client_id: str):
         content = f.read()
     from backend.core.postprocess import extract_actions_text
     try:
-        actions_list = await asyncio.to_thread(extract_actions_text, content)
+        actions_list = await extract_actions_text(content)
         actions_text = "\n".join(f"- {a}" for a in actions_list)
         return {"status": "ok", "actions": actions_text}
     except Exception as e:
@@ -209,7 +211,7 @@ async def generate_cleanup(filename: str, client_id: str):
         content = f.read()
     from backend.core.postprocess import clean_text
     try:
-        cleaned = await asyncio.to_thread(clean_text, content)
+        cleaned = await clean_text(content)
         return {"status": "ok", "cleanup": cleaned}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -285,122 +287,55 @@ async def view_transcription(client_id: str, filename: str, request: Request):
 
     if show_cleaned:
         # Render markdown for the cleaned version
-        safe_title = html_escape(filename)
         rendered_content = markdown.markdown(content, extensions=['extra', 'nl2br'])
-        html = f"""<!DOCTYPE html>
-<html lang="fr" data-fr-scheme="dark">
-<head>
-    <meta charset="UTF-8"><title>{safe_title} – Voxtral Pod</title>
-    <link rel="stylesheet" href="/static/dsfr.min.css">
-    <link rel="stylesheet" href="/static/postprocess.css">
-</head>
-<body>
-<div class="fr-container fr-py-4w">
-    <a href="/" class="fr-link fr-icon-arrow-left-line fr-link--icon-left fr-mb-2w">Retour à l'accueil</a>
-    <h1>{safe_title} (Version Nettoyée Albert)</h1>
-    <div class="content-area fr-text--md fr-p-4w" style="background: var(--background-alt-blue-france); border-radius: 8px;">
-        {rendered_content}
-    </div>
-</div>
-</body></html>"""
-        return HTMLResponse(html)
+        return templates.TemplateResponse(
+            request,
+            "postprocess.html",
+            {
+                "title": "Version Nettoyée Albert",
+                "filename": filename,
+                "raw_content": content,
+                "rendered_content": rendered_content
+            }
+        )
 
     segments_html = "\n".join(format_transcription(line) for line in content.splitlines() if line.strip())
-    safe_file = html_escape(filename)
-    temp_notice = "<p class=\"fr-text--sm fr-mb-2w\"><em>Version temporaire (en cours de nettoyage)</em></p>" if is_temp else ""
+    
     if filename.startswith("batch_"):
         ts = filename.replace("batch_", "").replace(".txt", "")
         audio_filename = f"batch_{client_id}_{ts}.wav"
     else:
         ts = filename.replace("live_", "").replace(".txt", "")
         audio_filename = f"live_{client_id}_{ts}.wav"
+    
     audio_url = f"/download_audio/{client_id}/{audio_filename}"
-    html = f"""<!DOCTYPE html>
-<html lang="fr" data-fr-scheme="dark">
-<head>
-<meta charset="UTF-8"><title>{safe_file} – Voxtral Pod</title>
-<link rel="stylesheet" href="/static/dsfr.min.css">
-</head>
-<body>
-<div class="fr-container">
-<div class="transcript-container">
-<a href="/" class="fr-link back-link">← Retour à l'accueil</a>
-<h1>{safe_file}</h1>
-{temp_notice}
-<div class="audio-player-container">
-    <audio id="audioPlayer" controls style="width:100%; margin-bottom:1rem;"></audio>
-    <div id="waveform"></div>
-</div>
-<div class="fr-grid-row fr-grid-row--gutters fr-mb-4w">
-    <div class="fr-col-12 fr-col-md-6">
-        <button id="toggleSpeakerEditorBtn" class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-user-line fr-w-100">👥 Éditer les speakers</button>
-    </div>
-    <div class="fr-col-12 fr-col-md-6">
-            <div class="fr-fieldset fr-p-2w" style="background: var(--background-alt-blue-france); border-radius:8px;">
-            <p class="fr-text--xs fr-mb-1w fr-text--bold">Options Copie LLM (ChatGPT/Claude)</p>
-            <div class="fr-checkbox-group fr-checkbox-group--sm">
-                <input type="checkbox" id="hideTimestamps"><label class="fr-label" for="hideTimestamps">Masquer les timestamps</label>
-            </div>
-            <div class="fr-checkbox-group fr-checkbox-group--sm">
-                <input type="checkbox" id="hideSpeakers"><label class="fr-label" for="hideSpeakers">Masquer les speakers</label>
-            </div>
-        </div>
-    </div>
-</div>
+    
+    return templates.TemplateResponse(
+        request,
+        "view.html",
+        {
+            "filename": filename,
+            "audio_url": audio_url,
+            "is_temp": is_temp,
+            "segments_html": segments_html
+        }
+    )
 
-<div id="speakerRenameContainer" style="display:none;" class="fr-mb-4w">
-    <h3 class="fr-h6">Renommer les intervenants</h3>
-    <div id="speakerRenameList" class="fr-grid-row fr-grid-row--gutters"></div>
-</div>
-
-<div id="transcript">
-{segments_html}
-</div>
-
-</div></div>
-
-</body></html>
-"""
-    return HTMLResponse(html)
-
-def _render_postprocess_page(title: str, content: str, filename: str) -> HTMLResponse:
-    safe_title = html_escape(title)
-    safe_filename = html_escape(filename)
-    safe_content = html_escape(content)
-    rendered_html = markdown.markdown(content, extensions=['extra', 'nl2br'])
-    html = f"""<!DOCTYPE html>
-<html lang="fr" data-fr-scheme="dark">
-<head>
-    <meta charset="UTF-8">
-    <title>{safe_title} - {safe_filename}</title>
-    <link rel="stylesheet" href="/static/dsfr.min.css">
-    <link rel="stylesheet" href="/static/postprocess.css">
-    <script src="/static/postprocess.js"></script>
-</head>
-<body>
-    <div class="fr-container">
-        <div class="postprocess-container">
-            <a href="/" class="fr-link fr-icon-arrow-left-line fr-link--icon-left fr-mb-2w">Retour à l'accueil</a>
-            <h1>{safe_title}</h1>
-            <p class="fr-text--sm">Fichier : {safe_filename}</p>
-
-            <div class="actions-bar">
-                <button id="copyBtn" class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-clipboard-line">Copier le texte</button>
-                <button id="downloadBtn" class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-download-line" data-title="{safe_title}" data-filename="{safe_filename}">Télécharger (.txt)</button>
-            </div>
-
-            <div id="content" class="content-area fr-text--md" data-content="{safe_content}">
-                {rendered_html}
-            </div>
-        </div>
-    </div>
-</body>
-</html>
-"""
-    return HTMLResponse(html)
+def _render_postprocess_page(request: Request, title: str, content: str, filename: str) -> Response:
+    rendered_content = markdown.markdown(content, extensions=['extra', 'nl2br'])
+    return templates.TemplateResponse(
+        request,
+        "postprocess.html",
+        {
+            "title": title,
+            "filename": filename,
+            "raw_content": content,
+            "rendered_content": rendered_content
+        }
+    )
 
 @router.get("/view_summary/{client_id}/{filename}")
-async def view_summary(client_id: str, filename: str):
+async def view_summary(client_id: str, filename: str, request: Request):
     _validate_client_id(client_id)
     file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
@@ -409,13 +344,13 @@ async def view_summary(client_id: str, filename: str):
         content = f.read()
     from backend.core.postprocess import summarize_text
     try:
-        summary = await asyncio.to_thread(summarize_text, content)
-        return _render_postprocess_page("Compte Rendu Albert", summary, filename)
+        summary = await summarize_text(content)
+        return _render_postprocess_page(request, "Compte Rendu Albert", summary, filename)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/view_actions/{client_id}/{filename}")
-async def view_actions(client_id: str, filename: str):
+async def view_actions(client_id: str, filename: str, request: Request):
     _validate_client_id(client_id)
     file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
@@ -424,14 +359,14 @@ async def view_actions(client_id: str, filename: str):
         content = f.read()
     from backend.core.postprocess import extract_actions_text
     try:
-        actions_list = await asyncio.to_thread(extract_actions_text, content)
+        actions_list = await extract_actions_text(content)
         actions_text = "\n".join(f"- {a}" for a in actions_list)
-        return _render_postprocess_page("Actions Albert", actions_text, filename)
+        return _render_postprocess_page(request, "Actions Albert", actions_text, filename)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/view_cleanup/{client_id}/{filename}")
-async def view_cleanup(client_id: str, filename: str):
+async def view_cleanup(client_id: str, filename: str, request: Request):
     _validate_client_id(client_id)
     file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
@@ -440,8 +375,8 @@ async def view_cleanup(client_id: str, filename: str):
         content = f.read()
     from backend.core.postprocess import clean_text
     try:
-        cleaned = await asyncio.to_thread(clean_text, content)
-        return _render_postprocess_page("Nettoyage Albert", cleaned, filename)
+        cleaned = await clean_text(content)
+        return _render_postprocess_page(request, "Nettoyage Albert", cleaned, filename)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -640,7 +575,7 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
         # Cleanup Albert automatique
         try:
             from backend.core.postprocess import clean_text
-            cleaned = await asyncio.to_thread(clean_text, transcript)
+            cleaned = await clean_text(transcript)
             cleaned_path = txt_path.replace(".txt", ".cleaned.md")
             with open(cleaned_path, "w", encoding="utf-8") as f:
                 f.write(cleaned)
@@ -697,7 +632,7 @@ async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp:
         # Cleanup Albert automatique
         try:
             from backend.core.postprocess import clean_text
-            cleaned = await asyncio.to_thread(clean_text, transcript)
+            cleaned = await clean_text(transcript)
             cleaned_path = txt_path.replace(".txt", ".cleaned.md")
             with open(cleaned_path, "w", encoding="utf-8") as f:
                 f.write(cleaned)

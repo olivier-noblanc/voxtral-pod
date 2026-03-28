@@ -3,6 +3,7 @@ import builtins
 from unittest.mock import patch
 
 import pytest
+import asyncio
 
 # Import the module under test
 from backend.core.postprocess import process_text, process_transcription, words_to_text
@@ -31,9 +32,41 @@ def test_words_to_text():
 
 @patch("backend.core.postprocess.requests.post")
 def test_process_text(mock_post):
-    # Configure mock to return appropriate JSON depending on payload
-    def side_effect(url, headers, json, timeout):
-        return type(
+    async def run():
+        # Configure mock to return appropriate JSON depending on payload
+        def side_effect(url, headers, json, timeout):
+            return type(
+                "Response",
+                (),
+                {
+                    "raise_for_status": lambda: None,
+                    "json": lambda: _mock_albert_response(json["messages"][0]["content"]),
+                },
+            )()
+        mock_post.side_effect = side_effect
+
+        sample_text = "euh Bonjour, alors je vais parler de la réunion."
+        result = await process_text(sample_text)
+
+        # Verify structure
+        assert isinstance(result, dict)
+        assert "summary" in result
+        assert "action_points" in result
+        assert "cleaned_text" in result
+
+        # Verify mock responses were used
+        assert result["summary"] == "Résumé synthétique du texte."
+        assert result["action_points"] == ["Action 1", "Action 2"]
+        assert result["cleaned_text"] == "Texte nettoyé sans tics."
+    
+    asyncio.run(run())
+
+
+@patch("backend.core.postprocess.requests.post")
+def test_process_transcription(mock_post):
+    async def run():
+        # Same mock as above
+        mock_post.side_effect = lambda url, headers, json, timeout: type(
             "Response",
             (),
             {
@@ -41,39 +74,13 @@ def test_process_text(mock_post):
                 "json": lambda: _mock_albert_response(json["messages"][0]["content"]),
             },
         )()
-    mock_post.side_effect = side_effect
 
-    sample_text = "euh Bonjour, alors je vais parler de la réunion."
-    result = process_text(sample_text)
+        words = [{"word": "euh"}, {"word": "Bonjour"}, {"word": "le"}, {"word": "monde"}]
+        result = await process_transcription(words)
 
-    # Verify structure
-    assert isinstance(result, dict)
-    assert "summary" in result
-    assert "action_points" in result
-    assert "cleaned_text" in result
-
-    # Verify mock responses were used
-    assert result["summary"] == "Résumé synthétique du texte."
-    assert result["action_points"] == ["Action 1", "Action 2"]
-    assert result["cleaned_text"] == "Texte nettoyé sans tics."
-
-
-@patch("backend.core.postprocess.requests.post")
-def test_process_transcription(mock_post):
-    # Same mock as above
-    mock_post.side_effect = lambda url, headers, json, timeout: type(
-        "Response",
-        (),
-        {
-            "raise_for_status": lambda: None,
-            "json": lambda: _mock_albert_response(json["messages"][0]["content"]),
-        },
-    )()
-
-    words = [{"word": "euh"}, {"word": "Bonjour"}, {"word": "le"}, {"word": "monde"}]
-    result = process_transcription(words)
-
-    assert isinstance(result, dict)
-    assert result["summary"] == "Résumé synthétique du texte."
-    assert result["action_points"] == ["Action 1", "Action 2"]
-    assert result["cleaned_text"] == "Texte nettoyé sans tics."
+        assert isinstance(result, dict)
+        assert result["summary"] == "Résumé synthétique du texte."
+        assert result["action_points"] == ["Action 1", "Action 2"]
+        assert result["cleaned_text"] == "Texte nettoyé sans tics."
+    
+    asyncio.run(run())

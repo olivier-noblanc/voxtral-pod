@@ -1,0 +1,121 @@
+# .clinerules — Voxtral Pod
+# Règles de contexte pour LLM (Qwen 3 3B, Mistral Small, etc.)
+# Lire ce fichier EN PREMIER avant toute modification.
+
+## STACK TECHNIQUE
+- Backend  : Python 3.11+, FastAPI, SQLite (jobs.db), asyncio
+- Frontend : HTML/CSS (DSFR), Vanilla JS (app.js), WebSocket
+- ASR      : faster-whisper (local GPU), Albert API (distant, no GPU)
+- Audio    : ffmpeg obligatoire, webrtcvad + silero_vad (VAD)
+- Tests    : pytest, variable env TESTING=1 active le mode mock
+
+## STRUCTURE DES FICHIERS (ne pas déplacer)
+```
+backend/
+  main.py          # Point d'entrée FastAPI + lifespan
+  config.py        # Constantes, chemins, setup GPU/warnings
+  state.py         # SQLite CRUD (jobs, config, asr_engine singleton)
+  utils.py         # format_transcription() → HTML
+  cleanup.py       # Nettoyage fichiers/jobs (tâche async périodique)
+  html_ui.py       # Template HTML inline (HTML_UI constant)
+  cli_tools.py     # CLI keyring
+  routes/
+    api.py         # Tous les endpoints HTTP + WebSocket /live
+  core/
+    engine.py      # SotaASR : orchestrateur principal
+    transcription.py # TranscriptionEngine (whisper/vosk/albert/mock)
+    diarization.py   # DiarizationEngine (pyannote, GPU)
+    diarization_cpu.py # LightDiarizationEngine (CPU stub)
+    audio.py       # decode_audio(), pcm_to_float32(), float32_to_pcm16()
+    vad.py         # VADManager (webrtcvad + silero, dual-gate)
+    live.py        # LiveSession (WebSocket par connexion)
+    merger.py      # assign_speakers_to_words(), smooth_micro_turns(), build_speaker_segments()
+    postprocess.py # _call_albert(), summarize_text(), clean_text(), extract_actions_text()
+    assistant.py   # AlbertAssistant (wrapper async postprocess)
+    speaker_profiles.py # SQLite profils voix (resemblyzer embeddings)
+static/
+  app.js           # Frontend JS (WebSocket, batch upload, historique)
+  index.html       # HTML statique (servi si pas de template inline)
+  postprocess.js   # JS page résultat post-traitement
+transcriptions_terminees/
+  live_audio/      # WAV/MP3 sessions live
+  batch_audio/     # WAV/MP3 fichiers batch
+temp_batch/        # Chunks d'upload en cours
+jobs.db            # SQLite principal (jobs + config)
+speaker_profiles.db # SQLite profils locuteurs
+```
+
+## RÈGLES ABSOLUES
+
+### 1. NE JAMAIS casser ces contrats
+- `state.get_asr_engine()` retourne toujours un objet avec `.transcription_engine.transcribe(audio_np)`
+- `TranscriptionEngine.transcribe()` retourne toujours `(list[dict], float)` → `(words, duration)`
+- Chaque `word` dict a les clés : `start`, `end`, `word`, `speaker`
+- `format_transcription(line)` retourne du HTML ou `""` (jamais None)
+- La DB SQLite a deux tables : `jobs(job_id, data, created_at)` et `config(key, value)`
+
+### 2. Gestion des modèles
+- `model_id` valide : `"whisper"`, `"albert"`, `"mock"`, `"vosk"`
+- Mode `"mock"` activé si `TESTING=1` OU (pas d'Albert API key ET VRAM < 7 Go)
+- Mode `"albert"` activé si Albert API key présente ET pas de GPU / low VRAM
+- Ne jamais importer `torch` au niveau module — toujours en lazy import
+
+### 3. Audio pipeline
+- Sample rate fixe : **16000 Hz** partout
+- Format interne : `np.float32`, range `[-1.0, 1.0]`
+- PCM réseau : `int16`, little-endian
+- `decode_audio()` utilise ffmpeg subprocess (pas ffmpeg-python)
+- Chunks WebSocket = 2560 samples Float32 downsampledés à 16 kHz → Int16
+
+### 4. WebSocket /live
+- Le client envoie des chunks `ArrayBuffer` (PCM Int16)
+- Le serveur répond avec JSON `{type: "sentence", text, speaker, final, sentence_index}`
+- Fermeture propre : envoyer `None` dans `audio_queue` pour flush final
+- `LiveSession` est instancié par connexion (isolation totale)
+
+### 5. SQLite
+- Timeout = 10s, `check_same_thread=False`
+- `update_job()` utilise `BEGIN IMMEDIATE` (évite les race conditions)
+- Max 500 jobs en base (rotation FIFO)
+- `cleanup_stuck_jobs()` appelé au démarrage (jobs interrompus → erreur)
+
+### 6. Cleanup automatique
+- Tâche async `periodic_cleanup_task` tourne en arrière-plan
+- Compression WAV→MP3 après ~2.4h (ffmpeg, bitrate 64k)
+- Suppression jobs/fichiers après `CLEANUP_RETENTION_DAYS` (défaut 90j)
+
+### 7. Frontend DOM contract
+- `app.js` référence ces IDs HTML obligatoires :
+  `recordBtn`, `systemBtn`, `meetingBtn`, `uploadBtn`, `audioFile`,
+  `liveTranscript`, `audioBar`, `audioBarCont`, `batchStatus`,
+  `uploadProgressContainer`, `uploadProgressFill`, `batchResult`,
+  `transcriptionList`, `modelSelector`, `currentModelDisplay`,
+  `audioDeviceSelect`, `speakerRenameContainer`, `speakerRenameList`,
+  `toggleSpeakerEditorBtn`, `albertOptions`, `albertPartial`, `cpuWarning`
+- Le script `scripts/check_dom_contract.py` vérifie ce contrat → lancer avant commit
+
+### 8. Variables d'environnement importantes
+| Variable              | Défaut                              | Rôle                        |
+|-----------------------|-------------------------------------|-----------------------------|
+| ALBERT_API_KEY        | (vide)                              | Clé API Albert              |
+| ALBERT_BASE_URL       | https://albert.api.etalab.gouv.fr/v1| URL base Albert             |
+| ALBERT_MODEL_ID       | openai/whisper-large-v3             | Modèle STT Albert           |
+| HF_TOKEN              | (vide)                              | Token HuggingFace           |
+| TESTING               | 0                                   | Active le mode mock (=1)    |
+| CLEANUP_RETENTION_DAYS| 90                                  | Rétention fichiers (jours)  |
+| TRUSTED_PROXIES       | 127.0.0.1,::1                       | Proxies de confiance        |
+| DISABLE_NNPACK        | 0                                   | Désactive NNPACK torch      |
+| CPU_THREADS           | nb CPUs                             | Threads torch CPU           |
+
+## PATTERNS INTERDITS
+- `import torch` au top-level d'un module → lazy import uniquement
+- `asyncio.run()` dans une coroutine → utiliser `await`
+- Modifier `jobs.db` directement en dehors de `state.py`
+- `ws.send()` sans vérifier `ws.readyState === 1` côté JS
+- Créer des fichiers dans `transcriptions_terminees/` sans passer par les fonctions de `cleanup.py`
+
+## PATTERNS RECOMMANDÉS
+- Nouveaux endpoints → ajouter dans `backend/routes/api.py`
+- Nouveau post-traitement Albert → passer par `postprocess._call_albert()`
+- Test de transcription → utiliser `model_id="mock"` avec `TESTING=1`
+- Accès profils locuteurs → toujours via `speaker_profiles.py` (jamais SQL direct)

@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 APP_JS_PATH = Path(__file__).parents[1] / "static" / "app.js"
-INDEX_HTML_PATH = Path(__file__).parents[1] / "static" / "index.html"
+INDEX_HTML_PATH = Path(__file__).parents[1] / "backend" / "templates" / "index.html"
 
 def test_ai_buttons_exist_in_frontend():
     """Vérifie que les boutons pour solliciter l'IA de post-traitement (Albert) 

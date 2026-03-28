@@ -8,7 +8,7 @@ from backend.core.assistant import AlbertAssistant
 # ----------------------------------------------------------------------
 # Helper to call Albert API (compatible with the existing usage in the project)
 # ----------------------------------------------------------------------
-def _call_albert(prompt: str) -> str:
+async def _call_albert(prompt: str) -> str:
     """
     Send a prompt to the Albert API and return the response text.
     Uses environment variables:
@@ -30,10 +30,13 @@ def _call_albert(prompt: str) -> str:
         "temperature": 0.0,
     }
 
-    # Retry logic
+    # Retry logic with exponential backoff
     for attempt in range(3):
+        if attempt > 0:
+            await asyncio.sleep(2**attempt)
         try:
-            response = requests.post(
+            response = await asyncio.to_thread(
+                requests.post,
                 f"{base_url}/chat/completions",
                 headers=headers,
                 json=payload,
@@ -96,7 +99,7 @@ def convert_audio(src_path: str, dst_path: str, format: str = "mp3") -> str:
     return dst_path
 
 
-def summarize_text(text):
+async def summarize_text(text):
     """Generate a structured summary via Albert."""
     print(f"[*] Post-traitement: Début de la synthèse Albert ({len(text.split())} mots)...")
     prompt = (
@@ -104,12 +107,12 @@ def summarize_text(text):
         "en conservant les informations essentielles :\\n\\n"
         f"{text}"
     )
-    res = _call_albert(prompt)
+    res = await _call_albert(prompt)
     print(f"[*] Post-traitement: Synthèse terminée.")
     return res
 
 
-def extract_actions_text(text):
+async def extract_actions_text(text):
     """Extract decisions and TODO actions via Albert."""
     print(f"[*] Post-traitement: Extraction des actions Albert ({len(text.split())} mots)...")
     assistant = AlbertAssistant()
@@ -118,13 +121,13 @@ def extract_actions_text(text):
         "ci‑dessous, sous forme de puces, en français :\\n\\n"
         f"{text}"
     )
-    raw = asyncio.run(assistant.get_completion(prompt))
+    raw = await assistant.get_completion(prompt)
     actions = [line.strip("- ").strip() for line in raw.splitlines() if line.strip()]
     print(f"[*] Post-traitement: {len(actions)} actions identifiées.")
     return actions
 
 
-def clean_text(text):
+async def clean_text(text):
     """Remove speech tics (euh, bah, alors, …) via Albert."""
     print(f"[*] Post-traitement: Nettoyage du texte Albert ({len(text.split())} mots)...")
     prompt = (
@@ -134,23 +137,23 @@ def clean_text(text):
         "Renvoie uniquement le texte nettoyé en français :\\n\\n"
         f"{text}"
     )
-    res = _call_albert(prompt)
+    res = await _call_albert(prompt)
     print(f"[*] Post-traitement: Nettoyage terminé.")
     return res
 
 
-def process_transcription(words):
+async def process_transcription(words):
     """Process a list of word dicts and return the full result dict."""
     raw_text = words_to_text(words)
-    return process_text(raw_text)
+    return await process_text(raw_text)
 
 
-def process_text(text):
+async def process_text(text):
     """Orchestrate processing of raw text and return summary, actions, cleaned text."""
     assistant = AlbertAssistant()
-    summary = asyncio.run(assistant.summarize(text))
-    actions = extract_actions_text(text)
-    cleaned = asyncio.run(assistant.cleanup_text(text))
+    summary = await assistant.summarize(text)
+    actions = await extract_actions_text(text)
+    cleaned = await assistant.cleanup_text(text)
     return {
         "summary": summary,
         "action_points": actions,

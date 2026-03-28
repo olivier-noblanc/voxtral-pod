@@ -9,7 +9,6 @@ from typing import Any
 import time
 import requests
 import numpy as np
-import ffmpeg
 import soundfile as sf
 import subprocess
 from backend.core.postprocess import _ensure_ffmpeg
@@ -202,6 +201,7 @@ class TranscriptionEngine:
             chunk_audio = audio_np[int(start_time*16000) : int((start_time+duration)*16000)]
             
             # 1. Compression (fallback to MP3) – utilise ffmpeg via ffmpeg‑python
+            import ffmpeg
             _ensure_ffmpeg()
             wav_buffer = io.BytesIO()
             sf.write(wav_buffer, chunk_audio, 16000, format='WAV', subtype='PCM_16')

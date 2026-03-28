@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr" data-fr-scheme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>{{ filename }} – Voxtral Pod</title>
+    <link rel="stylesheet" href="/static/dsfr.min.css">
+    <link rel="stylesheet" href="/static/view.css">
+</head>
+<body data-audio-url="{{ audio_url }}">
+    <div class="fr-container">
+        <div class="transcript-container">
+            <a href="/" class="fr-link back-link fr-icon-arrow-left-line fr-link--icon-left">Retour à l'accueil</a>
+            <h1 class="fr-h1">{{ filename }}</h1>
+            
+            {% if is_temp %}
+                <p class="fr-text--sm fr-mb-2w fr-badge fr-badge--warning fr-badge--no-icon">
+                    Version temporaire (en cours de nettoyage Albert)
+                </p>
+            {% endif %}
+
+            <div class="audio-player-container fr-mb-4w">
+                <audio id="audioPlayer" controls style="width:100%"></audio>
+            </div>
+
+            <div class="fr-grid-row fr-grid-row--gutters fr-mb-4w">
+                <div class="fr-col-12 fr-col-md-6">
+                    <button id="toggleSpeakerEditorBtn" class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-user-line fr-w-100">
+                        👥 Éditer les speakers
+                    </button>
+                </div>
+                <div class="fr-col-12 fr-col-md-6">
+                    <div class="fr-fieldset fr-p-2w" style="background: var(--background-alt-blue-france); border-radius:8px;">
+                        <p class="fr-text--xs fr-mb-1w fr-text--bold">Options Copie LLM (ChatGPT/Claude)</p>
+                        <div class="fr-checkbox-group fr-checkbox-group--sm">
+                            <input type="checkbox" id="hideTimestamps">
+                            <label class="fr-label" for="hideTimestamps">Masquer les timestamps</label>
+                        </div>
+                        <div class="fr-checkbox-group fr-checkbox-group--sm">
+                            <input type="checkbox" id="hideSpeakers">
+                            <label class="fr-label" for="hideSpeakers">Masquer les speakers</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="speakerRenameContainer" style="display:none;" class="fr-mb-4w">
+                <h3 class="fr-h6">Renommer les intervenants</h3>
+                <div id="speakerRenameList" class="fr-grid-row fr-grid-row--gutters"></div>
+            </div>
+
+            <div id="transcript" class="fr-py-2w">
+                {{ segments_html | safe }}
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/view.js"></script>
+</body>
+</html>

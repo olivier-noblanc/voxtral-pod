@@ -17,47 +17,18 @@ from unittest.mock import patch, MagicMock
 from backend.main import app
 
 
-# ── 1. f-string no_gpu dans la home route ───────────────────────────────────
+# ── 1. Rendu Jinja2 dans la home route ──────────────────────────────────────
+# (Anciens tests sur ws_url supprimés car la logique est désormais en frontend)
 
-def test_home_ws_url_no_gpu_true():
-    """Quand no_gpu=True, l'URL WS doit contenir partial_albert=true."""
-    fake_engine = MagicMock()
-    fake_engine.no_gpu = True
-
-    with patch("backend.routes.api.get_asr_engine", return_value=fake_engine), \
-         patch("backend.routes.api.get_current_model", return_value="whisper"), \
-         patch("backend.routes.api.HTML_UI", "TEMPLATE {{ws_url}}"):
-        from backend.main import app
-        client = TestClient(app, raise_server_exceptions=False)
-        resp = client.get("/")
-        assert resp.status_code == 200
-        assert "partial_albert=true" in resp.text, (
-            "ws_url doit contenir partial_albert=true quand no_gpu=True"
-        )
-
-
-def test_home_ws_url_no_gpu_false():
-    """Quand no_gpu=False, l'URL WS doit contenir partial_albert=false."""
-    fake_engine = MagicMock()
-    fake_engine.no_gpu = False
-
-    with patch("backend.routes.api.get_asr_engine", return_value=fake_engine), \
-         patch("backend.routes.api.get_current_model", return_value="whisper"), \
-         patch("backend.routes.api.HTML_UI", "TEMPLATE {{ws_url}}"):
-        client = TestClient(app, raise_server_exceptions=False)
-        resp = client.get("/")
-        assert resp.status_code == 200
-        assert "partial_albert=false" in resp.text, (
-            "ws_url doit contenir partial_albert=false quand no_gpu=False"
-        )
-
-
-def test_home_ws_url_not_literal_no_gpu():
-    """L'URL WS ne doit PAS contenir la chaîne littérale '{no_gpu}'."""
-    with patch("backend.routes.api.HTML_UI", "TEMPLATE {{ws_url}}"):
-        client = TestClient(app, raise_server_exceptions=False)
-        resp = client.get("/")
-        assert "{no_gpu}" not in resp.text, "f-string jamais interpolée détectée !"
+def test_home_route_renders_with_jinja(tmp_path):
+    """Vérifie que la home route utilise bien Jinja2 et rend les variables de base."""
+    from backend.main import app
+    client = TestClient(app)
+    resp = client.get("/")
+    assert resp.status_code == 200
+    # Vérifier la présence de tokens rendus par Jinja2
+    assert "GPU:" in resp.text
+    assert "Modèle:" in resp.text
 
 
 # ── 2. state.py : init_db() plus au module-level ────────────────────────────

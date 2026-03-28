@@ -20,7 +20,7 @@ from check_dom_contract import (
 def _paths():
     """Retourne (js_path, html_path) — résolution à l'appel, pas à l'import."""
     js_path   = _PROJECT_ROOT / "static"  / "app.js"
-    html_path = _PROJECT_ROOT / "backend" / "html_ui.py"
+    html_path = _PROJECT_ROOT / "backend" / "templates" / "index.html"
     assert js_path.exists(),   f"Fichier introuvable : {js_path}"
     assert html_path.exists(), f"Fichier introuvable : {html_path}"
     return js_path, html_path

@@ -38,6 +38,7 @@ class LiveSession:
 
         self.vad = VADManager(silero_sensitivity=0.4)
         self.selected_audio_device_id = selected_audio_device_id
+        self._lock = asyncio.Lock()
 
     async def process_audio_queue(self):
         """Worker: dequeue chunks, run VAD, trigger inference."""
@@ -70,9 +71,9 @@ class LiveSession:
             # VAD logic – protect against VAD failures
             try:
                 if self.is_speaking:
-                    has_speech = self.vad.check_deactivation(audio_bytes)
+                    has_speech = await self.vad.check_deactivation(audio_bytes)
                 else:
-                    has_speech = self.vad.is_speech(audio_bytes)
+                    has_speech = await self.vad.is_speech(audio_bytes)
             except Exception as e:
                 # En cas d’erreur du VAD, on considère qu’il y a de la parole
                 print(f"[!] [{self.client_id}] VAD error: {e} – assuming speech")
@@ -145,24 +146,25 @@ class LiveSession:
             text = " ".join(w["word"] for w in words).strip()
 
             if text or final:
-                # Nettoyage des éventuels points de suspension (souvent au début ou fin avec Albert/Whisper)
-                display_text = text
-                if final:
-                    display_text = text.strip(". ").strip()
+                async with self._lock:
+                    # Nettoyage des éventuels points de suspension (souvent au début ou fin avec Albert/Whisper)
+                    display_text = text
+                    if final:
+                        display_text = text.strip(". ").strip()
 
-                await self.websocket.send_json({
-                    "type": "sentence",
-                    "text": display_text,
-                    "speaker": "Speaker",  # Placeholder — la diarisation par lot viendra plus tard
-                    "final": final,
-                    "sentence_index": self._sentence_index,
-                    "total_bytes_received": self._total_bytes_received,
-                })
+                    await self.websocket.send_json({
+                        "type": "sentence",
+                        "text": display_text,
+                        "speaker": "Speaker",  # Placeholder — la diarisation par lot viendra plus tard
+                        "final": final,
+                        "sentence_index": self._sentence_index,
+                        "total_bytes_received": self._total_bytes_received,
+                    })
 
-                # Stocker la phrase finalisée et incrémenter l'index SEULEMENT APRÈS l'envoi
-                if final:
-                    self._sentences.append(text)
-                    self._sentence_index += 1
+                    # Stocker la phrase finalisée et incrémenter l'index SEULEMENT APRÈS l'envoi
+                    if final:
+                        self._sentences.append(text)
+                        self._sentence_index += 1
                 # Debug print to console
                 tag = "[FINAL]" if final else "[PARTIAL]"
                 print(f"[*] [{self.client_id}] {tag}: {text}")

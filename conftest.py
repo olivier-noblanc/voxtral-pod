@@ -1,6 +1,12 @@
-"""Test configuration for the Voxtral Pod project.
-
-This file can be used to define fixtures or configure pytest settings.
 """
+Configuration for pytest.
+"""
+from backend.state import init_db
 
-# You can add pytest fixtures here if needed.
+def pytest_sessionstart(_session):
+    """
+    Called after the Session object has been created and
+    before performing collection and entering the run test loop.
+    Ensures the database is initialized before any tests run.
+    """
+    init_db()

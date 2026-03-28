@@ -1,7 +1,4 @@
 import os
-import requests
-import json
-# Removed import to avoid circular dependency
 
 class AlbertAssistant:
     def __init__(self):
@@ -11,30 +8,12 @@ class AlbertAssistant:
 
     async def get_completion(self, prompt: str, system_message: str = "Tu es un assistant expert en analyse de transcriptions de réunions.") -> str:
         """Call Albert LLM for completion."""
-        if not self.api_key:
-            # In test environments the key may be absent; use a dummy placeholder.
-            self.api_key = "dummy-test-key"
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": self.model_id,
-            "messages": [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.3
-        }
-
         # Utilise la fonction de helper déjà mockée dans le module postprocess.
         # Le mock dans les tests cible ``backend.core.postprocess.requests.post``,
         # donc appeler ``_call_albert`` garantit que le mock est appliqué.
         # Import locally to avoid circular import with postprocess
         from backend.core import postprocess
-        return postprocess._call_albert(prompt)
+        return await postprocess._call_albert(prompt)
 
     async def summarize(self, text: str) -> str:
         # Le mock attend le mot clé « Résume » dans le prompt.

@@ -40,22 +40,24 @@ def load_profiles() -> Dict[str, Tuple[str, Optional[np.ndarray]]]:
     Returns a dict mapping speaker_id -> (name, embedding_array_or_None)
     """
     conn = _get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT speaker_id, name, embedding FROM profiles")
-    rows = cur.fetchall()
-    profiles = {}
-    for speaker_id, name, embedding_json in rows:
-        if embedding_json:
-            try:
-                emb_list = json.loads(embedding_json)
-                embedding = np.array(emb_list, dtype=np.float32)
-            except Exception:
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT speaker_id, name, embedding FROM profiles")
+        rows = cur.fetchall()
+        profiles = {}
+        for speaker_id, name, embedding_json in rows:
+            if embedding_json:
+                try:
+                    emb_list = json.loads(embedding_json)
+                    embedding = np.array(emb_list, dtype=np.float32)
+                except Exception:
+                    embedding = None
+            else:
                 embedding = None
-        else:
-            embedding = None
-        profiles[speaker_id] = (name, embedding)
-    conn.close()
-    return profiles
+            profiles[speaker_id] = (name, embedding)
+        return profiles
+    finally:
+        conn.close()
 
 
 def save_profile(speaker_id: str, name: str, embedding: Optional[np.ndarray] = None) -> None:
@@ -64,19 +66,21 @@ def save_profile(speaker_id: str, name: str, embedding: Optional[np.ndarray] = N
     Embedding is stored as JSON‑encoded list of floats.
     """
     conn = _get_connection()
-    emb_json = json.dumps(embedding.tolist()) if embedding is not None else None
-    conn.execute(
-        """
-        INSERT INTO profiles (speaker_id, name, embedding)
-        VALUES (?, ?, ?)
-        ON CONFLICT(speaker_id) DO UPDATE SET
-            name=excluded.name,
-            embedding=excluded.embedding
-        """,
-        (speaker_id, name, emb_json),
-    )
-    conn.commit()
-    conn.close()
+    try:
+        emb_json = json.dumps(embedding.tolist()) if embedding is not None else None
+        conn.execute(
+            """
+            INSERT INTO profiles (speaker_id, name, embedding)
+            VALUES (?, ?, ?)
+            ON CONFLICT(speaker_id) DO UPDATE SET
+                name=excluded.name,
+                embedding=excluded.embedding
+            """,
+            (speaker_id, name, emb_json),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def get_name(speaker_id: str) -> Optional[str]:
@@ -84,11 +88,13 @@ def get_name(speaker_id: str) -> Optional[str]:
     speaker_id = speaker_id or ""
     """Return the stored name for a speaker_id, or None if not found."""
     conn = _get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT name FROM profiles WHERE speaker_id = ?", (speaker_id,))
-    row = cur.fetchone()
-    conn.close()
-    return row[0] if row else None
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM profiles WHERE speaker_id = ?", (speaker_id,))
+        row = cur.fetchone()
+        return row[0] if row else None
+    finally:
+        conn.close()
 
 
 def set_name(speaker_id: str, new_name: str) -> None:
@@ -96,11 +102,13 @@ def set_name(speaker_id: str, new_name: str) -> None:
     speaker_id = speaker_id or ""
     """Rename an existing profile (does nothing if the profile does not exist)."""
     conn = _get_connection()
-    conn.execute(
-        "UPDATE profiles SET name = ? WHERE speaker_id = ?", (new_name, speaker_id)
-    )
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute(
+            "UPDATE profiles SET name = ? WHERE speaker_id = ?", (new_name, speaker_id)
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:

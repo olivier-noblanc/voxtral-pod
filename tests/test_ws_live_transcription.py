@@ -12,32 +12,39 @@ import numpy as np
 
 from backend.core.live import LiveSession
 
+# pylint: disable=protected-access
 
 # ---- Dummies ----
 
 class DummyWebSocket:
+    """Mock pour WebSocket FastAPI capturant les messages envoyés."""
     def __init__(self):
         self.messages = []
 
     async def send_json(self, data):
+        """Enregistre le JSON envoyé."""
         self.messages.append(data)
 
 
 class DummyTranscriptionEngine:
-    def transcribe(self, audio_np):
+    """Mock pour le moteur de transcription Whisper/Albert."""
+    def transcribe(self, _audio_np):
+        """Renvoie toujours 'bonjour monde'."""
         return ([{"word": "bonjour"}, {"word": "monde"}], None)
 
 
 class DummyEngine:
+    """Mock pour le wrapper de modèle Engine."""
     def __init__(self, model_id="test"):
         self.model_id = model_id
         self.transcription_engine = DummyTranscriptionEngine()
 
 
 class DummyEmptyEngine:
+    """Mock pour le wrapper de modèle Engine renvoyant du vide."""
     def __init__(self, model_id="empty"):
         self.model_id = model_id
-        self.transcription_engine = type('Dummy', (), {'transcribe': lambda self, x: ([], None)})()
+        self.transcription_engine = type('Dummy', (), {'transcribe': lambda _self, _x: ([], None)})()
 
 
 # ---- VADs de test ----
@@ -57,27 +64,38 @@ class SpeechThenSilenceVAD:
         self._speech_calls = 0           # compteur is_speech()
 
     def reset_states(self):
+        """Réinitialise les compteurs."""
         self._speech_calls = 0
 
-    def is_speech(self, audio_bytes) -> bool:
+    async def is_speech(self, _audio_bytes) -> bool:
+        """Simule le début de parole."""
         self._speech_calls += 1
         return self._speech_calls <= self._n
 
-    def check_deactivation(self, audio_bytes) -> bool:
+    async def check_deactivation(self, _audio_bytes) -> bool:
+        """Simule la fin de parole immédiate une fois le quota atteint."""
         # Retourne False immédiatement = silence dès que le quota est dépassé
         return False
 
 
 class AlwaysSpeechVAD:
     """Jamais de silence — pour déclencher des partials."""
-    def reset_states(self): pass
-    def is_speech(self, b) -> bool: return True
-    def check_deactivation(self, b) -> bool: return True
+    def reset_states(self):
+        """Dummy reset."""
+
+    async def is_speech(self, _b) -> bool:
+        """Toujours parole."""
+        return True
+
+    async def check_deactivation(self, _b) -> bool:
+        """Jamais silence."""
+        return True
 
 
 # ---- Helper PCM ----
 
 def make_pcm_chunk(duration_ms: int = 100, amplitude: float = 0.5) -> bytes:
+    """Génère un chunk audio PCM16 de test."""
     samples = int(16000 * duration_ms / 1000)
     arr = (np.ones(samples, dtype=np.float32) * amplitude * 32767).astype(np.int16)
     return arr.tobytes()
@@ -184,4 +202,5 @@ async def _test_ws_receives_empty_final_sentence():
 
 
 def test_ws_receives_empty_final_sentence():
+    """Pytest entry for empty final sentence test."""
     asyncio.run(_test_ws_receives_empty_final_sentence())
