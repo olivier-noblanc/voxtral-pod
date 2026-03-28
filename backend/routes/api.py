@@ -486,6 +486,114 @@ async def update_segment_speaker(payload: dict, background_tasks: BackgroundTask
     with open(file_path, "w", encoding="utf-8") as f:
         f.writelines(lines)
     return {"status": "ok"}
+    
+# ---------- New CPU Diarization & Speaker ID Endpoints ----------
+
+@router.post("/diarize")
+async def api_diarize(file: UploadFile = File(...)):
+    """
+    Endpoint de diarisation batch simple.
+    """
+    from backend.core.diarization_cpu import LightDiarizationEngine
+    import tempfile
+    
+    with tempfile.NamedTemporaryFile(suffix=pathlib.Path(file.filename or "audio.wav").suffix, delete=False) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+        
+    try:
+        engine = LightDiarizationEngine()
+        # No load() needed for functional API, but kept for interface compatibility
+        engine.load()
+        segments = engine.diarize_file(tmp_path)
+        return segments
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+@router.post("/benchmark")
+async def api_benchmark(file: UploadFile = File(...)):
+    """
+    Endpoint de benchmark performance pour la diarisation CPU.
+    """
+    from backend.core.diarization_cpu import LightDiarizationEngine
+    import tempfile
+    
+    suffix = pathlib.Path(file.filename).suffix if file.filename else ".wav"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+        
+    try:
+        engine = LightDiarizationEngine()
+        engine.load()
+        stats = engine.benchmark(tmp_path)
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+@router.post("/speakers/enroll")
+async def api_enroll_speaker(name: str = Form(...), file: UploadFile = File(...)):
+    """
+    Enrôle un nouveau locuteur (signature vocale).
+    """
+    from backend.core.speaker_manager import SpeakerManager
+    import tempfile
+    
+    suffix = pathlib.Path(file.filename).suffix if file.filename else ".wav"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+        
+    try:
+        manager = SpeakerManager()
+        success = manager.enroll_speaker(name, tmp_path)
+        if success:
+            return {"status": "ok", "message": f"Locuteur {name} enrôlé avec succès."}
+        else:
+            raise HTTPException(status_code=500, detail="Échec de l'enrôlement.")
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+@router.post("/speakers/identify")
+async def api_identify_speakers(file: UploadFile = File(...)):
+    """
+    Identifie les locuteurs connus dans un fichier audio segmenté par diarisation.
+    """
+    from backend.core.diarization_cpu import LightDiarizationEngine
+    from backend.core.speaker_manager import SpeakerManager
+    import tempfile
+    
+    suffix = pathlib.Path(file.filename).suffix if file.filename else ".wav"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+        
+    try:
+        # 1. Diarisation pour obtenir les segments
+        diar_engine = LightDiarizationEngine()
+        diar_engine.load()
+        segments = diar_engine.diarize_file(tmp_path)
+        
+        # 2. Identification des locuteurs sur chaque segment
+        manager = SpeakerManager()
+        results = manager.identify_speakers_in_segments(tmp_path, segments)
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 # ---------- POST routes ----------
 @router.post("/git_update")

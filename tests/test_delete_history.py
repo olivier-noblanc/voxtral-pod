@@ -1,3 +1,6 @@
+"""
+Tests pour la suppression de l'historique des transcriptions et des fichiers audio associés.
+"""
 import os
 
 import pytest
@@ -10,7 +13,7 @@ client = TestClient(app)
 
 
 @pytest.fixture
-def setup_transcription(tmp_path):
+def setup_transcription():
     """
     Crée un fichier de transcription et son fichier audio associé
     dans le répertoire de test, puis le nettoie après le test.
@@ -52,10 +55,12 @@ def test_delete_transcription_endpoint(setup_transcription):
     Vérifie que l'endpoint DELETE supprime correctement le fichier de transcription
     ainsi que le fichier audio associé et renvoie le bon statut.
     """
-    client_id = setup_transcription["client_id"]
-    filename = setup_transcription["filename"]
-    trans_path = setup_transcription["trans_path"]
-    audio_path = setup_transcription["audio_path"]
+    # On utilise l'argument setup_transcription qui contient les données de la fixture
+    trans_data = setup_transcription
+    client_id = trans_data["client_id"]
+    filename = trans_data["filename"]
+    trans_path = trans_data["trans_path"]
+    audio_path = trans_data["audio_path"]
 
     # L'endpoint doit répondre 200 avec le corps {"status": "ok"}
     response = client.delete(f"/transcriptions/{filename}?client_id={client_id}")
@@ -64,4 +69,4 @@ def test_delete_transcription_endpoint(setup_transcription):
 
     # Les fichiers doivent être supprimés du système de fichiers
     assert not os.path.isfile(trans_path), "Le fichier de transcription n'a pas été supprimé"
-    assert not os.path.isfile(audio_path), "Le fichier audio associé n'a pas été supprimé"
+    assert not os.path.isfile(audio_path), "Le fichier audio associé n'a pas été supprimé"

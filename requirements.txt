@@ -11,6 +11,9 @@ transformers>=4.45.0
 mistral-common[audio]>=1.9.0
 vosk
 resemblyzer
+diarize
+speechbrain
+onnxruntime
 
 # Always required (CPU ok)
 librosa>=0.10.0
