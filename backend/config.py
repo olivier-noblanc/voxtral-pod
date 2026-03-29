@@ -5,6 +5,8 @@ import logging
 # Inhibit NNPACK warning (unsupported hardware)
 if "DISABLE_NNPACK" not in os.environ:
     os.environ["DISABLE_NNPACK"] = "1"
+if "NNPACK_LOG_LEVEL" not in os.environ:
+    os.environ["NNPACK_LOG_LEVEL"] = "0"
 
 _CPU_THREADS_CONFIGURED = False
 

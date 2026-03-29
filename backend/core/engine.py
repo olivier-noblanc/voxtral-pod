@@ -7,6 +7,8 @@ from backend.core.merger import assign_speakers_to_words, smooth_micro_turns, bu
 
 # Appel unique à setup_warnings au chargement du module
 setup_warnings()
+# Optimisations matérielles (incluant l'inhibition NNPACK)
+setup_gpu()
 
 
 class SotaASR:

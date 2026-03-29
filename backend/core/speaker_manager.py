@@ -2,7 +2,6 @@ import os
 import json
 import logging
 import numpy as np
-import torch
 from typing import Optional, List, Dict, Tuple
 from backend.core.audio import decode_audio
 
@@ -52,6 +51,7 @@ class SpeakerManager:
 
     def get_embedding(self, audio_np: np.ndarray) -> np.ndarray:
         """Extract a 192-dim embedding from audio."""
+        import torch
         encoder = get_encoder()
         # Convert to tensor and add batch dim
         audio_tensor = torch.from_numpy(audio_np).unsqueeze(0)
