@@ -1,0 +1,26 @@
+c:\Users\raver\source\repos\voxtral-pod\backend\core\engine.py
+  c:\Users\raver\source\repos\voxtral-pod\backend\core\engine.py:108:34 - error: "Any" is not defined (reportUndefinedVariable)
+c:\Users\raver\source\repos\voxtral-pod\backend\routes\api.py
+  c:\Users\raver\source\repos\voxtral-pod\backend\routes\api.py:447:94 - error: "np" is not defined (reportUndefinedVariable)
+  c:\Users\raver\source\repos\voxtral-pod\backend\routes\api.py:687:21 - error: Argument of type "tuple[list[Unknown], float] | tuple[list[dict[str, Unknown]], float] | tuple[list[Unknown], Any] | LiteralString" cannot be assigned to parameter "s" of type "str" in function "write"
+    Type "tuple[list[Unknown], float] | tuple[list[dict[str, Unknown]], float] | tuple[list[Unknown], Any] | LiteralString" is not assignable to type "str"
+      "tuple[list[Unknown], float]" is not assignable to "str" (reportArgumentType)
+  c:\Users\raver\source\repos\voxtral-pod\backend\routes\api.py:746:21 - error: Argument of type "tuple[list[Unknown], float] | tuple[list[dict[str, Unknown]], float] | tuple[list[Unknown], Any] | LiteralString" cannot be assigned to parameter "s" of type "str" in function "write"
+    Type "tuple[list[Unknown], float] | tuple[list[dict[str, Unknown]], float] | tuple[list[Unknown], Any] | LiteralString" is not assignable to type "str"
+      "tuple[list[Unknown], float]" is not assignable to "str" (reportArgumentType)
+c:\Users\raver\source\repos\voxtral-pod\backend\state.py
+  c:\Users\raver\source\repos\voxtral-pod\backend\state.py:138:35 - error: "Any" is not defined (reportUndefinedVariable)
+  c:\Users\raver\source\repos\voxtral-pod\backend\state.py:138:63 - error: "Dict" is not defined (reportUndefinedVariable)
+  c:\Users\raver\source\repos\voxtral-pod\backend\state.py:138:73 - error: "Any" is not defined (reportUndefinedVariable)
+c:\Users\raver\source\repos\voxtral-pod\tests\test_dom_contract.py
+  c:\Users\raver\source\repos\voxtral-pod\tests\test_dom_contract.py:12:6 - error: Import "check_dom_contract" could not be resolved (reportMissingImports)
+c:\Users\raver\source\repos\voxtral-pod\tests\test_warnings_fixes.py
+  c:\Users\raver\source\repos\voxtral-pod\tests\test_warnings_fixes.py:54:28 - error: Cannot access attribute "func" for class "expr"
+    Attribute "func" is unknown (reportAttributeAccessIssue)
+  c:\Users\raver\source\repos\voxtral-pod\tests\test_warnings_fixes.py:55:36 - error: Cannot access attribute "func" for class "expr"
+    Attribute "func" is unknown (reportAttributeAccessIssue)
+  c:\Users\raver\source\repos\voxtral-pod\tests\test_warnings_fixes.py:56:30 - error: Cannot access attribute "func" for class "expr"
+    Attribute "func" is unknown (reportAttributeAccessIssue)
+  c:\Users\raver\source\repos\voxtral-pod\tests\test_warnings_fixes.py:57:36 - error: Cannot access attribute "func" for class "expr"
+    Attribute "func" is unknown (reportAttributeAccessIssue)
+12 errors, 0 warnings, 0 informations

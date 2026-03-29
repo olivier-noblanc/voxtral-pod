@@ -7,11 +7,24 @@ os.environ["OMP_NUM_THREADS"] = "1" # Help prevent initialization noise in some 
 import logging
 from fastapi import FastAPI
 
-# Configure global logging level
+# Configure global logging level (defaults to INFO, override with LOG_LEVEL=DEBUG if needed)
+_LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=getattr(logging, _LOG_LEVEL, logging.INFO),
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
 )
+
+# --- Silence noisy external libraries ---
+for noisy_logger in [
+    "diarize.embeddings", 
+    "wespeakerruntime", 
+    "onnxruntime", 
+    "urllib3", 
+    "multipart", 
+    "numba",
+    "speechbrain"
+]:
+    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware

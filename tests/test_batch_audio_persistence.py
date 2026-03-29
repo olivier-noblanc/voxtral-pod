@@ -3,6 +3,7 @@ import shutil
 import asyncio
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
+from backend.core.engine import TranscriptionResult
 
 def test_batch_audio_persistence(tmp_path):
     """Vérifie que l'audio réassemblé est bien copié dans le dossier permanent avant suppression."""
@@ -17,14 +18,19 @@ def test_batch_audio_persistence(tmp_path):
     with open(assembled_path, "wb") as f:
         f.write(b"fake audio data")
 
+    async def _pf_mock(*args, **kwargs):
+        return TranscriptionResult(transcript="Dummy transcript", segments=[])
+
     fake_engine = MagicMock()
-    fake_engine.process_file = AsyncMock(return_value="Dummy transcript")
+    fake_engine.process_file.side_effect = _pf_mock
     
-    # On patche TRANSCRIPTIONS_DIR dans backend.routes.api (qui l'importe de backend.config)
+    # On patche les références au moteur et les fonctions lourdes
     with patch("backend.routes.api.get_asr_engine", return_value=fake_engine), \
          patch("backend.routes.api._update_job_status"), \
          patch("backend.routes.api.add_job"), \
-         patch("backend.routes.api.TRANSCRIPTIONS_DIR", str(trans_dir)):
+         patch("backend.core.postprocess.clean_text", new_callable=AsyncMock, return_value="Cleaned transcript"), \
+         patch("backend.routes.api.TRANSCRIPTIONS_DIR", str(trans_dir)), \
+         patch("backend.routes.api._safe_join", side_effect=lambda *args: os.path.join(*args)):
         
         from backend.routes.api import _gpu_job
         

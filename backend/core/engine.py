@@ -1,9 +1,33 @@
 import os
 import asyncio
 import numpy as np
+from dataclasses import dataclass, asdict
+from typing import Any, Optional, Dict, List
 from backend.config import setup_warnings, get_vram_gb, setup_gpu
 from backend.core.audio import decode_audio
 from backend.core.merger import assign_speakers_to_words, smooth_micro_turns, build_speaker_segments
+
+@dataclass
+class TranscriptionResult:
+    transcript: str
+    segments: List[Dict[str, Any]]
+
+    def to_rttm(self, file_id: str) -> str:
+        """
+        Génère le contenu au format RTTM (Rich Transcription Time Marked).
+        Format: SPEAKER <file> <chnl> <start> <duration> <ortho> <stype> <name> <conf> <srat>
+        """
+        lines = []
+        for s in self.segments:
+            start = s["start"]
+            duration = s["end"] - start
+            speaker = s["speaker"]
+            # Formatting as required by RTTM spec
+            lines.append(f"SPEAKER {file_id} 1 {start:.3f} {duration:.3f} <NA> <NA> {speaker} <NA> <NA>")
+        return "\n".join(lines)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
 
 # Appel unique à setup_warnings au chargement du module
 setup_warnings()
@@ -105,11 +129,22 @@ class SotaASR:
                 c_raw = args[0] if len(args) > 0 else kwargs.get("completed", 0)
                 t_raw = args[1] if len(args) > 1 else kwargs.get("total")
 
-                def to_scalar(v):
+                def to_scalar(v: Any) -> float:
                     if v is None: return 0.0
-                    if hasattr(v, "item"): return float(v.item())
-                    if isinstance(v, (list, np.ndarray)) and len(v) > 0: return float(v[0])
-                    return float(v)
+                    if hasattr(v, "item"): 
+                        try:
+                            item = v.item() # type: ignore
+                            return float(item)
+                        except Exception:
+                            pass
+                    if isinstance(v, (list, np.ndarray)):
+                        if len(v) > 0:
+                            return float(v[0])
+                        return 0.0
+                    try:
+                        return float(v) # type: ignore
+                    except (TypeError, ValueError):
+                        return 0.0
 
                 c_val = to_scalar(c_raw)
                 t_val = to_scalar(t_raw)
@@ -130,25 +165,38 @@ class SotaASR:
 
         # 3. Diarize + Transcribe (parallel pour Albert, séquentiel sinon)
         if self.model_id == "mock":
-            return await self.transcription_engine.transcribe(audio_np) # Return directly for mock
+            # TranscriptionEngine.transcribe returns (words, None)
+            words, _ = await asyncio.to_thread(self.transcription_engine.transcribe, audio_np)
+            mock_segments = [
+                {"start": 0.0, "end": 1.0, "speaker": "SPEAKER_00", "text": " ".join([w['word'] for w in words])}
+            ]
+            transcript = "\n".join([f"[{s['start']:.2f}s -> {s['end']:.2f}s] [{s['speaker']}] {s['text']}" for s in mock_segments])
+            return TranscriptionResult(transcript=transcript, segments=mock_segments)
         
         parallel = (self.model_id == "albert")
 
         if parallel:
             if progress_callback:
                 progress_callback("Diarisation et transcription en parallèle...", 10)
-            diar_task = asyncio.to_thread(self.diarization_engine.diarize, audio_np, hook=None)
-            trans_task = asyncio.to_thread(self.transcription_engine.transcribe, audio_np, progress_callback=None)
-            # ``asyncio.gather`` renvoie deux résultats ; on désérialise correctement.
-            diar_segments, (words, _) = await asyncio.gather(diar_task, trans_task)  # type: ignore[assignment]
+            if self.diarization_engine is not None:
+                diar_task = asyncio.to_thread(self.diarization_engine.diarize, audio_np, hook=None)
+                trans_task = asyncio.to_thread(self.transcription_engine.transcribe, audio_np, progress_callback=None)
+                # ``asyncio.gather`` renvoie deux résultats ; on désérialise correctement.
+                diar_segments, (words, _) = await asyncio.gather(diar_task, trans_task)  # type: ignore[assignment]
+            else:
+                words, _ = await asyncio.to_thread(self.transcription_engine.transcribe, audio_np, progress_callback=None)
+                diar_segments = []
             if progress_callback:
                 progress_callback("Fusion des résultats...", 80)
         else:
             if progress_callback:
                 progress_callback("Diarisation...", 5)
-            diar_segments = await asyncio.to_thread(
-                self.diarization_engine.diarize, audio_np, hook=diar_hook
-            )
+            if self.diarization_engine is not None:
+                diar_segments = await asyncio.to_thread(
+                    self.diarization_engine.diarize, audio_np, hook=diar_hook
+                )
+            else:
+                diar_segments = []
             if progress_callback:
                 progress_callback("Transcription...", 45)
             words, _ = await asyncio.to_thread(
@@ -173,4 +221,4 @@ class SotaASR:
             output_lines.append(f"[{s['start']:.2f}s -> {s['end']:.2f}s] [{s['speaker']}] {s['text']}")
 
         print(f"[*] Post-traitement terminé. Transcript prêt.")
-        return "\n".join(output_lines)
+        return TranscriptionResult(transcript="\n".join(output_lines), segments=segments)

@@ -11,6 +11,9 @@ import asyncio
 import numpy as np
 
 from backend.core.live import LiveSession
+from typing import cast, Any
+from fastapi import WebSocket
+from backend.core.vad import VADManager
 
 # pylint: disable=protected-access
 
@@ -111,8 +114,8 @@ async def _test_ws_receives_final_sentence():
     Attendu : au moins 1 message final=True sur le WebSocket.
     """
     ws = DummyWebSocket()
-    session = LiveSession(engine=DummyEngine(), websocket=ws, client_id="user_t01")
-    session.vad = SpeechThenSilenceVAD(speech_chunks=3)
+    session = LiveSession(engine=DummyEngine(), websocket=cast(WebSocket, ws), client_id="user_t01")
+    session.vad = cast(VADManager, SpeechThenSilenceVAD(speech_chunks=3))
 
     proc = asyncio.create_task(session.process_audio_queue())
 
@@ -151,8 +154,8 @@ async def _test_ws_receives_partial_sentence():
     Attendu : au moins 1 message final=False.
     """
     ws = DummyWebSocket()
-    session = LiveSession(engine=DummyEngine(), websocket=ws, client_id="user_t02")
-    session.vad = AlwaysSpeechVAD()
+    session = LiveSession(engine=DummyEngine(), websocket=cast(WebSocket, ws), client_id="user_t02")
+    session.vad = cast(VADManager, AlwaysSpeechVAD())
 
     proc = asyncio.create_task(session.process_audio_queue())
 
@@ -185,8 +188,8 @@ async def _test_ws_receives_empty_final_sentence():
     envoie quand même un message final=True pour clore la ligne côté frontend.
     """
     ws = DummyWebSocket()
-    session = LiveSession(engine=DummyEmptyEngine(), websocket=ws, client_id="user_empty")
-    session.vad = SpeechThenSilenceVAD(speech_chunks=0) # Directement silence après audit
+    session = LiveSession(engine=DummyEmptyEngine(), websocket=cast(WebSocket, ws), client_id="user_empty")
+    session.vad = cast(VADManager, SpeechThenSilenceVAD(speech_chunks=0)) # Directement silence après audit
     session.is_speaking = True # Simulation : on croyait parler
     
     proc = asyncio.create_task(session.process_audio_queue())

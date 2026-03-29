@@ -1,5 +1,7 @@
 import os
 import pathlib
+import importlib.util
+import numpy as np
 import datetime
 import asyncio
 import shutil
@@ -7,8 +9,9 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Reque
 from fastapi.responses import FileResponse, Response
 from fastapi.templating import Jinja2Templates
 import re
-import importlib.util
+import json
 import logging
+from backend.core.engine import TranscriptionResult
 
 logger = logging.getLogger(__name__)
 
@@ -352,6 +355,82 @@ async def view_summary(client_id: str, filename: str, request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/download_rttm/{client_id}/{filename}")
+async def download_rttm(client_id: str, filename: str):
+    """
+    Télécharge le fichier RTTM correspondant à une transcription.
+    """
+    _validate_client_id(client_id)
+    # The filename passed is the base name or .txt name
+    base_name = filename.replace(".txt", "").replace(".cleaned.md", "")
+    rttm_filename = f"{base_name}.rttm"
+    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, rttm_filename)
+    
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Fichier RTTM introuvable.")
+    return FileResponse(path=file_path, filename=rttm_filename, media_type="text/plain")
+
+@router.get("/diarization_data/{client_id}/{filename}")
+async def get_diarization_data(client_id: str, filename: str):
+    """
+    Retourne les données de diarisation brutes au format JSON.
+    """
+    _validate_client_id(client_id)
+    base_name = filename.replace(".txt", "").replace(".cleaned.md", "")
+    json_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, f"{base_name}.diar.json")
+    
+    if not os.path.isfile(json_path):
+        raise HTTPException(status_code=404, detail="Données de diarisation introuvables.")
+    
+    with open(json_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+@router.get("/view_diarization/{client_id}/{filename}")
+async def view_diarization(client_id: str, filename: str, request: Request):
+    """
+    Affiche un tableau HTML (SSR via Jinja2) des segments de diarisation.
+    """
+    _validate_client_id(client_id)
+    base_name = filename.replace(".txt", "").replace(".cleaned.md", "")
+    json_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, f"{base_name}.diar.json")
+    
+    if not os.path.isfile(json_path):
+        # Fallback: essayer de reconstruire à partir du RTTM si le JSON n'existe pas encore
+        rttm_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, f"{base_name}.rttm")
+        if not os.path.isfile(rttm_path):
+            raise HTTPException(status_code=404, detail="Données de diarisation introuvables.")
+        
+        # Simple RTTM parser fallback
+        segments = []
+        with open(rttm_path, "r", encoding="utf-8") as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) >= 8:
+                    start = float(parts[3])
+                    duration = float(parts[4])
+                    speaker = parts[7]
+                    segments.append({
+                        "start": start,
+                        "end": start + duration,
+                        "speaker": speaker,
+                        "text": "" # No snippet in RTTM
+                    })
+    else:
+        with open(json_path, "r", encoding="utf-8") as f:
+            segments = json.load(f)
+
+    # Calculer les durées pour l'affichage
+    for s in segments:
+        s["duration"] = round(s["end"] - s["start"], 3)
+
+    return templates.TemplateResponse("diarization_view.html", {
+        "request": request,
+        "segments": segments,
+        "filename": base_name,
+        "client_id": client_id
+    })
+
+
 @router.get("/view_actions/{client_id}/{filename}")
 async def view_actions(client_id: str, filename: str, request: Request):
     _validate_client_id(client_id)
@@ -443,7 +522,8 @@ def _extract_and_save_profile_sync(audio_path: str, start_s: float, end_s: float
         encoder = VoiceEncoder("cpu")
         emb = encoder.embed_utterance(segment_audio)
         import backend.core.speaker_profiles as speaker_profiles
-        speaker_profiles.save_profile(speaker_id=speaker_id, name=speaker_id, embedding=emb)
+        from typing import cast
+        speaker_profiles.save_profile(speaker_id=speaker_id, name=speaker_id, embedding=cast(np.ndarray, emb))
         print(f"[*] Saved voice profile for speaker: {speaker_id}")
     except Exception as e:
         print(f"[!] Warning: Failed to extract speaker embedding for {speaker_id}: {e}")
@@ -455,8 +535,10 @@ async def update_segment_speaker(payload: dict, background_tasks: BackgroundTask
     filename = payload.get("filename")
     segment_index = payload.get("segment_index")
     new_speaker = payload.get("new_speaker")
-    if not all([client_id, filename, isinstance(segment_index, int), new_speaker]):
-        raise HTTPException(status_code=400, detail="Invalid payload.")
+    # Explicitly check for None to satisfy Pyright
+    if client_id is None or filename is None or new_speaker is None or not isinstance(segment_index, int):
+        raise HTTPException(status_code=400, detail="Invalid payload: missing or invalid fields.")
+    
     file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Transcription not found.")
@@ -674,7 +756,8 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
             pct = max(0, min(100, pct))
             print(f"[*] [Batch {file_id}] {step} : {pct}%")
             _update_job_status(file_id, f"processing:{step}", pct)
-        transcript = await engine.process_file(assembled_path, progress_callback=progress_callback)
+        result = await engine.process_file(assembled_path, progress_callback=progress_callback)
+        transcript = result.transcript
         client_dir = _safe_join(TRANSCRIPTIONS_DIR, client_id)
         os.makedirs(client_dir, exist_ok=True)
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -682,6 +765,16 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
         txt_path = os.path.join(client_dir, txt_name)
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(transcript)
+        
+        # Save RTTM and Diarization JSON for SSR viewer
+        file_id_rttm = txt_name.replace(".txt", "")
+        rttm_path = txt_path.replace(".txt", ".rttm")
+        with open(rttm_path, "w", encoding="utf-8") as f:
+            f.write(result.to_rttm(file_id_rttm))
+        
+        diar_json_path = txt_path.replace(".txt", ".diar.json")
+        with open(diar_json_path, "w", encoding="utf-8") as f:
+            json.dump(result.segments, f, indent=2)
         
         try:
             from backend.core.postprocess import clean_text
@@ -732,7 +825,8 @@ async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp:
             print(f"[*] [LiveFinal {job_id}] {step} : {pct}%")
             _update_job_status(job_id, f"processing:{step}", pct)
 
-        transcript = await engine.process_file(wav_path, progress_callback=progress_callback)
+        result = await engine.process_file(wav_path, progress_callback=progress_callback)
+        transcript = result.transcript
 
         client_dir = _safe_join(TRANSCRIPTIONS_DIR, client_id)
         os.makedirs(client_dir, exist_ok=True)
@@ -741,6 +835,16 @@ async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp:
         txt_path = os.path.join(client_dir, txt_name)
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(transcript)
+
+        # Save RTTM and Diarization JSON for SSR viewer
+        file_id_rttm = txt_name.replace(".txt", "")
+        rttm_path = txt_path.replace(".txt", ".rttm")
+        with open(rttm_path, "w", encoding="utf-8") as f:
+            f.write(result.to_rttm(file_id_rttm))
+
+        diar_json_path = txt_path.replace(".txt", ".diar.json")
+        with open(diar_json_path, "w", encoding="utf-8") as f:
+            json.dump(result.segments, f, indent=2)
 
         try:
             from backend.core.postprocess import clean_text
@@ -765,8 +869,8 @@ async def live_endpoint(
     websocket: WebSocket,
     client_id: str = "anonymous",
     partial_albert: bool = False,
-    device_id: str = None,
-    session_id: str = None,
+    device_id: str | None = None,
+    session_id: str | None = None,
 ):
     if not client_id or client_id == "anonymous" or not client_id.startswith("user_"):
         await websocket.close(code=4003)

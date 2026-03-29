@@ -160,6 +160,6 @@ def match_embedding(
             best_id = speaker_id
             best_name = name
 
-    if best_score >= threshold and best_id is not None:
+    if best_score >= threshold and best_id is not None and best_name is not None:
         return best_id, best_name
     return None

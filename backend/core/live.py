@@ -12,7 +12,7 @@ from backend.config import TRANSCRIPTIONS_DIR
 class LiveSession:
     """Isolated per-connection live transcription with VAD."""
 
-    def __init__(self, engine, websocket: WebSocket, client_id: str, partial_albert: bool = False, selected_audio_device_id: str = None):
+    def __init__(self, engine, websocket: WebSocket, client_id: str, partial_albert: bool = False, selected_audio_device_id: str | None = None):
         self.engine = engine
         self.websocket = websocket
         self.client_id = client_id

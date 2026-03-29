@@ -13,7 +13,7 @@ _torch_spec = importlib.util.find_spec("torch")
 if _torch_spec is not None:
     import torch
     if hasattr(torch, "backends") and hasattr(torch.backends, "nnpack"):
-        torch.backends.nnpack.enabled = False
+        torch.backends.nnpack.enabled = False # type: ignore
 
 # Lazy import helper for webrtcvad
 def _lazy_get_webrtcvad():
@@ -133,8 +133,8 @@ class VADManager:
             # Lazy import torch only when needed
             import torch
             # Extra safety: ensure NNPACK remains disabled in executor threads
-            if hasattr(torch, "backends") and hasattr(torch.backends, "nnpack") and torch.backends.nnpack.enabled:
-                torch.backends.nnpack.enabled = False
+            if hasattr(torch, "backends") and hasattr(torch.backends, "nnpack") and torch.backends.nnpack.enabled: # type: ignore
+                torch.backends.nnpack.enabled = False # type: ignore
 
             prob = self.silero_model(torch.from_numpy(piece), SAMPLE_RATE).item()
             if prob > max_vad_prob:

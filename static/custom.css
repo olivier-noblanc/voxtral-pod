@@ -111,3 +111,36 @@ dialog.fr-modal .fr-modal__inner {
         border-radius: 0;
     }
 }
+
+/* --- History Cards Enhancements --- */
+.fr-card--sm {
+    background-color: var(--background-default-grey);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fr-card--sm:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.fr-card__title {
+    color: var(--text-title-grey) !important;
+    border-bottom: 1px solid var(--fr-border-default-grey);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem !important;
+}
+
+.fr-card .fr-btn--sm {
+    font-size: 0.75rem !important;
+    height: 1.75rem;
+    padding: 0 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.fr-card .fr-btn--secondary {
+    border: 1px solid var(--fr-border-default-grey);
+}
+
+.fr-card .fr-btn--secondary:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}

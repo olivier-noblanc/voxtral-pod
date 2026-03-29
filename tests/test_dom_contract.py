@@ -9,7 +9,7 @@ for _p in (_PROJECT_ROOT, _PROJECT_ROOT / "scripts"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from check_dom_contract import (
+from check_dom_contract import ( # type: ignore
     extract_js_ids,
     extract_html_ids,
     find_add_event_listener_issues,

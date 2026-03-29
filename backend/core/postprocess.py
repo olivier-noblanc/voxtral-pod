@@ -35,8 +35,9 @@ async def _call_albert(prompt: str) -> str:
 
     # Retry logic with exponential backoff
     for attempt in range(3):
+        response = None
         if attempt > 0:
-            await asyncio.sleep(2**attempt)
+            await asyncio.to_thread(asyncio.sleep, 2**attempt)
         try:
             response = await asyncio.to_thread(
                 requests.post,
@@ -54,8 +55,8 @@ async def _call_albert(prompt: str) -> str:
                 data = response.json()
             except Exception as e:
                 # If json() is an attribute (mocked incorrectly) instead of a method
-                if not callable(response.json):
-                    data = response.json
+                if not hasattr(response, "json") or not callable(response.json):
+                    data = response.json if hasattr(response, "json") else {}
                 else:
                     raise RuntimeError(f"Unable to parse JSON from Albert API response: {e}. Raw content: {response.text[:200]}")
             
@@ -80,9 +81,11 @@ async def _call_albert(prompt: str) -> str:
             
             return content
             
-        except requests.exceptions.HTTPError as he:
+        except requests.exceptions.HTTPError:
             if attempt == 2:
-                raise RuntimeError(f"Albert API HTTP error {response.status_code}: {response.text[:200]}")
+                status_code = response.status_code if response is not None else "N/A"
+                text = response.text[:200] if response is not None else "N/A"
+                raise RuntimeError(f"Albert API HTTP error {status_code}: {text}")
         except Exception as e:
             if attempt == 2:
                 raise RuntimeError(f"Albert API call failed after retries: {e}")

@@ -417,6 +417,22 @@ const res = await fetch('/transcriptions/?client_id=' + getClientId());
             actionsBtn.textContent = '📝 Actions (Albert)';
             actionsBtn.onclick = function() { generateActions(this); };
 
+            const rttmLink = document.createElement('a');
+            rttmLink.href = '/download_rttm/' + getClientId() + '/' + encodeURIComponent(f);
+            rttmLink.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w';
+            rttmLink.download = true;
+            rttmLink.textContent = '💾 RTTM';
+
+            const diarBtn = document.createElement('button');
+            diarBtn.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w';
+            diarBtn.dataset.filename = f;
+            diarBtn.textContent = '🔍 Diarisation';
+            diarBtn.onclick = function() {
+                const clientId = getClientId();
+                const filename = this.getAttribute('data-filename');
+                window.open("/view_diarization/" + clientId + "/" + encodeURIComponent(filename), "_blank");
+            };
+
             cardDiv.appendChild(title);
             cardDiv.appendChild(viewLink);
             cardDiv.appendChild(document.createTextNode(' '));
@@ -428,6 +444,8 @@ const res = await fetch('/transcriptions/?client_id=' + getClientId());
             cardDiv.appendChild(document.createElement('br'));
             cardDiv.appendChild(summaryBtn);
             cardDiv.appendChild(actionsBtn);
+            cardDiv.appendChild(rttmLink);
+            cardDiv.appendChild(diarBtn);
 
             colDiv.appendChild(cardDiv);
             list.appendChild(colDiv);

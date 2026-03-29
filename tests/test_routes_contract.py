@@ -57,7 +57,10 @@ def test_api_routes_are_used_in_frontend():
         "diarize",
         "benchmark",
         "speakers/enroll",
-        "speakers/identify"
+        "speakers/identify",
+        "diarization_data/{client_id}/{filename}",
+        "download_rttm/{client_id}/{filename}",
+        "view_diarization/{client_id}/{filename}"
     }
     
     unused = (api_routes - fetch_paths) - allowed_unused

@@ -2,6 +2,7 @@ import os
 import sqlite3
 import json
 import logging
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +136,7 @@ def add_job(job_id, data):
         conn.commit()
 
 _GET_JOB_SENTINEL = object()
-def get_job(job_id, default=_GET_JOB_SENTINEL):
+def get_job(job_id: str, default: Any = _GET_JOB_SENTINEL) -> Dict[str, Any]:
     with get_db() as conn:
         cursor = conn.execute('SELECT data FROM jobs WHERE job_id = ?', (job_id,))
         row = cursor.fetchone()

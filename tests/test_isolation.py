@@ -92,7 +92,7 @@ def test_batch_chunk_forbidden(setup_isolation_env):
     resp = client.post("/batch_chunk", data={
         "file_id": "job123",
         "client_id": "anonymous",
-        "chunk_index": 0,
-        "total_chunks": 1
+        "chunk_index": "0",
+        "total_chunks": "1"
     }, files={"file": ("test.wav", b"data")})
     assert resp.status_code == 400

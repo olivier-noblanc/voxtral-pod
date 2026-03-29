@@ -21,8 +21,10 @@ class _EngineDummy:
     model_id = "mock"
 
 def _build_session(engine, tmp_path, client_id="user_satest") -> LiveSession:
+    from typing import cast
+    from fastapi import WebSocket
     ws = _WebSocketDummy()
-    session = LiveSession(engine=engine, websocket=ws, client_id=client_id)
+    session = LiveSession(engine=engine, websocket=cast(WebSocket, ws), client_id=client_id)
     session.full_session_audio = [_make_audio_data() for _ in range(5)]
     return session
 

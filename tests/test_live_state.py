@@ -57,9 +57,11 @@ async def _run_live_session_telemetry():
     et la structure des messages WebSocket.
     """
     # Arrange
+    from typing import cast
+    from fastapi import WebSocket
     dummy_ws = DummyWebSocket()
     dummy_engine = DummyEngine()
-    session = LiveSession(engine=dummy_engine, websocket=dummy_ws, client_id="test_client")
+    session = LiveSession(engine=dummy_engine, websocket=cast(WebSocket, dummy_ws), client_id="test_client")
 
     # Simulate receiving two audio chunks
     chunk1 = b"audio_chunk_1"

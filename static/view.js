@@ -87,3 +87,19 @@ function initSpeakerEditor() {
         listDiv.appendChild(colDiv);
     });
 }
+
+/**
+ * Expose seekTo function to window so that child popups 
+ * (like the Diarization viewer) can control the audio playback.
+ */
+window.seekTo = function(time) {
+    const audioPlayer = document.getElementById('audioPlayer');
+    if (audioPlayer) {
+        audioPlayer.currentTime = parseFloat(time);
+        audioPlayer.play().catch(err => {
+            console.warn("Autoplay was prevented or audio not ready:", err);
+        });
+    } else {
+        console.warn("Audio player not found in this window.");
+    }
+};

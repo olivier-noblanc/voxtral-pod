@@ -53,6 +53,8 @@ class SpeakerManager:
         """Extract a 192-dim embedding from audio."""
         import torch
         encoder = get_encoder()
+        if encoder is None:
+            raise RuntimeError("Failed to load speaker encoder model.")
         # Convert to tensor and add batch dim
         audio_tensor = torch.from_numpy(audio_np).unsqueeze(0)
         # Extract embedding

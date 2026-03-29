@@ -28,6 +28,7 @@ def test_save_and_load_profiles():
         assert "SPEAKER_00" in loaded
         name, loaded_emb = loaded["SPEAKER_00"]
         assert name == "Olivier"
+        assert loaded_emb is not None
         np.testing.assert_allclose(loaded_emb, emb)
 
 def test_match_embedding_threshold():

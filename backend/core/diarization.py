@@ -34,7 +34,8 @@ class DiarizationEngine:
             )
 
             if torch.cuda.is_available() and not self.use_cpu:
-                self.pipeline = self.pipeline.to(torch.device("cuda"))
+                if self.pipeline is not None:
+                    self.pipeline = self.pipeline.to(torch.device("cuda"))
                 setup_gpu()
                 print("[*] Pyannote loaded on GPU.")
             else:

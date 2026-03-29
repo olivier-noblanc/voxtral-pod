@@ -71,7 +71,7 @@ def test_live_websocket_session_id_job_registration():
     """
     from backend.state import get_job
     import numpy as np
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import patch, MagicMock, AsyncMock
 
     # Create 1.0s of silent 16000Hz PCM16 audio
     dummy_audio = np.zeros(16000, dtype=np.int16).tobytes()
@@ -80,12 +80,17 @@ def test_live_websocket_session_id_job_registration():
     mock_engine.load = MagicMock()
     # Mock return value to be a tuple (words, duration)
     mock_engine.transcription_engine.transcribe.return_value = ([], 0.0)
+    
+    # Mock process_file to return a valid TranscriptionResult
+    from backend.core.engine import TranscriptionResult
+    res = TranscriptionResult(transcript="", segments=[])
+    mock_engine.process_file = AsyncMock(return_value=res)
 
     with patch("backend.routes.api.get_asr_engine", return_value=mock_engine):
         with client.websocket_connect("/live?client_id=user_testws&session_id=live_test_999") as websocket:
             websocket.send_bytes(dummy_audio)
-            # Ensure the server has received bytes before closing (increased for reliability)
-            time.sleep(0.3)
+            # Ensure the server has received bytes and the VAD has started
+            time.sleep(1.0)
     
     # The finally block runs when the context manager exits.
     # Wait for the job to be registered in the database.

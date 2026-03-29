@@ -25,8 +25,7 @@ def test_run_silero_chunk_sizes():
         vad = VADManager.__new__(VADManager)
         vad.silero_model = fake_silero
         vad.silero_sensitivity = 0.4
-        vad._lock = __import__('threading').Lock()
-        vad._silero_working = False
+        vad._lock = __import__('asyncio').Lock()
 
         for size in [512, 853, 1024, 1537, 100]:
             received_sizes.clear()
