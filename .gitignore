@@ -1,6 +1,9 @@
 venv/
 *.pyc
 *.log
+*.rttm
+*.diar.json
+live*.txt
 *.wav
 __pycache__/
 run.txt
@@ -20,3 +23,5 @@ test_results.log
 -b
 test_cleanup_threads.txt
 cleaned_file_list.txt
+transcriptions_terminees/user_testws/live_20260329_232427.rttm
+transcriptions_terminees/user_testws/live_20260329_232427.txt
