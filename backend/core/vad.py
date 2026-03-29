@@ -7,6 +7,14 @@ import os
 # Suppress noisy UserWarning from webrtcvad about pkg_resources
 warnings.filterwarnings("ignore", category=UserWarning, module="webrtcvad")
 
+# Attempt to configure PyTorch/NNPACK before any heavy usage
+try:
+    import torch
+    if hasattr(torch, "backends") and hasattr(torch.backends, "nnpack"):
+        torch.backends.nnpack.enabled = False
+except ImportError:
+    pass
+
 # Lazy import helper for webrtcvad
 def _lazy_get_webrtcvad():
     """Attempt to import webrtcvad; if unavailable, provide a fallback stub."""
@@ -124,6 +132,9 @@ class VADManager:
                 piece = np.pad(piece, (0, _SILERO_CHUNK_SIZE - len(piece)))
             # Lazy import torch only when needed
             import torch
+            # Extra safety: ensure NNPACK remains disabled in executor threads
+            if hasattr(torch, "backends") and hasattr(torch.backends, "nnpack") and torch.backends.nnpack.enabled:
+                torch.backends.nnpack.enabled = False
 
             prob = self.silero_model(torch.from_numpy(piece), SAMPLE_RATE).item()
             if prob > max_vad_prob:

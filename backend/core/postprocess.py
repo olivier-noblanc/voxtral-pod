@@ -29,7 +29,7 @@ async def _call_albert(prompt: str) -> str:
     payload = {
         "model": model_id,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 1024,
+        "max_tokens": 4096,  # Increased to accommodate models with long reasoning/CoT
         "temperature": 0.0,
     }
 
