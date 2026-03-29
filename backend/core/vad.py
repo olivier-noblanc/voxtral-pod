@@ -8,12 +8,12 @@ import os
 warnings.filterwarnings("ignore", category=UserWarning, module="webrtcvad")
 
 # Attempt to configure PyTorch/NNPACK before any heavy usage
-try:
+import importlib.util
+_torch_spec = importlib.util.find_spec("torch")
+if _torch_spec is not None:
     import torch
     if hasattr(torch, "backends") and hasattr(torch.backends, "nnpack"):
         torch.backends.nnpack.enabled = False
-except ImportError:
-    pass
 
 # Lazy import helper for webrtcvad
 def _lazy_get_webrtcvad():

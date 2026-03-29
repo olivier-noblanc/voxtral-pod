@@ -5,10 +5,14 @@ from backend.core.diarization import DiarizationEngine
 from backend.core.engine import SotaASR
 
 def test_light_diarization_engine_interface():
-    """Verifies that LightDiarizationEngine.diarize accepts 'hook'."""
+    """Verifies that LightDiarizationEngine has load() and its diarize accepts 'hook'."""
     engine = LightDiarizationEngine()
-    dummy_audio = np.zeros(16000, dtype=np.float32)
     
+    # Must have load() method
+    assert hasattr(engine, "load"), "LightDiarizationEngine must have a load() method"
+    engine.load()
+    
+    dummy_audio = np.zeros(16000, dtype=np.float32)
     # This should NOT raise TypeError: got an unexpected keyword argument 'hook'
     try:
         # We don't care about the result here, just that it doesn't crash on arguments
@@ -17,14 +21,18 @@ def test_light_diarization_engine_interface():
         # If it's a TypeError about 'hook', the test fails
         if "unexpected keyword argument 'hook'" in str(e):
             pytest.fail(f"LightDiarizationEngine.diarize still doesn't accept 'hook': {e}")
-        # Other exceptions are okay for this specific interface test (e.g. file not found if it tries to write)
+        # Other exceptions are okay for this specific interface test
         pass
 
 def test_diarization_engine_interface():
-    """Verifies that DiarizationEngine.diarize accepts 'hook'."""
-    engine = DiarizationEngine(hf_token=None) # No token needed for interface check
-    dummy_audio = np.zeros(16000, dtype=np.float32)
+    """Verifies that DiarizationEngine has load() and its diarize accepts 'hook'."""
+    engine = DiarizationEngine(hf_token=None)
     
+    # Must have load() method
+    assert hasattr(engine, "load"), "DiarizationEngine must have a load() method"
+    # DiarizationEngine.load() might be heavy, but we check if it exists
+    
+    dummy_audio = np.zeros(16000, dtype=np.float32)
     # Should not raise TypeError about 'hook'
     try:
         engine.diarize(dummy_audio, hook=lambda *args, **kwargs: None)

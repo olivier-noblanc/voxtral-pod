@@ -88,6 +88,10 @@ class LightDiarizationEngine:
     def __init__(self):
         pass
 
+    def load(self) -> None:
+        """Contract placeholder to match DiarizationEngine interface."""
+        pass
+
     def _fallback_diarize(self, audio_path: str) -> List[Dict[str, Any]]:
         """
         Robust fallback using Silero VAD + SpeechBrain (ECAPA-TDNN) + HAC.
@@ -121,7 +125,8 @@ class LightDiarizationEngine:
                 chunk = np.pad(chunk, (0, chunk_size - len(chunk)))
             
             # Use Silero model directly for speed here
-            prob = vad.silero_model(torch.from_numpy(chunk), sr).item()
+            # We copy() the chunk to ensure it is writable and avoid PyTorch UserWarnings.
+            prob = vad.silero_model(torch.from_numpy(chunk.copy()), sr).item()
             time_pos = i / sr
             
             if prob > 0.4 and not is_speech:

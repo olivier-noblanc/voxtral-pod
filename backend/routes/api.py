@@ -785,9 +785,15 @@ async def live_endpoint(
     finally:
         await session.audio_queue.put(None)
         await processor
-        if session.full_session_audio:
+        # Toujours enregistrer un job si un session_id est fourni, même si l'audio est vide,
+        # pour assurer la cohérence de l'interface et la stabilité des tests.
+        if session_id:
             wav_path, timestamp = await session.save_wav_only()
+            job_id = session_id
+            
             if wav_path:
-                job_id = session_id if session_id else f"live_final_{timestamp}"
                 add_job(job_id, {"status": "en_attente", "progress": 0})
                 asyncio.create_task(_live_final_job(wav_path, job_id, client_id, timestamp))
+            else:
+                # Session vide mais identifiée : on marque comme terminé (vide)
+                add_job(job_id, {"status": "terminé", "progress": 100, "result_file": None})
