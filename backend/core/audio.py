@@ -1,15 +1,14 @@
 import os
 import subprocess
 import numpy as np
+import ffmpeg
 
 def decode_audio(audio_path: str, sample_rate: int = 16000, timeout: int = 900) -> np.ndarray:
     """
-    Decode an audio file to a mono ``float32`` NumPy array.
-
-    This implementation uses the ``ffmpeg`` command‑line tool directly,
-    avoiding the optional ``ffmpeg-python`` wrapper.  It works with any
-    audio format that ffmpeg can read (wav, mp3, m4a, flac, …) and
-    resamples to the requested ``sample_rate`` while converting to
+    Decode an audio file to a mono ``float32`` NumPy array using ``ffmpeg-python``.
+    
+    It works with any audio format that ffmpeg can read (wav, mp3, m4a, flac, …) 
+    and resamples to the requested ``sample_rate`` while converting to
     32‑bit floating‑point PCM.
 
     Parameters
@@ -29,35 +28,22 @@ def decode_audio(audio_path: str, sample_rate: int = 16000, timeout: int = 900) 
     if not os.path.isfile(audio_path):
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
-    # Build ffmpeg command
-    cmd = [
-        "ffmpeg",
-        "-y",                     # overwrite output files (not used here)
-        "-i", audio_path,         # input file
-        "-f", "f32le",            # output format: raw 32‑bit float little‑endian
-        "-acodec", "pcm_f32le",   # codec
-        "-ac", "1",               # mono
-        "-ar", str(sample_rate),  # resample
-        "pipe:1",                 # write to stdout
-    ]
-
     try:
-        # Run ffmpeg and capture raw PCM data
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True,
-            timeout=timeout,
+        # Build and run the ffmpeg command using ffmpeg-python
+        out, err = (
+            ffmpeg.input(audio_path)
+            .output('-', format='f32le', acodec='pcm_f32le', ac=1, ar=sample_rate)
+            .run(capture_stdout=True, capture_stderr=True, cmd='ffmpeg')
         )
-    except subprocess.TimeoutExpired as e:
-        raise RuntimeError(f"ffmpeg timed out after {timeout} seconds.") from e
-    except subprocess.CalledProcessError as e:
+    except ffmpeg.Error as e:
         # Include ffmpeg stderr for easier debugging
-        raise RuntimeError(f"ffmpeg failed: {e.stderr.decode(errors='ignore')}") from e
+        stderr_msg = e.stderr.decode(errors='ignore') if e.stderr else str(e)
+        raise RuntimeError(f"ffmpeg failed: {stderr_msg}") from e
+    except Exception as e:
+        raise RuntimeError(f"An error occurred during audio decoding: {e}") from e
 
     # Convert raw bytes to NumPy float32 array
-    audio = np.frombuffer(result.stdout, dtype=np.float32)
+    audio = np.frombuffer(out, dtype=np.float32)
 
     # Ensure the array is one‑dimensional (mono)
     if audio.ndim != 1:
