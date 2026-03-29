@@ -419,9 +419,6 @@ async def view_diarization(client_id: str, filename: str, request: Request):
         with open(json_path, "r", encoding="utf-8") as f:
             segments = json.load(f)
 
-    # Calculer les durées pour l'affichage
-    for s in segments:
-        s["duration"] = round(s["end"] - s["start"], 3)
 
     return templates.TemplateResponse("diarization_view.html", {
         "request": request,

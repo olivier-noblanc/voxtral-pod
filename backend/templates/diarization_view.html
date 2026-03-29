@@ -99,7 +99,7 @@
                                 </button>
                             </td>
                             <td class="time-cell">{{ "%.3f"|format(seg.end) }}s</td>
-                            <td class="time-cell" style="color: var(--text-mention-grey);">{{ "%.3f"|format(seg.duration) }}s</td>
+                            <td class="time-cell" style="color: var(--text-mention-grey);">{{ (seg.end - seg.start)|round(3) }}s</td>
                             <td class="text-cell">{{ seg.text }}</td>
                         </tr>
                         {% endfor %}
@@ -110,7 +110,7 @@
             <div class="fr-mt-4w">
                 <button onclick="window.close();" class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-arrow-left-line">
                     Fermer cette fenêtre
-                </a>
+                </button>
             </div>
         </div>
     </main>
