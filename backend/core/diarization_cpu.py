@@ -1,8 +1,8 @@
 # backend/core/diarization_cpu.py
 """
 Moteur de diarisation optimisé pour CPU utilisant la bibliothèque 'diarize'.
-Patch : patch direct de Hub.Assets pour rediriger Tencent → HuggingFace,
-        et pré-téléchargement dans le bon chemin (~/.wespeaker/en/model.onnx).
+Patch : pré-téléchargement depuis onnx-community HuggingFace (public, sans token)
+        dans ~/.wespeaker/en/model.onnx avant que wespeakerruntime ne tente Tencent.
 
 Ref académique :
 - Wang et al., "WeSpeaker: Learning Speaker Embeddings with Self-Supervision",
@@ -21,13 +21,13 @@ import soundfile as sf
 logger = logging.getLogger("diarization_cpu")
 
 # ---------------------------------------------------------------------------
-# Patch Hub.Assets — remplace l'URL Tencent par HuggingFace
-# et pré-télécharge model.onnx au bon chemin avant que la lib le demande.
+# Pré-téléchargement modèle WeSpeaker
+# onnx-community/wespeaker-voxceleb-resnet34-LM — public, CC-BY-4.0, sans token
+# Le fichier est déjà nommé model.onnx dans le repo → chemin exact attendu par hub.py
 # ---------------------------------------------------------------------------
-_HF_TOKEN      = os.getenv("HF_TOKEN", "")
 _HF_MIRROR_URL = (
-    "https://huggingface.co/wenet-e2e/wespeaker-voxceleb-resnet34-LM"
-    "/resolve/main/voxceleb_resnet34_LM.onnx"
+    "https://huggingface.co/onnx-community/wespeaker-voxceleb-resnet34-LM"
+    "/resolve/main/onnx/model.onnx"
 )
 _MODEL_DIR  = Path.home() / ".wespeaker" / "en"
 _MODEL_PATH = _MODEL_DIR / "model.onnx"
@@ -35,9 +35,10 @@ _MODEL_PATH = _MODEL_DIR / "model.onnx"
 
 def _ensure_model() -> None:
     """
-    Pré-télécharge model.onnx depuis HuggingFace si absent.
-    La lib wespeakerruntime vérifie ~/.wespeaker/en/model.onnx avant de télécharger —
-    si le fichier est là, elle ne touche pas au réseau.
+    Vérifie que ~/.wespeaker/en/model.onnx existe.
+    Si absent, le télécharge depuis HuggingFace (public, sans token).
+    wespeakerruntime/hub.py vérifie ce chemin avant tout accès réseau :
+    si le fichier est là, Tencent Cloud n'est jamais contacté.
     """
     if _MODEL_PATH.exists():
         logger.info("[*] Modèle WeSpeaker déjà présent : %s", _MODEL_PATH)
@@ -49,12 +50,6 @@ def _ensure_model() -> None:
     logger.info("[*] Téléchargement modèle WeSpeaker depuis HuggingFace...")
     logger.info("    URL  : %s", _HF_MIRROR_URL)
     logger.info("    Dest : %s", _MODEL_PATH)
-
-    if _HF_TOKEN:
-        opener = urllib.request.build_opener()
-        opener.addheaders = [("Authorization", f"Bearer {_HF_TOKEN}")]
-        urllib.request.install_opener(opener)
-        logger.info("    HF_TOKEN injecté.")
 
     def _progress(block_num, block_size, total_size):
         if total_size > 0:
@@ -71,7 +66,7 @@ def _ensure_model() -> None:
         raise RuntimeError(f"Échec téléchargement WeSpeaker : {e}") from e
 
 
-# Exécuté à l'import — avant tout appel à la lib
+# Exécuté à l'import — avant tout appel à wespeakerruntime
 _ensure_model()
 
 
