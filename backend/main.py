@@ -3,9 +3,14 @@ import os
 os.environ["DISABLE_NNPACK"] = "1"
 os.environ["NNPACK_LOG_LEVEL"] = "0"
 os.environ["OMP_NUM_THREADS"] = "1" # Help prevent initialization noise in some libs
+os.environ["PYTORCH_JIT"] = "0"     # Avoid some JIT-related startup warnings on old CPUs
 
 import logging
-from fastapi import FastAPI
+from backend.config import setup_gpu, setup_warnings
+
+# Immediate silence of NNPACK and other technical noise
+setup_gpu()
+setup_warnings()
 
 # Configure global logging level (defaults to INFO, override with LOG_LEVEL=DEBUG if needed)
 _LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -28,6 +33,7 @@ for noisy_logger in [
 ]:
     logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
+from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware

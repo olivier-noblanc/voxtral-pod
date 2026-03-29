@@ -3,10 +3,12 @@ import warnings
 import logging
 
 # Inhibit NNPACK warning (unsupported hardware)
-if "DISABLE_NNPACK" not in os.environ:
-    os.environ["DISABLE_NNPACK"] = "1"
-if "NNPACK_LOG_LEVEL" not in os.environ:
-    os.environ["NNPACK_LOG_LEVEL"] = "0"
+os.environ["DISABLE_NNPACK"] = "1"
+os.environ["NNPACK_LOG_LEVEL"] = "0"
+os.environ["PYTORCH_JIT"] = "0" # Silences some JIT initialization messages
+
+# Inhibit specific NNPACK warning via Python filter if it reaches here
+warnings.filterwarnings("ignore", message="Could not initialize NNPACK")
 
 _CPU_THREADS_CONFIGURED = False
 
