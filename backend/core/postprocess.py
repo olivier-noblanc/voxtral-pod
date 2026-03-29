@@ -57,7 +57,7 @@ async def _call_albert(prompt: str) -> str:
                     data = response.json.__func__()
                 except Exception:
                     raise RuntimeError("Unable to parse JSON from Albert API response")
-            return data["choices"][0]["message"]["content"]
+            return data["choices"][0]["message"].get("content") or ""
         except Exception as e:
             if attempt == 2:
                 raise RuntimeError(f"Albert API call failed after retries: {e}")
@@ -100,7 +100,8 @@ def convert_audio(src_path: str, dst_path: str, format: str = "mp3") -> str:
 
 
 async def summarize_text(text):
-    """Generate a structured summary via Albert."""
+    if not text.strip():
+        return ""
     print(f"[*] Post-traitement: Début de la synthèse Albert ({len(text.split())} mots)...")
     prompt = (
         "Résume de façon structurée le texte suivant, en français, "
@@ -128,7 +129,8 @@ async def extract_actions_text(text):
 
 
 async def clean_text(text):
-    """Remove speech tics (euh, bah, alors, …) via Albert."""
+    if not text.strip():
+        return ""
     print(f"[*] Post-traitement: Nettoyage du texte Albert ({len(text.split())} mots)...")
     prompt = (
         "Supprime les tics de langage (euh, bah, alors, …) du texte suivant, "

@@ -680,13 +680,13 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(transcript)
         
-        # Cleanup Albert automatique
         try:
             from backend.core.postprocess import clean_text
             cleaned = await clean_text(transcript)
-            cleaned_path = txt_path.replace(".txt", ".cleaned.md")
-            with open(cleaned_path, "w", encoding="utf-8") as f:
-                f.write(cleaned)
+            if cleaned and cleaned.strip():
+                cleaned_path = txt_path.replace(".txt", ".cleaned.md")
+                with open(cleaned_path, "w", encoding="utf-8") as f:
+                    f.write(cleaned)
         except Exception as ce:
             print(f"[!] Erreur nettoyage Albert auto (Batch): {ce}")
 
@@ -737,13 +737,13 @@ async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp:
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(transcript)
 
-        # Cleanup Albert automatique
         try:
             from backend.core.postprocess import clean_text
             cleaned = await clean_text(transcript)
-            cleaned_path = txt_path.replace(".txt", ".cleaned.md")
-            with open(cleaned_path, "w", encoding="utf-8") as f:
-                f.write(cleaned)
+            if cleaned and cleaned.strip():
+                cleaned_path = txt_path.replace(".txt", ".cleaned.md")
+                with open(cleaned_path, "w", encoding="utf-8") as f:
+                    f.write(cleaned)
         except Exception as ce:
             print(f"[!] Erreur nettoyage Albert auto (Live): {ce}")
 
