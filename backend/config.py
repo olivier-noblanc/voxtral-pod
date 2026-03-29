@@ -36,6 +36,10 @@ def setup_gpu():
     if hasattr(torch.backends, "nnpack"):
         if hasattr(torch.backends.nnpack, "enabled"):
             torch.backends.nnpack.enabled = False  # type: ignore[attr-defined]
+    
+    # Suppression agressive de l'initialisation NNPACK via variables d'env interne PyTorch
+    os.environ["DISABLE_NNPACK"] = "1"
+    os.environ["NNPACK_LOG_LEVEL"] = "0"
 
     if torch.cuda.is_available():
         torch.backends.cuda.matmul.allow_tf32 = True
