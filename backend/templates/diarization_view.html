@@ -1,129 +1,138 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-fr-scheme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Détails Diarisation - {{ filename }}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Diarisation — {{ filename }}</title>
+    <link rel="stylesheet" href="/static/dsfr.min.css">
+    <link rel="stylesheet" href="/static/custom.css">
     <style>
-        :root {
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --text-color: #f8fafc;
-            --accent-color: #38bdf8;
-            --border-color: #334155;
-            --row-alt: #1e293b;
-            --row-hover: #334155;
+        /* Ajustements mineurs pour la table de diarisation */
+        .diar-table td {
+            vertical-align: top !important;
         }
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 2rem;
+        .time-cell {
+            white-space: nowrap;
+            font-family: monospace;
         }
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
+        .text-cell {
+            line-height: 1.5;
         }
-        h1 {
-            color: var(--accent-color);
-            font-size: 1.5rem;
-            margin-bottom: 0.5rem;
-        }
-        .meta {
-            color: #94a3b8;
-            font-size: 0.875rem;
-            margin-bottom: 2rem;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background-color: var(--card-bg);
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-        }
-        th {
-            text-align: left;
-            background-color: var(--border-color);
-            padding: 1rem;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #94a3b8;
-        }
-        td {
-            padding: 1rem;
-            border-bottom: 1px solid var(--border-color);
-            font-family: 'JetBrains+Mono', monospace;
-            font-size: 0.875rem;
-        }
-        tr:nth-child(even) {
-            background-color: var(--row-alt);
-        }
-        tr:hover {
-            background-color: var(--row-hover);
-        }
-        .speaker-badge {
-            background-color: var(--accent-color);
-            color: var(--bg-color);
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-weight: 600;
-            font-size: 0.75rem;
-        }
-        .time-link {
-            color: var(--accent-color);
-            text-decoration: none;
+        .clickable-time {
             cursor: pointer;
-        }
-        .time-link:hover {
             text-decoration: underline;
+            color: var(--text-action-high-blue-france);
         }
-        .back-link {
-            display: inline-block;
-            margin-top: 2rem;
-            color: #94a3b8;
-            text-decoration: none;
-            font-size: 0.875rem;
-        }
-        .back-link:hover {
-            color: var(--text-color);
+        .clickable-time:hover {
+            color: var(--text-action-high-blue-france-hover);
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Détails de Diarisation (Debug)</h1>
-        <p class="meta">Fichier : {{ filename }} | Client : {{ client_id }}</p>
+    <header role="banner" class="fr-header">
+        <div class="fr-header__body">
+            <div class="fr-container">
+                <div class="fr-header__body-row">
+                    <div class="fr-header__brand">
+                        <div class="fr-header__brand-top">
+                            <div class="fr-header__logo">
+                                <p class="fr-logo">République<br>Française</p>
+                            </div>
+                        </div>
+                        <div class="fr-header__service">
+                            <a href="/" title="Accueil - Voxtral Pod">
+                                <p class="fr-header__service-title">Voxtral Pod</p>
+                            </a>
+                            <p class="fr-header__service-tagline">Détails de Diarisation</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
 
-        <table>
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Locuteur</th>
-                    <th>Début (s)</th>
-                    <th>Fin (s)</th>
-                    <th>Durée (s)</th>
-                    <th>Aperçu</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for seg in segments %}
-                <tr>
-                    <td style="color: #64748b;">{{ loop.index }}</td>
-                    <td><span class="speaker-badge">{{ seg.speaker }}</span></td>
-                    <td><span class="time-link" onclick="window.opener && window.opener.seekTo({{ seg.start }});">{{ "%.3f"|format(seg.start) }}</span></td>
-                    <td>{{ "%.3f"|format(seg.end) }}</td>
-                    <td style="color: #94a3b8;">{{ "%.3f"|format(seg.duration) }}</td>
-                    <td style="font-family: 'Inter', sans-serif; color: #cbd5e1;">{{ seg.text }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <main role="main" id="content">
+        <div class="fr-container fr-py-4w">
+            <nav role="navigation" class="fr-breadcrumb" aria-label="vous êtes ici :">
+                <button class="fr-breadcrumb__button" aria-expanded="false" aria-controls="breadcrumb-1">Voir le fil d'Ariane</button>
+                <div class="fr-collapse" id="breadcrumb-1">
+                    <ol class="fr-breadcrumb__list">
+                        <li><a class="fr-breadcrumb__link" href="/">Accueil</a></li>
+                        <li><a class="fr-breadcrumb__link" aria-current="page">Diarisation : {{ filename }}</a></li>
+                    </ol>
+                </div>
+            </nav>
 
-        <a href="javascript:window.close();" class="back-link">← Fermer cette fenêtre</a>
-    </div>
+            <h1 class="fr-h2">🔍 Analyse des locuteurs</h1>
+            <p class="fr-text--sm fr-mb-4w">
+                Fichier : <span class="fr-badge fr-badge--info fr-badge--sm fr-badge--no-icon">{{ filename }}</span> | 
+                Client : <span class="fr-badge fr-badge--sm fr-badge--no-icon">{{ client_id }}</span>
+            </p>
+
+            <div class="fr-table fr-table--bordered fr-table--no-caption diar-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">Locuteur</th>
+                            <th scope="col">Début</th>
+                            <th scope="col">Fin</th>
+                            <th scope="col">Durée</th>
+                            <th scope="col">Transcription</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for seg in segments %}
+                        <tr>
+                            <td class="fr-text--xs" style="color: var(--text-mention-grey);">{{ loop.index }}</td>
+                            <td>
+                                <span class="fr-badge fr-badge--blue-france fr-badge--no-icon fr-badge--sm">
+                                    {{ seg.speaker }}
+                                </span>
+                            </td>
+                            <td class="time-cell">
+                                <button class="fr-link fr-link--sm clickable-time" 
+                                        data-start="{{ seg.start }}" 
+                                        onclick="if(window.opener && window.opener.seekTo) window.opener.seekTo(parseFloat(this.dataset.start));"
+                                        title="Lancer l'audio à ce moment">
+                                    {{ "%.3f"|format(seg.start) }}s
+                                </button>
+                            </td>
+                            <td class="time-cell">{{ "%.3f"|format(seg.end) }}s</td>
+                            <td class="time-cell" style="color: var(--text-mention-grey);">{{ "%.3f"|format(seg.duration) }}s</td>
+                            <td class="text-cell">{{ seg.text }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="fr-mt-4w">
+                <button onclick="window.close();" class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-arrow-left-line">
+                    Fermer cette fenêtre
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <footer role="contentinfo" class="fr-footer" id="footer">
+        <div class="fr-container">
+            <div class="fr-footer__body">
+                <div class="fr-footer__brand">
+                    <p class="fr-logo">République<br>Française</p>
+                </div>
+                <div class="fr-footer__content">
+                    <p class="fr-footer__content-desc">Voxtral Pod — Outil de debug de diarisation</p>
+                </div>
+            </div>
+            <div class="fr-footer__bottom">
+                <ul class="fr-footer__bottom-list">
+                    <li class="fr-footer__bottom-item">
+                        <button class="fr-footer__bottom-link" onclick="window.close();">Fermer</button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </footer>
 </body>
 </html>
