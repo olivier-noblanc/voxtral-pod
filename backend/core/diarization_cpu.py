@@ -98,12 +98,10 @@ class LightDiarizationEngine:
         from backend.core.speaker_manager import SpeakerManager
         import torch
 
-        # Load audio at 16kHz
-        audio_np, sr = sf.read(audio_path, dtype='float32')
-        if sr != 16000:
-            import librosa
-            audio_np = librosa.resample(audio_np, orig_sr=sr, target_sr=16000)
-            sr = 16000
+        # Load audio at 16kHz using project's robust utility
+        from backend.core.audio import decode_audio
+        audio_np = decode_audio(audio_path)
+        sr = 16000
 
         # 1. Segment via VAD
         vad = VADManager(silero_sensitivity=0.5, aggressive=False)
