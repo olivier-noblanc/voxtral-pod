@@ -397,28 +397,11 @@ const res = await fetch('/transcriptions/?client_id=' + getClientId());
             downloadAudioLink.href = downloadUrl;
             downloadAudioLink.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w';
             downloadAudioLink.download = true;
-            downloadAudioLink.textContent = 'Télécharger audio';
-
-            const downloadTranscriptLink = document.createElement('a');
-            downloadTranscriptLink.href = transcriptUrl;
-            downloadTranscriptLink.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w';
-            downloadTranscriptLink.download = true;
-            downloadTranscriptLink.textContent = 'Télécharger texte';
-
-            const summaryBtn = document.createElement('button');
-            summaryBtn.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w';
-            summaryBtn.dataset.filename = f;
-            summaryBtn.textContent = '📄 Compte Rendu (Albert)';
-            summaryBtn.onclick = function() { generateSummary(this); };
-
-            const actionsBtn = document.createElement('button');
-            actionsBtn.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w';
-            actionsBtn.dataset.filename = f;
-            actionsBtn.textContent = '📝 Actions (Albert)';
-            actionsBtn.onclick = function() { generateActions(this); };
+            downloadAudioLink.textContent = 'Audio';
 
             const rttmLink = document.createElement('a');
-            rttmLink.href = '/download_rttm/' + getClientId() + '/' + encodeURIComponent(f);
+            const rttmFilename = audioFilename.replace('.wav', '.rttm');
+            rttmLink.href = '/download_rttm/' + getClientId() + '/' + rttmFilename;
             rttmLink.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w';
             rttmLink.download = true;
             rttmLink.textContent = '💾 RTTM';
@@ -433,19 +416,32 @@ const res = await fetch('/transcriptions/?client_id=' + getClientId());
                 window.open("/view_diarization/" + clientId + "/" + encodeURIComponent(filename), "_blank");
             };
 
+            let summaryBtn, actionsBtn;
+            if (hasCleanup) {
+                summaryBtn = document.createElement('button');
+                summaryBtn.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w';
+                summaryBtn.dataset.filename = f;
+                summaryBtn.textContent = '📄 Compte Rendu (Albert)';
+                summaryBtn.onclick = function() { generateSummary(this); };
+
+                actionsBtn = document.createElement('button');
+                actionsBtn.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w';
+                actionsBtn.dataset.filename = f;
+                actionsBtn.textContent = '📝 Actions (Albert)';
+                actionsBtn.onclick = function() { generateActions(this); };
+            }
+
             cardDiv.appendChild(title);
             cardDiv.appendChild(viewLink);
             cardDiv.appendChild(document.createTextNode(' '));
-            cardDiv.appendChild(deleteBtn);
-            cardDiv.appendChild(document.createTextNode(' '));
             cardDiv.appendChild(downloadAudioLink);
-            cardDiv.appendChild(document.createTextNode(' '));
-            cardDiv.appendChild(downloadTranscriptLink);
-            cardDiv.appendChild(document.createElement('br'));
-            cardDiv.appendChild(summaryBtn);
-            cardDiv.appendChild(actionsBtn);
             cardDiv.appendChild(rttmLink);
             cardDiv.appendChild(diarBtn);
+            if (hasCleanup) {
+                cardDiv.appendChild(summaryBtn);
+                cardDiv.appendChild(actionsBtn);
+            }
+            cardDiv.appendChild(deleteBtn);
 
             colDiv.appendChild(cardDiv);
             list.appendChild(colDiv);
@@ -598,8 +594,12 @@ async function pollStatus(id) {
             if (data.status === "terminé") {
                 clearInterval(interval);
                 localStorage.removeItem('pending_job');
-                document.getElementById('uploadBtn').disabled = false;
-                document.getElementById('batchStatus').innerText = "✓ Terminé.";
+                const uploadBtn = document.getElementById('uploadBtn');
+                if (uploadBtn) uploadBtn.disabled = false;
+                const statusElem = document.getElementById('batchStatus');
+                if (statusElem) {
+                    statusElem.innerHTML = '✓ Terminé. <a href="/" class="fr-link">Actualiser</a>';
+                }
                 loadHistory();
             } else if (data.status === "not_found" || data.status === "erreur") {
                 if (data.status === "erreur" && data.error_details) {
