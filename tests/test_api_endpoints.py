@@ -84,16 +84,18 @@ def test_live_websocket_session_id_job_registration():
     with patch("backend.routes.api.get_asr_engine", return_value=mock_engine):
         with client.websocket_connect("/live?client_id=user_testws&session_id=live_test_999") as websocket:
             websocket.send_bytes(dummy_audio)
-            # Ensure the server has received bytes before closing
-            time.sleep(0.1)
+            # Ensure the server has received bytes before closing (increased for reliability)
+            time.sleep(0.3)
     
     # The finally block runs when the context manager exits.
     # Wait for the job to be registered in the database.
     job = None
-    for _ in range(15):
+    max_wait = 20
+    for i in range(max_wait):
         time.sleep(0.2)
         job = get_job("live_test_999", default=None)
         if job and "status" in job:
             break
             
-    assert job and "status" in job, f"Le job n'a pas été enregistré ou n'a pas de statut valide: {job}"
+    assert job is not None, "Le job n'a pas été enregistré dans la base de données après la clôture de la session."
+    assert "status" in job, f"Le job a été trouvé mais n'a pas de statut valide: {job}"

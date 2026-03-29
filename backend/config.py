@@ -66,7 +66,11 @@ def setup_warnings():
     # Ignore ReproducibilityWarning since we explicitly enable TF32
     warnings.filterwarnings("ignore", category=UserWarning, message=".*TensorFloat-32.*")
     # Ignore torchcodec warnings
-    warnings.filterwarnings("ignore", message=r".*torchcodec is not installed correctly.*", category=UserWarning)
+    warnings.filterwarnings("ignore", message=r".*torchcodec.*", category=UserWarning)
+    # Ignore scipy/resemblyzer deprecation warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*binary_dilation.*")
+    # Ignore silero-vad/torchaudio warnings
+    warnings.filterwarnings("ignore", message=".*torchaudio.sox_effects.*", category=UserWarning)
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

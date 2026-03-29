@@ -88,7 +88,7 @@ class LightDiarizationEngine:
                     stats['file'], stats['rtf'], stats['segments_count'])
         return stats
 
-    def diarize(self, audio_float32, _hook=None):
+    def diarize(self, audio_float32, hook=None):
         """
         Méthode de compatibilité pour le pipeline SotaASR existant.
         Note : l'API 'diarize' originale préfère les chemins de fichiers pour optimiser

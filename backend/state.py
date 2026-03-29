@@ -134,13 +134,14 @@ def add_job(job_id, data):
         )
         conn.commit()
 
-def get_job(job_id, default=None):
+_GET_JOB_SENTINEL = object()
+def get_job(job_id, default=_GET_JOB_SENTINEL):
     with get_db() as conn:
         cursor = conn.execute('SELECT data FROM jobs WHERE job_id = ?', (job_id,))
         row = cursor.fetchone()
         if row:
             return json.loads(row['data'])
-    return default if default is not None else {}
+    return {} if default is _GET_JOB_SENTINEL else default
 
 def update_job(job_id, data_update):
     with get_db() as conn:
