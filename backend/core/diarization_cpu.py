@@ -29,7 +29,7 @@ _WESPEAKER_MODEL_DIR = Path.home() / ".wespeaker" / "en"
 _WESPEAKER_MODEL_FILE = _WESPEAKER_MODEL_DIR / "voxceleb_resnet34_LM.onnx"
 
 _HF_MIRROR_URL = (
-    "https://huggingface.co/wenet-e2e/wespeaker-voxceleb-resnet34-LM"
+    "https://huggingface.co/openspeech/wespeaker-models"
     "/resolve/main/voxceleb_resnet34_LM.onnx"
 )
 
