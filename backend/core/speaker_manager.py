@@ -9,23 +9,39 @@ from backend.core.audio import decode_audio
 # Lazy loading of speechbrain
 _encoder = None
 _encoder_lock = threading.Lock()
+_encoder_tried = False
 
 # Silence speechbrain fetching logs which are very noisy
 logging.getLogger("speechbrain.utils.fetching").setLevel(logging.WARNING)
 logging.getLogger("speechbrain.utils.parameter_transfer").setLevel(logging.WARNING)
 
 def get_encoder():
-    global _encoder
-    if _encoder is None:
-        with _encoder_lock:
-            if _encoder is None:
-                from speechbrain.inference.speaker import EncoderClassifier
-                logging.info("[*] Loading SpeechBrain ECAPA-TDNN model (CPU singleton)...")
-                # Ensure it runs on CPU as requested
-                _encoder = EncoderClassifier.from_hparams(
-                    source="speechbrain/spkrec-ecapa-voxceleb",
-                    run_opts={"device": "cpu"}
-                )
+    global _encoder, _encoder_tried
+    if _encoder is not None:
+        return _encoder
+
+    with _encoder_lock:
+        if _encoder is not None:
+            return _encoder
+
+        if _encoder_tried:
+            # Already tried and failed, don't retry and spam logs/network
+            return None
+
+        _encoder_tried = True
+        try:
+            from speechbrain.inference.speaker import EncoderClassifier
+            logging.info("[*] Loading SpeechBrain ECAPA-TDNN model (CPU singleton)...")
+            # Ensure it runs on CPU as requested
+            _encoder = EncoderClassifier.from_hparams(
+                source="speechbrain/spkrec-ecapa-voxceleb",
+                run_opts={"device": "cpu"}
+            )
+        except Exception as e:
+            logging.error(f"[!] Failed to load SpeechBrain model: {e}")
+            # Keep _encoder as None, but _encoder_tried is True to prevent retries
+            pass
+
     return _encoder
 
 class SpeakerManager:
@@ -59,21 +75,54 @@ class SpeakerManager:
 
     def get_embedding(self, audio_np: np.ndarray) -> np.ndarray:
         """Extract a 192-dim embedding from audio."""
+        return self.get_embeddings_batch([audio_np])[0]
+
+    def get_embeddings_batch(self, audio_chunks: List[np.ndarray]) -> List[np.ndarray]:
+        """Extract embeddings for a list of audio chunks using true batching (one forward pass)."""
         import torch
         encoder = get_encoder()
         if encoder is None:
             raise RuntimeError("Failed to load speaker encoder model.")
-        # Convert to tensor and add batch dim
-        audio_tensor = torch.from_numpy(audio_np).unsqueeze(0)
-        # Extract embedding
-        emb = encoder.encode_batch(audio_tensor)
-        # Flatten and normalize
-        emb = emb.squeeze().detach().numpy()
-        # Ensure it's unit length for cosine similarity
-        norm = np.linalg.norm(emb)
-        if norm > 1e-6:
-            emb = emb / norm
-        return emb
+
+        if not audio_chunks:
+            return []
+
+        # 1. Prepare batch with padding
+        # SpeechBrain expects [batch, time]
+        max_len = max(len(c) for c in audio_chunks)
+        batch_size = len(audio_chunks)
+        
+        # Create padded tensor
+        wavs = torch.zeros(batch_size, max_len)
+        wav_lens = torch.zeros(batch_size)
+        
+        for i, chunk in enumerate(audio_chunks):
+            clent = len(chunk)
+            wavs[i, :clent] = torch.from_numpy(chunk.copy())
+            wav_lens[i] = clent / max_len
+            
+        # 2. Extract embeddings in one go
+        # SpeechBrain handling padding internally via wav_lens
+        try:
+            with torch.no_grad():
+                # encode_batch returns [batch, 1, 192] for ECAPA-TDNN
+                emb = encoder.encode_batch(wavs, wav_lens)
+                emb = emb.squeeze(1).detach().cpu().numpy()
+        except Exception as e:
+            logging.error(f"[!] Batch inference failed: {e}. Falling back to sequential.")
+            # Fallback if batch is too large for RAM or other issues
+            return [self.get_embedding(c) for c in audio_chunks]
+
+        # 3. Normalize and format
+        results = []
+        for i in range(batch_size):
+            e = emb[i]
+            norm = np.linalg.norm(e)
+            if norm > 1e-6:
+                e = e / norm
+            results.append(e)
+            
+        return results
 
     def enroll_speaker(self, name: str, audio_path: str) -> bool:
         """Enroll a speaker by extracting an embedding from the provided audio file."""

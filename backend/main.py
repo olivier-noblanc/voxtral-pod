@@ -69,6 +69,7 @@ async def lifespan(app):
     from backend.state import init_db
     init_db()
     get_asr_engine(load_model=False)
+
     cleanup_task = asyncio.create_task(periodic_cleanup_task(CLEANUP_RETENTION_DAYS))
     yield
     # shutdown
