@@ -8,6 +8,9 @@ from fastapi.responses import FileResponse, Response
 from fastapi.templating import Jinja2Templates
 import re
 import importlib.util
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Markdown handling: use real markdown if available, otherwise fallback
 _markdown_spec = importlib.util.find_spec("markdown")
@@ -687,8 +690,10 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
                 cleaned_path = txt_path.replace(".txt", ".cleaned.md")
                 with open(cleaned_path, "w", encoding="utf-8") as f:
                     f.write(cleaned)
+            else:
+                logger.warning(f"[Batch {file_id}] Albert API returned empty cleanup.")
         except Exception as ce:
-            print(f"[!] Erreur nettoyage Albert auto (Batch): {ce}")
+            logger.error(f"[Batch {file_id}] Erreur nettoyage Albert auto: {ce}")
 
         add_job(file_id, {"status": "terminé", "progress": 100, "result_file": txt_name})
         try:
@@ -744,8 +749,10 @@ async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp:
                 cleaned_path = txt_path.replace(".txt", ".cleaned.md")
                 with open(cleaned_path, "w", encoding="utf-8") as f:
                     f.write(cleaned)
+            else:
+                logger.warning(f"[Live {job_id}] Albert API returned empty cleanup.")
         except Exception as ce:
-            print(f"[!] Erreur nettoyage Albert auto (Live): {ce}")
+            logger.error(f"[Live {job_id}] Erreur nettoyage Albert auto: {ce}")
 
         add_job(job_id, {"status": "terminé", "progress": 100, "result_file": txt_name})
     except Exception as e:

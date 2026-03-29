@@ -35,14 +35,11 @@ def test_process_text(mock_post):
     async def run():
         # Configure mock to return appropriate JSON depending on payload
         def side_effect(url, headers, json, timeout):
-            return type(
-                "Response",
-                (),
-                {
-                    "raise_for_status": lambda: None,
-                    "json": lambda: _mock_albert_response(json["messages"][0]["content"]),
-                },
-            )()
+            from unittest.mock import MagicMock
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.return_value = None
+            mock_resp.json.return_value = _mock_albert_response(json["messages"][0]["content"])
+            return mock_resp
         mock_post.side_effect = side_effect
 
         sample_text = "euh Bonjour, alors je vais parler de la réunion."
@@ -66,14 +63,13 @@ def test_process_text(mock_post):
 def test_process_transcription(mock_post):
     async def run():
         # Same mock as above
-        mock_post.side_effect = lambda url, headers, json, timeout: type(
-            "Response",
-            (),
-            {
-                "raise_for_status": lambda: None,
-                "json": lambda: _mock_albert_response(json["messages"][0]["content"]),
-            },
-        )()
+        from unittest.mock import MagicMock
+        def side_effect(url, headers, json, timeout):
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.return_value = None
+            mock_resp.json.return_value = _mock_albert_response(json["messages"][0]["content"])
+            return mock_resp
+        mock_post.side_effect = side_effect
 
         words = [{"word": "euh"}, {"word": "Bonjour"}, {"word": "le"}, {"word": "monde"}]
         result = await process_transcription(words)

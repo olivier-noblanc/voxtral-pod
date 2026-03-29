@@ -1,5 +1,12 @@
 import os
+import logging
 from fastapi import FastAPI
+
+# Configure global logging level
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+)
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware

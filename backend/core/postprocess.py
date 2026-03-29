@@ -42,26 +42,40 @@ async def _call_albert(prompt: str) -> str:
                 json=payload,
                 timeout=1800,
             )
-            # Retrieve JSON payload. Handle both real responses and mocked ones.
+            
+            # Check for HTTP errors before parsing
+            response.raise_for_status()
+            
+            # Retrieve JSON payload simply
             try:
                 data = response.json()
-            except TypeError:
-                # Mocked json may be a bound method expecting no args.
-                try:
-                    data = response.json.__func__()
-                except Exception:
-                    raise RuntimeError("Unable to parse JSON from Albert API response")
-            except Exception:
-                # Fallback for any other issues.
-                try:
-                    data = response.json.__func__()
-                except Exception:
-                    raise RuntimeError("Unable to parse JSON from Albert API response")
-            return data["choices"][0]["message"].get("content") or ""
+            except Exception as e:
+                # If json() is an attribute (mocked incorrectly) instead of a method
+                if not callable(response.json):
+                    data = response.json
+                else:
+                    raise RuntimeError(f"Unable to parse JSON from Albert API response: {e}. Raw content: {response.text[:200]}")
+            
+            if not isinstance(data, dict):
+                 raise RuntimeError(f"Albert API returned invalid format: expected dict, got {type(data)}")
+
+            choices = data.get("choices")
+            if not choices or not isinstance(choices, list) or len(choices) == 0:
+                 raise RuntimeError(f"Albert API response missing 'choices': {data}")
+
+            content = choices[0].get("message", {}).get("content")
+            if content is None:
+                # message exists but no content
+                return ""
+            return content
+            
+        except requests.exceptions.HTTPError as he:
+            if attempt == 2:
+                raise RuntimeError(f"Albert API HTTP error {response.status_code}: {response.text[:200]}")
         except Exception as e:
             if attempt == 2:
                 raise RuntimeError(f"Albert API call failed after retries: {e}")
-    # If all attempts fail without returning, raise an error.
+    
     raise RuntimeError("Albert API call failed: no successful response")
 
 # ----------------------------------------------------------------------
