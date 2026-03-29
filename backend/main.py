@@ -1,9 +1,7 @@
 import os
-# Configure environment variables earliest to suppress NNPACK and other warnings
 os.environ["DISABLE_NNPACK"] = "1"
 os.environ["NNPACK_LOG_LEVEL"] = "0"
 os.environ["OMP_NUM_THREADS"] = "1" # Help prevent initialization noise in some libs
-os.environ["PYTORCH_JIT"] = "0"     # Avoid some JIT-related startup warnings on old CPUs
 
 import logging
 from backend.config import setup_gpu, setup_warnings
