@@ -29,7 +29,7 @@ _WESPEAKER_MODEL_DIR = Path.home() / ".wespeaker" / "en"
 _WESPEAKER_MODEL_FILE = _WESPEAKER_MODEL_DIR / "voxceleb_resnet34_LM.onnx"
 
 _HF_MIRROR_URL = (
-    "https://huggingface.co/openspeech/wespeaker-models"
+    "https://huggingface.co/wenet-e2e/wespeaker-voxceleb-resnet34-LM"
     "/resolve/main/voxceleb_resnet34_LM.onnx"
 )
 
@@ -69,6 +69,11 @@ def _ensure_wespeaker_model() -> None:
                 if pct % 10 == 0:
                     logger.info(f"    ... {pct}%")
 
+        hf_token = os.getenv("HF_TOKEN")
+        if hf_token:
+            opener = urllib.request.build_opener()
+            opener.addheaders = [("Authorization", f"Bearer {hf_token}")]
+            urllib.request.install_opener(opener)
         urllib.request.urlretrieve(_HF_MIRROR_URL, tmp_path, reporthook=_progress)
         tmp_path.rename(_WESPEAKER_MODEL_FILE)
         logger.info("[*] Modèle WeSpeaker téléchargé avec succès.")
