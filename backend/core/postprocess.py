@@ -3,7 +3,10 @@ import json
 import requests
 import asyncio
 import shutil
+import logging
 from backend.core.assistant import AlbertAssistant
+
+logger = logging.getLogger(__name__)
 
 # ----------------------------------------------------------------------
 # Helper to call Albert API (compatible with the existing usage in the project)
@@ -61,12 +64,20 @@ async def _call_albert(prompt: str) -> str:
 
             choices = data.get("choices")
             if not choices or not isinstance(choices, list) or len(choices) == 0:
-                 raise RuntimeError(f"Albert API response missing 'choices': {data}")
+                 logger.error(f"Albert API response missing 'choices': {data}")
+                 raise RuntimeError(f"Albert API response missing 'choices'")
 
-            content = choices[0].get("message", {}).get("content")
+            message = choices[0].get("message", {})
+            content = message.get("content")
+            
             if content is None:
-                # message exists but no content
+                refusal = message.get("refusal")
+                if refusal:
+                    logger.error(f"Albert API refused to answer: {refusal}")
+                    raise RuntimeError(f"Albert API refusal: {refusal}")
+                logger.error(f"Albert API message exists but has no content. Full data: {data}")
                 return ""
+            
             return content
             
         except requests.exceptions.HTTPError as he:
@@ -147,13 +158,19 @@ async def clean_text(text):
         return ""
     print(f"[*] Post-traitement: Nettoyage du texte Albert ({len(text.split())} mots)...")
     prompt = (
-        "Supprime les tics de langage (euh, bah, alors, …) du texte suivant, "
+        "Supprime les tics de langage (euh, bah, alors, ...) du texte suivant, "
         "sans en altérer le sens. Formate le texte avec des paragraphes "
         "et une ponctuation soignée pour une lisibilité maximale. "
-        "Renvoie uniquement le texte nettoyé en français :\\n\\n"
+        "Renvoie uniquement le texte nettoyé en français :\n\n"
         f"{text}"
     )
+    logger.debug(f"Prompt Albert (Clean) - Longueur: {len(prompt)}, Début: {prompt[:100]}...")
     res = await _call_albert(prompt)
+    if not res:
+        logger.warning("Albert API (Clean) a renvoyé un résultat vide.")
+    else:
+        logger.info(f"Albert API (Clean) a renvoyé {len(res)} caractères.")
+    
     print(f"[*] Post-traitement: Nettoyage terminé.")
     return res
 

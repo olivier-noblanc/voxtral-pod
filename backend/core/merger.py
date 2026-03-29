@@ -4,6 +4,10 @@ def assign_speakers_to_words(words, diarization_segments):
     Reference logic from TranscriptionSuite.
     """
     if not words or not diarization_segments:
+        # Assure-toi que les mots ont au moins la clé 'speaker' par défaut
+        for w in words:
+            if "speaker" not in w:
+                w["speaker"] = "UNKNOWN"
         return words
 
     # Pre-sort diarization segments by start time
