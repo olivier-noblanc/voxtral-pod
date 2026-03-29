@@ -1,7 +1,8 @@
 # backend/core/diarization_cpu.py
 """
 Moteur de diarisation optimisé pour CPU utilisant la bibliothèque 'diarize'.
-Patch : interception globale de urllib pour rediriger Tencent Cloud → HuggingFace.
+Patch : patch direct de Hub.Assets pour rediriger Tencent → HuggingFace,
+        et pré-téléchargement dans le bon chemin (~/.wespeaker/en/model.onnx).
 
 Ref académique :
 - Wang et al., "WeSpeaker: Learning Speaker Embeddings with Self-Supervision",
@@ -20,39 +21,58 @@ import soundfile as sf
 logger = logging.getLogger("diarization_cpu")
 
 # ---------------------------------------------------------------------------
-# Interception globale urllib — redirige Tencent Cloud → HuggingFace
-# La lib diarize/wespeaker hard-code l'URL COS Tencent.
-# On remplace urlretrieve pour intercepter AVANT qu'elle tente la connexion.
+# Patch Hub.Assets — remplace l'URL Tencent par HuggingFace
+# et pré-télécharge model.onnx au bon chemin avant que la lib le demande.
 # ---------------------------------------------------------------------------
-_TENCENT_DOMAIN = "cos.ap-shanghai.myqcloud.com"
-_HF_TOKEN       = os.getenv("HF_TOKEN", "")
-_HF_MIRROR_URL  = (
+_HF_TOKEN      = os.getenv("HF_TOKEN", "")
+_HF_MIRROR_URL = (
     "https://huggingface.co/wenet-e2e/wespeaker-voxceleb-resnet34-LM"
     "/resolve/main/voxceleb_resnet34_LM.onnx"
 )
-
-_original_urlretrieve = urllib.request.urlretrieve
-
-
-def _patched_urlretrieve(url, filename=None, reporthook=None, data=None):
-    if _TENCENT_DOMAIN in url:
-        logger.info("[*] WeSpeaker URL interceptée : %s", url)
-        logger.info("[*] Redirection → HuggingFace : %s", _HF_MIRROR_URL)
-
-        if _HF_TOKEN:
-            opener = urllib.request.build_opener()
-            opener.addheaders = [("Authorization", f"Bearer {_HF_TOKEN}")]
-            urllib.request.install_opener(opener)
-            logger.info("[*] HF_TOKEN injecté dans la requête.")
-
-        return _original_urlretrieve(_HF_MIRROR_URL, filename, reporthook, data)
-
-    return _original_urlretrieve(url, filename, reporthook, data)
+_MODEL_DIR  = Path.home() / ".wespeaker" / "en"
+_MODEL_PATH = _MODEL_DIR / "model.onnx"
 
 
-# Patch global — actif dès l'import du module
-urllib.request.urlretrieve = _patched_urlretrieve
-logger.info("[*] Patch urllib WeSpeaker actif (Tencent → HuggingFace).")
+def _ensure_model() -> None:
+    """
+    Pré-télécharge model.onnx depuis HuggingFace si absent.
+    La lib wespeakerruntime vérifie ~/.wespeaker/en/model.onnx avant de télécharger —
+    si le fichier est là, elle ne touche pas au réseau.
+    """
+    if _MODEL_PATH.exists():
+        logger.info("[*] Modèle WeSpeaker déjà présent : %s", _MODEL_PATH)
+        return
+
+    _MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    tmp_path = _MODEL_PATH.with_suffix(".tmp")
+
+    logger.info("[*] Téléchargement modèle WeSpeaker depuis HuggingFace...")
+    logger.info("    URL  : %s", _HF_MIRROR_URL)
+    logger.info("    Dest : %s", _MODEL_PATH)
+
+    if _HF_TOKEN:
+        opener = urllib.request.build_opener()
+        opener.addheaders = [("Authorization", f"Bearer {_HF_TOKEN}")]
+        urllib.request.install_opener(opener)
+        logger.info("    HF_TOKEN injecté.")
+
+    def _progress(block_num, block_size, total_size):
+        if total_size > 0:
+            pct = min(100, block_num * block_size * 100 // total_size)
+            if pct % 10 == 0:
+                logger.info("    ... %d%%", pct)
+
+    try:
+        urllib.request.urlretrieve(_HF_MIRROR_URL, tmp_path, reporthook=_progress)
+        tmp_path.rename(_MODEL_PATH)
+        logger.info("[*] Modèle WeSpeaker prêt : %s", _MODEL_PATH)
+    except Exception as e:
+        tmp_path.unlink(missing_ok=True)
+        raise RuntimeError(f"Échec téléchargement WeSpeaker : {e}") from e
+
+
+# Exécuté à l'import — avant tout appel à la lib
+_ensure_model()
 
 
 # ---------------------------------------------------------------------------
