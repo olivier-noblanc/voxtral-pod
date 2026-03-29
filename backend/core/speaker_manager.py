@@ -2,22 +2,30 @@ import os
 import json
 import logging
 import numpy as np
+import threading
 from typing import Optional, List, Dict, Tuple
 from backend.core.audio import decode_audio
 
 # Lazy loading of speechbrain
 _encoder = None
+_encoder_lock = threading.Lock()
+
+# Silence speechbrain fetching logs which are very noisy
+logging.getLogger("speechbrain.utils.fetching").setLevel(logging.WARNING)
+logging.getLogger("speechbrain.utils.parameter_transfer").setLevel(logging.WARNING)
 
 def get_encoder():
     global _encoder
     if _encoder is None:
-        from speechbrain.inference.speaker import EncoderClassifier
-        logging.info("[*] Loading SpeechBrain ECAPA-TDNN model (CPU)...")
-        # Ensure it runs on CPU as requested
-        _encoder = EncoderClassifier.from_hparams(
-            source="speechbrain/spkrec-ecapa-voxceleb",
-            run_opts={"device": "cpu"}
-        )
+        with _encoder_lock:
+            if _encoder is None:
+                from speechbrain.inference.speaker import EncoderClassifier
+                logging.info("[*] Loading SpeechBrain ECAPA-TDNN model (CPU singleton)...")
+                # Ensure it runs on CPU as requested
+                _encoder = EncoderClassifier.from_hparams(
+                    source="speechbrain/spkrec-ecapa-voxceleb",
+                    run_opts={"device": "cpu"}
+                )
     return _encoder
 
 class SpeakerManager:

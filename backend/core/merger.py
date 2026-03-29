@@ -7,7 +7,7 @@ def assign_speakers_to_words(words, diarization_segments):
         # Assure-toi que les mots ont au moins la clé 'speaker' par défaut
         for w in words:
             if "speaker" not in w:
-                w["speaker"] = "UNKNOWN"
+                w["speaker"] = "SPEAKER_00"
         return words
 
     # Pre-sort diarization segments by start time

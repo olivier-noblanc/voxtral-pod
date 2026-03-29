@@ -22,9 +22,12 @@ for noisy_logger in [
     "urllib3", 
     "multipart", 
     "numba",
-    "speechbrain"
+    "speechbrain",
+    "speechbrain.utils.fetching",
+    "speechbrain.utils.parameter_transfer",
 ]:
     logging.getLogger(noisy_logger).setLevel(logging.WARNING)
+
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware

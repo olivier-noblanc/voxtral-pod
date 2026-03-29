@@ -129,12 +129,12 @@ class LightDiarizationEngine:
             prob = vad.silero_model(torch.from_numpy(chunk.copy()), sr).item()
             time_pos = i / sr
             
-            if prob > 0.4 and not is_speech:
+            if prob > 0.3 and not is_speech: # Slightly more sensitive (0.3 instead of 0.4)
                 is_speech = True
                 speech_start = time_pos
-            elif prob < 0.2 and is_speech:
+            elif prob < 0.1 and is_speech: # More robust closing (0.1 instead of 0.2)
                 is_speech = False
-                if time_pos - speech_start > 0.5: # Min duration 0.5s
+                if time_pos - speech_start > 0.3: # Min duration 0.3s instead of 0.5s
                     segments_raw.append((speech_start, time_pos))
         
         if is_speech: # close last segment
