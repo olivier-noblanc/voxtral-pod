@@ -12,6 +12,7 @@ import numpy as np
 import soundfile as sf
 import subprocess
 from backend.core.postprocess import _ensure_ffmpeg
+from backend.core.albert_rate_limiter import albert_rate_limiter
 
 # Propriété utilitaire : nom des modèles qui utilisent l'API Albert
 _ALBERT_MODEL_IDS = frozenset({"albert"})
@@ -179,6 +180,12 @@ class TranscriptionEngine:
         """
         duration_total = len(audio_np) / 16000
 
+        # Vérifier si on doit utiliser le mode mock en raison du rate limit
+        if albert_rate_limiter.should_use_mock_mode():
+            print(f"[*] Utilisation du mode mock pour Albert (quota dépassé ou pas de clé)")
+            # Retourner une transcription mock avec un message d'erreur
+            return [{"start": 0.0, "end": duration_total, "word": "[MODE MOCK] Quota API dépassé. Utilisation du mode de secours."}], duration_total
+
         tranches = []
         t = 0
         while t < duration_total:
@@ -187,7 +194,7 @@ class TranscriptionEngine:
                 tranches.append((t, remaining))
                 break
 
-            cut_point = self._find_best_cut(audio_np, t + CHUNK_LIMIT_SEC, current_t=t)
+            cut_point = self._find_best_cut(audio_np, t + CHUNK_LIMIT_SEC, current_t=int(t))
             tranches.append((t, cut_point - t))
             t = cut_point
 
@@ -236,25 +243,46 @@ class TranscriptionEngine:
             for attempt in range(3):
                 start_req = time.time()
                 try:
+                    # Vérification du rate limit avant l'envoi
+                    if not albert_rate_limiter.can_make_request():
+                        print(f"[*] Rate limit actif, attente avant requête...")
+                        # Attendre jusqu'à l'intervalle requis
+                        time.sleep(albert_rate_limiter.min_interval_seconds)
+                    
                     buffer.seek(0)
                     print(f"[*] Tentative {attempt+1}/3 - Envoi en cours...")
                     response = requests.post(f"{self.albert_base_url}/audio/transcriptions", headers=headers, files=files, data=data, timeout=1800)
                     print(f"[*] Réponse reçue en {time.time() - start_req:.2f}s (Statut: {response.status_code})")
+                    
+                    # Enregistrer la requête avant de traiter la réponse
+                    albert_rate_limiter.record_request()
+                    # Traiter la réponse du rate limiter
+                    albert_rate_limiter.handle_response(response.status_code)
+                    
                     if response.status_code == 200:
                         break
+                    elif response.status_code == 429:
+                        retry_after = int(response.headers.get("Retry-After", 2 ** (attempt + 1)))
+                        print(f"[!] Rate limit (429). Attente {retry_after}s avant retry...")
+                        time.sleep(retry_after)
+                        response = None  # ← reset pour forcer la détection d'échec
+                    elif response.status_code in [500, 502, 503, 504]:
+                        print(f"[!] Erreur serveur ({response.status_code}). Retry dans {2**attempt}s...")
+                        time.sleep(2 ** attempt)
                     else:
                         print(f"[!] Erreur API ({response.status_code}): {response.text}")
-                        if response.status_code in [429, 500, 502, 503, 504]:
-                            time.sleep(2**attempt)
-                        else:
-                            break
+                        break  # erreur non récupérable, on sort
+                        
                 except Exception as e:
                     last_err = e
                     print(f"[!] Exception réseau tranche {idx+1}: {type(e).__name__} - {e}")
-                    time.sleep(2**attempt) if attempt < 2 else None
+                    if attempt < 2:
+                        time.sleep(2 ** attempt)
 
-            if not response or response.status_code != 200:
-                raise Exception(f"Échec Tranche {idx+1} (Statut {response.status_code if response else 'N/A'})")
+            if response is None or response.status_code != 200:
+                status = response.status_code if response else "N/A"
+                detail = response.text[:200] if response else str(last_err)
+                raise Exception(f"Échec Tranche {idx+1} (Statut {status}): {detail}")
 
             # 4. Traitement des résultats
             result = response.json()

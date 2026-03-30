@@ -16,7 +16,7 @@ class LiveSession:
         self.engine = engine
         self.websocket = websocket
         self.client_id = client_id
-        self.partial_albert = partial_albert
+        self.partial_albert = False  # Désactiver les partials par défaut pour éviter les appels fréquents à l'API
 
         self.audio_queue = asyncio.Queue()
         self.pre_speech_buffer = bytearray()
@@ -171,3 +171,15 @@ class LiveSession:
         except Exception as e:
             # On capture toutes les exceptions pour ne pas faire crasher le worker live
             print(f"[!] [{self.client_id}] Live Inference error: {e}")
+            # Notifier le client si c'est un rate limit
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                try:
+                    await self.websocket.send_json({
+                        "type": "error",
+                        "message": "Quota API dépassé (1000 req/jour). Réessayez demain.",
+                        "final": True,
+                        "sentence_index": self._sentence_index,
+                        "total_bytes_received": self._total_bytes_received,
+                    })
+                except Exception:
+                    pass
