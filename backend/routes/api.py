@@ -3,6 +3,7 @@ import pathlib
 import importlib.util
 import numpy as np
 import datetime
+import time
 import asyncio
 import shutil
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
@@ -121,14 +122,14 @@ async def home(request: Request):
         )
     
     return templates.TemplateResponse(
-        request,
         "index.html",
         {
             "model_name": current_model,
             "device": "cuda" if not engine.no_gpu else "cpu",
             "commit": commit,
             "model_options": model_options
-        }
+        },
+        request=request
     )
 
 @router.get("/transcriptions")
@@ -295,14 +296,14 @@ async def view_transcription(client_id: str, filename: str, request: Request):
         # Render markdown for the cleaned version
         rendered_content = markdown.markdown(content, extensions=['extra', 'nl2br'])
         return templates.TemplateResponse(
-            request,
             "postprocess.html",
             {
                 "title": "Version Nettoyée Albert",
                 "filename": filename,
                 "raw_content": content,
                 "rendered_content": rendered_content
-            }
+            },
+            request=request
         )
 
     segments_html = "\n".join(format_transcription(line) for line in content.splitlines() if line.strip())
@@ -317,27 +318,27 @@ async def view_transcription(client_id: str, filename: str, request: Request):
     audio_url = f"/download_audio/{client_id}/{audio_filename}"
     
     return templates.TemplateResponse(
-        request,
-        "view.html",
-        {
-            "filename": filename,
-            "audio_url": audio_url,
-            "is_temp": is_temp,
-            "segments_html": segments_html
-        }
-    )
+            "view.html",
+            {
+                "filename": filename,
+                "audio_url": audio_url,
+                "is_temp": is_temp,
+                "segments_html": segments_html
+            },
+            request=request
+        )
 
 def _render_postprocess_page(request: Request, title: str, content: str, filename: str) -> Response:
     rendered_content = markdown.markdown(content, extensions=['extra', 'nl2br'])
     return templates.TemplateResponse(
-        request,
         "postprocess.html",
         {
             "title": title,
             "filename": filename,
             "raw_content": content,
             "rendered_content": rendered_content
-        }
+        },
+        request=request
     )
 
 @router.get("/view_summary/{client_id}/{filename}")
@@ -421,11 +422,10 @@ async def view_diarization(client_id: str, filename: str, request: Request):
 
 
     return templates.TemplateResponse("diarization_view.html", {
-        "request": request,
         "segments": segments,
         "filename": base_name,
         "client_id": client_id
-    })
+    }, request=request)
 
 
 @router.get("/view_actions/{client_id}/{filename}")

@@ -692,6 +692,50 @@ window.onload = () => {
 
         // Load available audio devices when page loads
 loadAudioDevices();
+// ---------- Notification de fallback CPU ----------
+(function() {
+    // Crée un conteneur de notification s'il n'existe pas
+    let fallbackDiv = document.getElementById('fallbackNotice');
+    if (!fallbackDiv) {
+        fallbackDiv = document.createElement('div');
+        fallbackDiv.id = 'fallbackNotice';
+        fallbackDiv.style.position = 'fixed';
+        fallbackDiv.style.top = '0';
+        fallbackDiv.style.left = '0';
+        fallbackDiv.style.right = '0';
+        fallbackDiv.style.backgroundColor = '#ffcc00';
+        fallbackDiv.style.color = '#000';
+        fallbackDiv.style.padding = '0.5rem';
+        fallbackDiv.style.textAlign = 'center';
+        fallbackDiv.style.fontWeight = 'bold';
+        fallbackDiv.style.zIndex = '1000';
+        fallbackDiv.style.display = 'none';
+        document.body.appendChild(fallbackDiv);
+    }
+
+    // Fonction de vérification du statut du rate limiter
+    async function checkFallbackStatus() {
+        try {
+            const resp = await fetch('/rate_limiter_status');
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (data.fallback_active) {
+                const secs = data.fallback_remaining_seconds;
+                fallbackDiv.textContent = `⚠️ Le serveur est en mode de secours CPU pendant ${secs} seconde${secs !== 1 ? 's' : ''} suite à un dépassement de quota.`;
+                fallbackDiv.style.display = 'block';
+            } else {
+                fallbackDiv.style.display = 'none';
+            }
+        } catch (e) {
+            console.warn('Erreur lors de la récupération du statut du rate limiter :', e);
+        }
+    }
+
+    // Vérifie immédiatement puis toutes les 5 s
+    checkFallbackStatus();
+    setInterval(checkFallbackStatus, 5000);
+})();
+
     // Explicit fetch to ensure the speaker_profiles route is exercised in tests
     fetch("/speaker_profiles");
     // Ensure the speaker profiles endpoint is referenced to satisfy contract tests
