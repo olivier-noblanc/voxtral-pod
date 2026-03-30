@@ -8,6 +8,9 @@ from fastapi import WebSocket
 from backend.core.vad import VADManager, SAMPLE_RATE
 from backend.config import TRANSCRIPTIONS_DIR
 
+# Ensure NNPACK is disabled for live operations
+os.environ.setdefault("DISABLE_NNPACK", "1")
+
 
 class LiveSession:
     """Isolated per-connection live transcription with VAD."""

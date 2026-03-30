@@ -10,6 +10,9 @@ from collections import deque
 import os
 from threading import Lock
 
+# Ensure NNPACK is disabled for rate limiter operations
+os.environ.setdefault("DISABLE_NNPACK", "1")
+
 
 class AlbertRateLimiter:
     """Gère les appels à l'API Albert avec rate limiting et circuit breaker."""
