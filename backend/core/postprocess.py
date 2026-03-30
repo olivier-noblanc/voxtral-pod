@@ -83,7 +83,6 @@ async def _call_albert(prompt: str) -> str:
                 return ""
             
             return content
-le             
         except requests.exceptions.HTTPError:
             if attempt == 2:
                 status_code = response.status_code if response is not None else "N/A"
