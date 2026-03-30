@@ -79,6 +79,7 @@ Quota API dépassé (1000 req/jour). Réessayez demain.
 4. **Compatibilité** : Le système fonctionne même en mode offline
 5. **Optimisation des appels API** : Les partials sont désactivés par défaut pour réduire les appels fréquents à l'API Albert
 6. **Rate limiting strict** : Les requêtes sont limitées à une par seconde avec verrouillage thread-safe pour éviter les conflits
+7. **Fallback CPU** : Le système bascule automatiquement sur le modèle local en cas de rate limit
 
 ## Dépannage
 

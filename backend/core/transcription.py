@@ -69,62 +69,81 @@ class TranscriptionEngine:
             print(f"[*] Loading Vosk model: {self.model_id}...")
             self.model = vosk.Model(f"models/{self.model_id}")
 
-    def transcribe(self, audio_np, language="fr", progress_callback=None):
+    def transcribe(self, audio_np, language="fr", progress_callback=None, is_partial: bool = False):
         """
         Transcribe audio and return (words, duration).
         """
-        if self.use_albert:
-            return self._transcribe_albert(audio_np, language, progress_callback)
-        
-        if self.model_id == "mock":
-            duration = len(audio_np) / 16000
-            return [{"start": 0.0, "end": duration, "word": "[MOCK] Transcription de test mélangée (Micro + Système)"}], duration
-
-        if self.model is None:
-            self.load()
-
-        duration = len(audio_np) / 16000
-
-        if self.model_id == "whisper":
-            segments, info = self.model.transcribe(  # type: ignore
-                audio_np,
-                beam_size=5,
-                language=language,
-                task="transcribe",
-                word_timestamps=True,
-            )
-
-            all_words = []
-            for s in segments:
-                if progress_callback and duration > 0:
-                    pct = int((s.end / duration) * 50)
-                    progress_callback(f"Transcription ({int(s.end)}s / {int(duration)}s)", 45 + pct)
-
-                if hasattr(s, "words") and s.words:
-                    for w in s.words:
-                        all_words.append({"start": w.start, "end": w.end, "word": w.word, "speaker": "UNKNOWN"})
-                else:
-                    all_words.append({"start": s.start, "end": s.end, "word": s.text.strip(), "speaker": "UNKNOWN"})
-
-            return all_words, info.duration
-
+        # Tâche 1 : Optimisation des transcriptions partielles (CPU pur)
+        # Si c'est une transcription partielle, forcer l'utilisation du modèle local
+        if is_partial and self.model_id != "mock":
+            # Forcer l'utilisation du modèle local pour les transcriptions partielles
+            use_local_model = True
         else:
-            # Vosk
-            import json
-            import vosk
-            rec = vosk.KaldiRecognizer(self.model, 16000)
-            rec.SetWords(True)
+            use_local_model = not self.use_albert or self.model_id == "mock"
+        
+        # Tâche 2 : Bascule de secours (Fallback) sur limite de requêtes
+        if self.use_albert and not use_local_model and albert_rate_limiter.should_use_cpu_fallback_mode():
+            # Tâche 2 : Bascule silencieuse sur le modèle local
+            print(f"[*] Basculage sur modèle local (fallback CPU) en raison du rate limit")
+            use_local_model = True
+            # Charger le modèle local si nécessaire
+            if self.model is None:
+                self.load()
+        
+        if use_local_model:
+            # Utiliser le modèle local (Whisper ou Vosk)
+            if self.model_id == "mock":
+                duration = len(audio_np) / 16000
+                return [{"start": 0.0, "end": duration, "word": "[MOCK] Transcription de test mélangée (Micro + Système)"}], duration
 
-            pcm16 = (audio_np * 32768).astype(np.int16).tobytes()
-            rec.AcceptWaveform(pcm16)
-            res = json.loads(rec.FinalResult())
+            if self.model is None:
+                self.load()
 
-            all_words = []
-            if "result" in res:
-                for w in res["result"]:
-                    all_words.append({"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"})
+            duration = len(audio_np) / 16000
 
-            return all_words, len(audio_np) / 16000
+            if self.model_id == "whisper":
+                segments, info = self.model.transcribe(  # type: ignore
+                    audio_np,
+                    beam_size=5,
+                    language=language,
+                    task="transcribe",
+                    word_timestamps=True,
+                )
+
+                all_words = []
+                for s in segments:
+                    if progress_callback and duration > 0:
+                        pct = int((s.end / duration) * 50)
+                        progress_callback(f"Transcription ({int(s.end)}s / {int(duration)}s)", 45 + pct)
+
+                    if hasattr(s, "words") and s.words:
+                        for w in s.words:
+                            all_words.append({"start": w.start, "end": w.end, "word": w.word, "speaker": "UNKNOWN"})
+                    else:
+                        all_words.append({"start": s.start, "end": s.end, "word": s.text.strip(), "speaker": "UNKNOWN"})
+
+                return all_words, info.duration
+
+            else:
+                # Vosk
+                import json
+                import vosk
+                rec = vosk.KaldiRecognizer(self.model, 16000)
+                rec.SetWords(True)
+
+                pcm16 = (audio_np * 32768).astype(np.int16).tobytes()
+                rec.AcceptWaveform(pcm16)
+                res = json.loads(rec.FinalResult())
+
+                all_words = []
+                if "result" in res:
+                    for w in res["result"]:
+                        all_words.append({"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"})
+
+                return all_words, len(audio_np) / 16000
+        else:
+            # Utiliser l'API Albert
+            return self._transcribe_albert(audio_np, language, progress_callback)
 
     def _find_best_cut(self, audio_np, target_sec, current_t=0):
         """
@@ -181,8 +200,8 @@ class TranscriptionEngine:
         duration_total = len(audio_np) / 16000
 
         # Vérifier si on doit utiliser le mode mock en raison du rate limit
-        if albert_rate_limiter.should_use_mock_mode():
-            print(f"[*] Utilisation du mode mock pour Albert (quota dépassé ou pas de clé)")
+        if albert_rate_limiter.is_in_mock_mode():
+            print(f"[*] Utilisation du mode mock pour Albert (quota dépassé)")
             # Retourner une transcription mock avec un message d'erreur
             return [{"start": 0.0, "end": duration_total, "word": "[MODE MOCK] Quota API dépassé. Utilisation du mode de secours."}], duration_total
 

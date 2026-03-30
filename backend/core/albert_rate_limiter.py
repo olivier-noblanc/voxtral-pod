@@ -36,16 +36,16 @@ class AlbertRateLimiter:
         # Lock pour les appels concurrents
         self._lock = Lock()
         
-    def should_use_mock_mode(self) -> bool:
-        """Détermine si on doit utiliser le mode mock."""
-        # Si pas de clé API, on utilise toujours le mode mock
+    def should_use_cpu_fallback_mode(self) -> bool:
+        """Détermine si on doit utiliser le fallback CPU (en raison du rate limit)."""
+        # Si pas de clé API, on utilise toujours le mode mock (pas de fallback CPU)
         if not self._has_valid_api_key:
-            return True
+            return False
             
         # Si on est en mode mock, vérifier si on peut revenir en mode normal
         if self._in_mock_mode and self._mock_mode_until:
             if time.time() < self._mock_mode_until:
-                return True  # Toujours en mode mock
+                return False  # Pas de fallback CPU en mode mock
             else:
                 # Temps écoulé, on sort du mode mock
                 self._in_mock_mode = False
@@ -58,9 +58,9 @@ class AlbertRateLimiter:
             # Basculer en mode mock pendant un certain temps
             self._in_mock_mode = True
             self._mock_mode_until = time.time() + self.reset_timeout
-            return True
+            return False  # Pas de fallback CPU en mode mock
             
-        return False
+        return False  # Pas de fallback CPU sauf cas particulier
         
     def can_make_request(self) -> bool:
         """Vérifie si on peut faire une nouvelle requête selon le rate limit."""

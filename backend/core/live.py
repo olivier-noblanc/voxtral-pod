@@ -142,7 +142,9 @@ class LiveSession:
         try:
             audio_np = np.frombuffer(pcm_data, dtype=np.int16).astype(np.float32) / 32768.0
 
-            words, _ = await asyncio.to_thread(self.engine.transcription_engine.transcribe, audio_np)
+            # Tâche 1 : Optimisation des transcriptions partielles (CPU pur)
+            # Passer l'état final pour déterminer si c'est une transcription partielle
+            words, _ = await asyncio.to_thread(self.engine.transcription_engine.transcribe, audio_np, is_partial=not final)
             text = " ".join(w["word"] for w in words).strip()
 
             if text or final:
