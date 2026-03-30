@@ -144,7 +144,14 @@ class LiveSession:
 
             # Tâche 1 : Optimisation des transcriptions partielles (CPU pur)
             # Passer l'état final pour déterminer si c'est une transcription partielle
-            words, _ = await asyncio.to_thread(self.engine.transcription_engine.transcribe, audio_np, is_partial=not final)
+            try:
+                words, _ = await asyncio.to_thread(self.engine.transcription_engine.transcribe, audio_np, is_partial=not final)
+            except TypeError as e:
+                # Si l'argument is_partial n'est pas supporté, on appelle sans cet argument
+                if "unexpected keyword argument 'is_partial'" in str(e):
+                    words, _ = await asyncio.to_thread(self.engine.transcription_engine.transcribe, audio_np)
+                else:
+                    raise
             text = " ".join(w["word"] for w in words).strip()
 
             if text or final:

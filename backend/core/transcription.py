@@ -143,7 +143,14 @@ class TranscriptionEngine:
                 return all_words, len(audio_np) / 16000
         else:
             # Utiliser l'API Albert
-            return self._transcribe_albert(audio_np, language, progress_callback)
+            # Pour Albert, on passe is_partial comme argument supplémentaire si le modèle le supporte
+            try:
+                return self._transcribe_albert(audio_np, language, progress_callback, is_partial=is_partial)
+            except TypeError as e:
+                # Si l'argument is_partial n'est pas supporté, on appelle sans cet argument
+                if "unexpected keyword argument 'is_partial'" in str(e):
+                    return self._transcribe_albert(audio_np, language, progress_callback)
+                raise
 
     def _find_best_cut(self, audio_np, target_sec, current_t=0):
         """
@@ -193,7 +200,7 @@ class TranscriptionEngine:
             return target_sec
         return cut_sec
 
-    def _transcribe_albert(self, audio_np, language="fr", progress_callback=None):
+    def _transcribe_albert(self, audio_np, language="fr", progress_callback=None, is_partial: bool = False):
         """
         Découpe l'audio en tranches et les envoie à l'API Albert.
         """

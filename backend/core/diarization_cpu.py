@@ -9,6 +9,9 @@ import os
 import tempfile
 import time
 import urllib.request
+import subprocess
+import sys
+import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -30,6 +33,80 @@ _MODEL_DIR  = Path.home() / ".wespeaker" / "en"
 _MODEL_PATH = _MODEL_DIR / "model.onnx"
 
 
+def _get_r_proxy_settings() -> Optional[dict]:
+    """Essaye de lire les paramètres de proxy depuis le fichier .Rprofile si présent."""
+    try:
+        rprofile_path = Path.home() / "Documents" / ".Rprofile"
+        if not rprofile_path.exists():
+            return None
+            
+        content = rprofile_path.read_text(encoding='utf-8')
+        
+        # Chercher les options de téléchargement curl
+        curl_match = re.search(r'download\.file\.extra\s*=\s*"(.*?)"', content, re.IGNORECASE)
+        if curl_match:
+            extra_args = curl_match.group(1)
+            # Extraire les paramètres de proxy
+            proxy_match = re.search(r'--proxy\s+([^\s]+)', extra_args)
+            if proxy_match:
+                proxy_url = proxy_match.group(1)
+                return {
+                    'proxy_url': proxy_url,
+                    'extra_args': extra_args
+                }
+        return None
+    except Exception:
+        return None
+
+
+def _download_with_r_proxy(url: str, dest_path: Path, proxy_settings: dict) -> None:
+    """Télécharge un fichier en utilisant les paramètres de proxy R avec curl."""
+    try:
+        # Construire la commande curl avec les paramètres R
+        cmd = [
+            "curl",
+            "-L",  # Suivre les redirections
+            "--location",
+            "--output", str(dest_path),
+            url
+        ]
+        
+        # Ajouter les arguments supplémentaires depuis R
+        if proxy_settings.get('extra_args'):
+            extra_args = proxy_settings['extra_args'].split()
+            cmd.extend(extra_args)
+        
+        logger.info(f"[*] Exécution de la commande curl : {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        if result.returncode != 0:
+            raise Exception(f"curl failed: {result.stderr}")
+    except subprocess.CalledProcessError as e:
+        raise Exception(f"Erreur lors du téléchargement avec curl: {e.stderr}") from e
+    except Exception as e:
+        # Si curl échoue, fallback à urllib avec gestion des proxies Windows
+        logger.warning(f"[*] Fallback à urllib.request en raison de l'erreur: {e}")
+        _download_with_urllib_windows(url, dest_path)
+
+
+def _download_with_urllib_windows(url: str, dest_path: Path) -> None:
+    """Télécharge un fichier en utilisant urllib avec prise en charge des proxies Windows."""
+    try:
+        # Utiliser urllib avec les proxies système Windows
+        import urllib.request
+        
+        # Créer un gestionnaire de requête avec les proxies système
+        proxy_handler = urllib.request.ProxyHandler(urllib.request.getproxies())
+        opener = urllib.request.build_opener(proxy_handler)
+        opener.addheaders = [('User-agent', 'Mozilla/5.0')]
+        urllib.request.install_opener(opener)
+        
+        urllib.request.urlretrieve(url, str(dest_path))
+    except Exception as e:
+        # Si tout échoue, essayer sans proxy
+        logger.warning(f"[*] Tentative de téléchargement sans proxy: {e}")
+        urllib.request.urlretrieve(url, str(dest_path))
+
+
 def _ensure_model() -> None:
     """Vérifie et télécharge le modèle WeSpeaker si nécessaire."""
     if _MODEL_PATH.exists():
@@ -40,7 +117,14 @@ def _ensure_model() -> None:
 
     logger.info("[*] Téléchargement modèle WeSpeaker depuis HuggingFace...")
     try:
-        urllib.request.urlretrieve(_HF_MIRROR_URL, tmp_path)
+        # Essayer d'utiliser les paramètres de proxy R si disponibles
+        proxy_settings = _get_r_proxy_settings()
+        if proxy_settings:
+            logger.info("[*] Utilisation des paramètres de proxy R pour le téléchargement...")
+            _download_with_r_proxy(_HF_MIRROR_URL, tmp_path, proxy_settings)
+        else:
+            # Fallback à la méthode originale
+            urllib.request.urlretrieve(_HF_MIRROR_URL, tmp_path)
         tmp_path.rename(_MODEL_PATH)
         logger.info("[*] Modèle WeSpeaker prêt.")
     except Exception as e:
