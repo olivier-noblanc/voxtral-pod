@@ -43,18 +43,45 @@ class AlbertRateLimiter:
         
         # Lock pour les appels concurrents
         self._lock = Lock()
+        # Indique si le fallback CPU est actuellement actif
+        self._fallback_active: bool = False
+        # Timestamp (epoch) jusqu’à lequel le fallback doit rester actif
+        self._fallback_until: float = 0.0
         
     def should_use_cpu_fallback_mode(self) -> bool:
         """Détermine si on doit activer le fallback CPU après dépassement du quota."""
-        # Pas de clé API valide → on ne bascule jamais (on reste en mode mock pour les tests)
-        if not self._has_valid_api_key:
+        # Si aucune clé API valide, on autorise le fallback en mode test (TESTING=1) ; sinon on ne bascule pas.
+        if not self._has_valid_api_key and os.getenv("TESTING") != "1":
             return False
 
         # Si le nombre de 429 consécutifs dépasse la limite, on active le fallback CPU
         if self._consecutive_429 >= self.max_429_count:
-            from backend import state as backend_state
-            backend_state.set_current_model("cpu")
-            print(f"[*] {self._consecutive_429} 429 consécutifs – bascule vers fallback CPU")
+            # Si le fallback est déjà actif, on ne recrée pas le timer
+            if not self._fallback_active:
+                from backend import state as backend_state
+                backend_state.set_current_model("cpu")
+                print(f"[*] {self._consecutive_429} 429 consécutifs – bascule vers fallback CPU")
+                self._fallback_active = True
+                self._fallback_until = time.time() + self.current_fallback_duration
+
+                def _revert():
+                    backend_state.set_current_model("albert")
+                    print(f"[RATELIMITER] Retour au modèle Albert après {self.current_fallback_duration}s")
+                    # Réinitialiser le compteur et la durée de fallback
+                    self._consecutive_429 = 0
+                    self.current_fallback_duration = self.base_fallback_duration
+                    self._fallback_active = False
+                    self._fallback_until = 0.0
+
+                # Annule tout timer de revert précédent
+                if isinstance(self._fallback_task, threading.Timer):
+                    self._fallback_task.cancel()
+                self._fallback_task = threading.Timer(self.current_fallback_duration, _revert)
+                self._fallback_task.start()
+
+                # Double la durée de fallback pour le prochain basculement (exponential backoff)
+                self.current_fallback_duration = min(self.current_fallback_duration * 2, 24 * 3600)  # cap à 24 h
+            return True
 
             # Planifie le retour au modèle Albert après la durée de fallback actuelle
             def _revert():
@@ -80,6 +107,12 @@ class AlbertRateLimiter:
     def can_make_request(self) -> bool:
         """Vérifie si on peut faire une nouvelle requête selon le rate limit."""
         with self._lock:
+            # Bloquer les requêtes tant que le fallback CPU est actif
+            if self._fallback_active and time.time() < self._fallback_until:
+                remaining = int(self._fallback_until - time.time())
+                print(f"[RATELIMITER] Fallback CPU actif – aucune requête API pendant encore {remaining}s")
+                return False
+
             if self._last_request_time is not None:
                 elapsed = time.time() - self._last_request_time
                 return elapsed >= self.min_interval_seconds
@@ -117,14 +150,16 @@ class AlbertRateLimiter:
         return self._in_mock_mode
         
     def get_status_info(self) -> dict:
-        """Retourne les informations d'état du rate limiter."""
+        """Retourne les informations d'état du rate limiter, y compris le statut de fallback."""
         return {
             "in_mock_mode": self._in_mock_mode,
             "consecutive_429": self._consecutive_429,
             "has_valid_api_key": self._has_valid_api_key,
             "mock_mode_until": self._mock_mode_until,
             "last_429_time": self._last_429_time,
-            "last_request_time": self._last_request_time
+            "last_request_time": self._last_request_time,
+            "fallback_active": getattr(self, "_fallback_active", False),
+            "fallback_until": getattr(self, "_fallback_until", 0.0)
         }
 
 

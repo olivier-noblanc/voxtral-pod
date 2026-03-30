@@ -463,6 +463,26 @@ async def view_cleanup(client_id: str, filename: str, request: Request):
 async def status_route(file_id: str):
     return get_job(file_id, {"status": "not_found"})
 
+# ---------- Rate limiter status ----------
+@router.get("/rate_limiter_status")
+async def rate_limiter_status():
+    """
+    Retourne l'état du rate limiter, notamment si le fallback CPU est actif
+    et le temps restant avant la reprise du modèle Albert.
+    """
+    from backend.core.albert_rate_limiter import albert_rate_limiter
+    info = albert_rate_limiter.get_status_info()
+    # Calcul du temps restant (en secondes) si le fallback est actif
+    remaining = 0
+    if info.get("fallback_active"):
+        now = time.time()
+        remaining = max(0, int(info.get("fallback_until", 0) - now))
+    return {
+        "fallback_active": info.get("fallback_active", False),
+        "fallback_remaining_seconds": remaining,
+        "consecutive_429": info.get("consecutive_429", 0)
+    }
+
 @router.get("/git_status")
 async def git_status():
     try:
