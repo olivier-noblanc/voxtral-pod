@@ -483,6 +483,9 @@ async def rate_limiter_status():
     et le temps restant avant la reprise du modèle Albert.
     """
     from backend.core.albert_rate_limiter import albert_rate_limiter
+    # Mettre à jour les infos de quota (gère le throttle en interne)
+    await asyncio.to_thread(albert_rate_limiter.update_quota_info)
+    
     info = albert_rate_limiter.get_status_info()
     # Calcul du temps restant (en secondes) si le fallback est actif
     remaining = 0
@@ -492,7 +495,11 @@ async def rate_limiter_status():
     return {
         "fallback_active": info.get("fallback_active", False),
         "fallback_remaining_seconds": remaining,
-        "consecutive_429": info.get("consecutive_429", 0)
+        "consecutive_429": info.get("consecutive_429", 0),
+        "quota_limit": info.get("quota_limit", 1000),
+        "quota_usage": info.get("quota_usage", 0),
+        "quota_asr_usage": info.get("quota_asr_usage", 0),
+        "quota_llm_usage": info.get("quota_llm_usage", 0)
     }
 
 @router.get("/git_status")

@@ -59,12 +59,33 @@ function updateVolumeBar(data) {
 async function checkRateLimitStatus() {
     const alert = document.getElementById('albertRateLimitAlert');
     const timer = document.getElementById('fallbackTimer');
-    if (!alert || !timer) return;
+    const quotaBadge = document.getElementById('albertQuotaBadge');
+    const modelSelector = document.getElementById('modelSelector');
+    
+    if (!alert || !timer || !quotaBadge || !modelSelector) return;
 
     try {
         const res = await fetch('/rate_limiter_status');
         const data = await res.json();
         
+        // Affichage du quota uniquement si le modèle Albert est sélectionné
+        if (modelSelector.value === 'albert') {
+            quotaBadge.style.display = 'inline-flex';
+            quotaBadge.innerText = `Quota ASR Albert : ${data.quota_asr_usage} / ${data.quota_limit}`;
+            
+            // Changer la couleur selon l'usage ASR
+            const ratio = data.quota_asr_usage / data.quota_limit;
+            if (ratio > 0.9) {
+                quotaBadge.className = 'fr-badge fr-badge--error fr-badge--no-icon fr-ml-1w';
+            } else if (ratio > 0.7) {
+                quotaBadge.className = 'fr-badge fr-badge--warning fr-badge--no-icon fr-ml-1w';
+            } else {
+                quotaBadge.className = 'fr-badge fr-badge--info fr-badge--no-icon fr-ml-1w';
+            }
+        } else {
+            quotaBadge.style.display = 'none';
+        }
+
         if (data.fallback_active) {
             alert.style.display = 'block';
             timer.innerText = data.fallback_remaining_seconds;
@@ -72,7 +93,7 @@ async function checkRateLimitStatus() {
             alert.style.display = 'none';
         }
     } catch (e) {
-        // Ignorer silencieusement pour éviter de polluer la console en cas de micro-coupure
+        // Ignorer silencieusement
     }
 }
 
@@ -505,11 +526,14 @@ window.generateActions = generateActions;
  function changeModel(e) {
      const model = e.target.value;
      if (!model) return;
-     // Appelle l'API sans authentification forte (le endpoint requiert X-Admin-Key si configuré, sinon ouvert)
+     // Appelle l'API sans authentification forte
      fetch('/change_model?model=' + encodeURIComponent(model), { method: 'POST' })
         .then(res => {
             if (!res.ok) alert("Erreur ou accès refusé lors du changement de modèle");
-            else console.log("Modèle changé avec succès.");
+            else {
+                console.log("Modèle changé avec succès.");
+                checkRateLimitStatus(); // Mise à jour immédiate de l'UI (quota, bandeau)
+            }
         })
         .catch(err => console.error(err));
  }

@@ -48,7 +48,8 @@ class TranscriptionEngine:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.model: Any = None
-        self.albert_api_key = os.getenv("ALBERT_API_KEY")
+        from backend.config import get_albert_api_key
+        self.albert_api_key = get_albert_api_key()
         self.albert_base_url = os.getenv("ALBERT_BASE_URL", "https://albert.api.etalab.gouv.fr/v1")
         self.albert_model_id = os.getenv("ALBERT_MODEL_ID", "openai/whisper-large-v3")
 

@@ -2,6 +2,23 @@ import os
 import warnings
 import logging
 
+def get_albert_api_key():
+    """
+    Récupère la clé API Albert. Priorité à la variable d'environement,
+    puis au keyring (albert_api, default).
+    """
+    # 1. Priorité Environnement
+    key = os.getenv("ALBERT_API_KEY")
+    if key:
+        return key
+    
+    # 2. Fallback Keyring
+    try:
+        import keyring
+        return keyring.get_password("albert_api", "default")
+    except Exception:
+        return None
+
 # Inhibit NNPACK warning (unsupported hardware)
 os.environ["DISABLE_NNPACK"] = "1"
 os.environ["NNPACK_LOG_LEVEL"] = "0"
