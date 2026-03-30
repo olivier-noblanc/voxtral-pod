@@ -1,10 +1,8 @@
 # backend/core/diarization_cpu.py
 """
-Moteur de diarisation optimisé pour CPU utilisant la bibliothèque 'diarize'.
-
-Ref académique :
-- Wang et al., "WeSpeaker: Learning Speaker Embeddings with Self-Supervision",
-  ICASSP 2023 — https://arxiv.org/abs/2210.02596
+Moteur de diarisation optimisé pour CPU utilisant la bibliothèque 'diarize' (Alexander Lukashov).
+Gère le traitement par lots (batch) et le benchmarking des performances (RTF).
+Intègre SpeakerManager pour l'identification automatique des locuteurs.
 """
 import logging
 import os
@@ -23,8 +21,6 @@ logger = logging.getLogger("diarization_cpu")
 
 # ---------------------------------------------------------------------------
 # Pré-téléchargement modèle WeSpeaker
-# onnx-community/wespeaker-voxceleb-resnet34-LM — public, CC-BY-4.0, sans token
-# Le fichier est déjà nommé model.onnx dans le repo → chemin exact attendu par hub.py
 # ---------------------------------------------------------------------------
 _HF_MIRROR_URL = (
     "https://huggingface.co/onnx-community/wespeaker-voxceleb-resnet34-LM"
@@ -35,52 +31,31 @@ _MODEL_PATH = _MODEL_DIR / "model.onnx"
 
 
 def _ensure_model() -> None:
-    """
-    Vérifie que ~/.wespeaker/en/model.onnx existe.
-    Si absent, le télécharge depuis HuggingFace (public, sans token).
-    wespeakerruntime/hub.py vérifie ce chemin avant tout accès réseau :
-    si le fichier est là, Tencent Cloud n'est jamais contacté.
-    """
+    """Vérifie et télécharge le modèle WeSpeaker si nécessaire."""
     if _MODEL_PATH.exists():
-        logger.info("[*] Modèle WeSpeaker déjà présent : %s", _MODEL_PATH)
         return
 
     _MODEL_DIR.mkdir(parents=True, exist_ok=True)
     tmp_path = _MODEL_PATH.with_suffix(".tmp")
 
     logger.info("[*] Téléchargement modèle WeSpeaker depuis HuggingFace...")
-    logger.info("    URL  : %s", _HF_MIRROR_URL)
-    logger.info("    Dest : %s", _MODEL_PATH)
-
-    def _progress(block_num, block_size, total_size):
-        if total_size > 0:
-            pct = min(100, block_num * block_size * 100 // total_size)
-            if pct % 10 == 0:
-                logger.info("    ... %d%%", pct)
-
     try:
-        urllib.request.urlretrieve(_HF_MIRROR_URL, tmp_path, reporthook=_progress)
+        urllib.request.urlretrieve(_HF_MIRROR_URL, tmp_path)
         tmp_path.rename(_MODEL_PATH)
-        logger.info("[*] Modèle WeSpeaker prêt : %s", _MODEL_PATH)
+        logger.info("[*] Modèle WeSpeaker prêt.")
     except Exception as e:
         tmp_path.unlink(missing_ok=True)
         raise RuntimeError(f"Échec téléchargement WeSpeaker : {e}") from e
 
 
-# Exécuté à l'import — avant tout appel à wespeakerruntime
+# Initialisation au chargement
 _ensure_model()
 
 
-# ---------------------------------------------------------------------------
-# Moteur principal (Exclusif WeSpeaker)
-# ---------------------------------------------------------------------------
-
 class LightDiarizationEngine:
     """
-    Moteur de diarisation optimisé CPU (Xeon) — lib 'diarize' + WeSpeaker ONNX.
-    - Zéro torch
-    - Multi-thread via ONNX Runtime (OMP_NUM_THREADS / MKL_NUM_THREADS)
-    - RTF ~0.1 sur Xeon (INTERSPEECH 2022 / WeSpeaker ICASSP 2023)
+    Moteur de diarisation optimisé CPU (Xeon) — WeSpeaker ONNX.
+    Conçu pour être rapide (RTF ~0.1) et efficace.
     """
 
     def __init__(self):
@@ -92,8 +67,8 @@ class LightDiarizationEngine:
 
     def diarize_file(self, audio_path: str) -> List[Dict[str, Any]]:
         """
-        Exclusive CPU diarization using the 'diarize' library (WeSpeaker ONNX).
-        Zero Torch, high efficiency (RTF ~0.1 on Xeon).
+        Diarisation CPU pure utilisant la bibliothèque 'diarize'.
+        Retourne une liste de dictionnaires {start, end, speaker}.
         """
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"Fichier audio introuvable : {audio_path}")
@@ -112,18 +87,15 @@ class LightDiarizationEngine:
                 for s in result.segments
             ]
             
-            if not segments:
-                logger.warning("[!] Moteur WeSpeaker a renvoyé 0 segments.")
-                return []
-                
-            logger.info("[*] %d segments trouvés par moteur WeSpeaker.", len(segments))
+            logger.info("[*] %d segments trouvés.", len(segments))
             return segments
             
         except Exception as e:
-            logger.error("[!] Échec critique du moteur WeSpeaker : %s", e)
+            logger.error("[!] Échec moteur diarize : %s", e)
             return []
 
     def benchmark(self, audio_path: str) -> Dict[str, Any]:
+        """Mesure de performance (RTF)."""
         start_wall = time.perf_counter()
         info = sf.info(audio_path)
         duration = info.duration
@@ -145,12 +117,30 @@ class LightDiarizationEngine:
             "segments":              segments,
         }
 
-    def diarize(self, audio_float32, hook=None) -> List[Dict[str, Any]]:
+    def diarize(self, audio_float32: np.ndarray, hook=None) -> List[tuple]:
+        """
+        Interface principale pour SotaASR.process_file().
+        IMPORTANT : Doit renvoyer une liste de TUPLES (start, end, speaker).
+        Effectue également la RECONNAISSANCE des locuteurs via SpeakerManager.
+        """
+        from backend.core.speaker_manager import SpeakerManager
+        
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp_path = tmp.name
+        
         try:
+            # Écrire le buffer audio
             sf.write(tmp_path, audio_float32, 16000)
-            return self.diarize_file(tmp_path)
+            
+            # 1. Diarisation
+            raw_segments = self.diarize_file(tmp_path)
+            
+            # 2. Identification (matching avec profils enrôlés)
+            manager = SpeakerManager()
+            identified_segments = manager.identify_speakers_in_segments(tmp_path, raw_segments)
+            
+            # 3. Conversion en TUPLES pour merger.py
+            return [(float(s["start"]), float(s["end"]), str(s["speaker"])) for s in identified_segments]
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
