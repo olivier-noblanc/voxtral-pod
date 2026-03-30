@@ -1,6 +1,6 @@
 """
 Rate limiter et circuit breaker pour l'API Albert.
-Permet de gérer les erreurs 429 et de basculer vers le mode mock
+Permet de gérer les erreurs 429 et de basculer vers le mode cpu
 en cas de dépassement de quota.
 """
 import time
@@ -9,6 +9,7 @@ from typing import Optional
 from collections import deque
 import os
 from threading import Lock
+import threading
 
 # Ensure NNPACK is disabled for rate limiter operations
 os.environ.setdefault("DISABLE_NNPACK", "1")
@@ -25,7 +26,7 @@ class AlbertRateLimiter:
         # Fallback configuration
         self.base_fallback_duration = 900  # 15 minutes (en secondes)
         self.current_fallback_duration = self.base_fallback_duration
-        self._fallback_task: Optional[asyncio.Task] = None
+        self._fallback_task: Optional[object] = None
         
         # État du rate limiter
         self._consecutive_429 = 0
@@ -56,18 +57,18 @@ class AlbertRateLimiter:
             print(f"[*] {self._consecutive_429} 429 consécutifs – bascule vers fallback CPU")
 
             # Planifie le retour au modèle Albert après la durée de fallback actuelle
-            async def _revert():
-                await asyncio.sleep(self.current_fallback_duration)
+            def _revert():
                 backend_state.set_current_model("albert")
                 print(f"[RATELIMITER] Retour au modèle Albert après {self.current_fallback_duration}s")
                 # Réinitialiser le compteur et la durée de fallback
                 self._consecutive_429 = 0
                 self.current_fallback_duration = self.base_fallback_duration
 
-            # Annule toute tâche de revert précédente
-            if self._fallback_task and not self._fallback_task.done():
+            # Annule tout timer de revert précédent
+            if isinstance(self._fallback_task, threading.Timer):
                 self._fallback_task.cancel()
-            self._fallback_task = asyncio.create_task(_revert())
+            self._fallback_task = threading.Timer(self.current_fallback_duration, _revert)
+            self._fallback_task.start()
 
             # Double la durée de fallback pour le prochain basculement (exponential backoff)
             self.current_fallback_duration = min(self.current_fallback_duration * 2, 24 * 3600)  # cap à 24 h
