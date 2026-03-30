@@ -83,7 +83,7 @@ class TranscriptionEngine:
         
         # Tâche 2 : Bascule de secours (Fallback) sur limite de requêtes
         if self.use_albert and not use_local_model and albert_rate_limiter.should_use_cpu_fallback_mode():
-            # Tâche 2 : Bascule silencieuse sur le modèle local
+            # Tâche 2 : Bascule silencieuse sur le modèle local (CPU)
             print(f"[*] Basculage sur modèle local (fallback CPU) en raison du rate limit")
             use_local_model = True
             # Charger le modèle local si nécessaire

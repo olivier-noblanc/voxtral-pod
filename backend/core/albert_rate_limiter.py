@@ -16,8 +16,8 @@ class AlbertRateLimiter:
     
     def __init__(self):
         # Configuration
-        self.max_429_count = 5  # Nombre maximal de 429 consécutifs avant de basculer en mode mock
-        self.reset_timeout = 3600  # Temps de reset en secondes (1 heure)
+        self.max_429_count = 1  # Basculer dès la première 429
+        self.reset_timeout = 900  # Temps de reset en secondes (15 minutes) - comme demandé
         self.min_interval_seconds = 1.0  # Intervalle minimal entre les requêtes
         
         # État du rate limiter
@@ -55,10 +55,10 @@ class AlbertRateLimiter:
                 
         # Vérification du nombre de 429 consécutifs
         if self._consecutive_429 >= self.max_429_count:
-            # Basculer en mode mock pendant un certain temps
-            self._in_mock_mode = True
-            self._mock_mode_until = time.time() + self.reset_timeout
-            return False  # Pas de fallback CPU en mode mock
+            # Au lieu de basculer en mode mock, on bascule directement en mode CPU
+            # Cela permet de fournir un service continu à l'utilisateur
+            print(f"[*] 429 consécutifs détectés ({self._consecutive_429}), basculement vers transcription CPU")
+            return True  # Activer le fallback CPU
             
         return False  # Pas de fallback CPU sauf cas particulier
         
