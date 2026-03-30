@@ -9,9 +9,12 @@ warnings.filterwarnings("ignore", category=UserWarning, module="webrtcvad")
 
 # Attempt to configure PyTorch/NNPACK before any heavy usage
 import importlib.util
+import os
 _torch_spec = importlib.util.find_spec("torch")
 if _torch_spec is not None:
     import torch
+    # Ensure NNPACK is disabled early to prevent warnings
+    os.environ.setdefault("DISABLE_NNPACK", "1")
     if hasattr(torch, "backends") and hasattr(torch.backends, "nnpack"):
         torch.backends.nnpack.enabled = False # type: ignore
 
@@ -190,4 +193,26 @@ class VADManager:
             # Legacy behaviour: require *all* frames to be speech before considering deactivation.
             if not self._check_webrtc(chunk_pcm, all_frames_must_be_true=True):
                 return False
-            return await self.is_speech(chunk_pcm)
+            return await self.is_speech(chunk_pcm)
+
+# Patch for the KaldiRecognizer __del__ issue
+# This addresses the AttributeError: 'KaldiRecognizer' object has no attribute '_handle'
+import vosk
+
+# Store the original __del__ method
+_original_del = getattr(vosk.KaldiRecognizer, '__del__', None)
+
+def patched_kaldi_recognizer_del(self):
+    """Patched __del__ method to prevent AttributeError when _handle doesn't exist."""
+    try:
+        if hasattr(self, '_handle') and self._handle is not None:
+            # Call the original cleanup if _handle exists
+            if _original_del:
+                _original_del(self)
+    except Exception:
+        # Silently ignore any errors during cleanup
+        pass
+
+# Apply the patch
+if _original_del:
+    vosk.KaldiRecognizer.__del__ = patched_kaldi_recognizer_del

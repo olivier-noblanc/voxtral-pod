@@ -4,6 +4,9 @@ import sqlite3
 import numpy as np
 from typing import Optional, Tuple, Dict, List
 
+# Ensure NNPACK is disabled for speaker profiles operations
+os.environ.setdefault("DISABLE_NNPACK", "1")
+
 # ----------------------------------------------------------------------
 # Configuration
 # ----------------------------------------------------------------------

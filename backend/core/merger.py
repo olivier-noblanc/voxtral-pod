@@ -1,3 +1,8 @@
+import os
+
+# Ensure NNPACK is disabled for merger operations
+os.environ.setdefault("DISABLE_NNPACK", "1")
+
 def assign_speakers_to_words(words, diarization_segments):
     """
     Assign a speaker to each word based on diarization segments.

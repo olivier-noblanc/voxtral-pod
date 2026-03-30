@@ -2,6 +2,9 @@ import os
 import subprocess
 import numpy as np
 
+# Ensure NNPACK is disabled for audio operations
+os.environ.setdefault("DISABLE_NNPACK", "1")
+
 def decode_audio(audio_path: str, sample_rate: int = 16000, timeout: int = 900) -> np.ndarray:
     """
     Decode an audio file to a mono ``float32`` NumPy array using ``ffmpeg``.

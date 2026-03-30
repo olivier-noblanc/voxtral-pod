@@ -1,5 +1,8 @@
 import os
 
+# Ensure NNPACK is disabled for assistant operations
+os.environ.setdefault("DISABLE_NNPACK", "1")
+
 class AlbertAssistant:
     def __init__(self):
         self.api_key = os.getenv("ALBERT_API_KEY")

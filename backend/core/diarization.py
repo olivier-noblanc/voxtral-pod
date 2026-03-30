@@ -3,6 +3,10 @@ from backend.config import setup_gpu
 import backend.core.speaker_profiles as speaker_profiles
 from resemblyzer import preprocess_wav, VoiceEncoder
 
+# Ensure NNPACK is disabled for diarization operations
+import os
+os.environ.setdefault("DISABLE_NNPACK", "1")
+
 class DiarizationEngine:
     def __init__(self, model_id="pyannote/speaker-diarization-3.1", hf_token=None, use_cpu=False):
         self.model_id = model_id

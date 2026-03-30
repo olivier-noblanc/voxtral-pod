@@ -25,6 +25,14 @@ MAX_PAYLOAD_MB = 19
 # Nous limitons la durée maximale d’un chunk à 40 minutes (2400 s). Le bitrate est ajusté à 64 kbit/s afin que le MP3 reste < 20 Mo même pour la durée maximale.
 CHUNK_LIMIT_SEC = 2400
 
+# Additional fix for KaldiRecognizer cleanup issue
+import warnings
+import os
+warnings.filterwarnings("ignore", category=ResourceWarning, message="unclosed.*KaldiRecognizer")
+
+# Ensure NNPACK is disabled for transcription operations
+os.environ.setdefault("DISABLE_NNPACK", "1")
+
 class TranscriptionEngine:
     """
     Orchestrateur de transcription multi-moteur.

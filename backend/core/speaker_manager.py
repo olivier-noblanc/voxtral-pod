@@ -6,6 +6,9 @@ import threading
 from typing import Optional, List, Dict, Tuple
 from backend.core.audio import decode_audio
 
+# Ensure NNPACK is disabled for speaker management operations
+os.environ.setdefault("DISABLE_NNPACK", "1")
+
 # Lazy loading of speechbrain
 _encoder = None
 _encoder_lock = threading.Lock()

@@ -20,6 +20,9 @@ import soundfile as sf
 from scipy.cluster.hierarchy import linkage, fcluster
 from scipy.spatial.distance import squareform
 
+# Ensure NNPACK is disabled for diarization CPU operations
+os.environ.setdefault("DISABLE_NNPACK", "1")
+
 logger = logging.getLogger("diarization_cpu")
 
 # ---------------------------------------------------------------------------

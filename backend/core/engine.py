@@ -7,6 +7,9 @@ from backend.config import setup_warnings, get_vram_gb, setup_gpu
 from backend.core.audio import decode_audio
 from backend.core.merger import assign_speakers_to_words, smooth_micro_turns, build_speaker_segments
 
+# Ensure NNPACK is disabled for engine operations
+os.environ.setdefault("DISABLE_NNPACK", "1")
+
 @dataclass
 class TranscriptionResult:
     transcript: str

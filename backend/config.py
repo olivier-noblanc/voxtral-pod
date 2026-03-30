@@ -8,6 +8,13 @@ os.environ["NNPACK_LOG_LEVEL"] = "0"
 
 # Inhibit specific NNPACK warning via Python filter if it reaches here
 warnings.filterwarnings("ignore", message="Could not initialize NNPACK")
+warnings.filterwarnings("ignore", message="NNPACK")
+
+# Additional NNPACK fixes for compatibility issues
+warnings.filterwarnings("ignore", message="NNPACK")
+
+# Suppress PyTorch warnings about NNPACK
+warnings.filterwarnings("ignore", category=UserWarning, message=".*NNPACK.*")
 
 _CPU_THREADS_CONFIGURED = False
 

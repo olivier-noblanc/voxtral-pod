@@ -1,7 +1,12 @@
 import os
+# Silence NNPACK warnings at startup
 os.environ["DISABLE_NNPACK"] = "1"
 os.environ["NNPACK_LOG_LEVEL"] = "0"
 os.environ["OMP_NUM_THREADS"] = "1" # Help prevent initialization noise in some libs
+
+# Ensure NNPACK is disabled early
+os.environ.setdefault("DISABLE_NNPACK", "1")
+os.environ.setdefault("NNPACK_LOG_LEVEL", "0")
 
 import logging
 from backend.config import setup_gpu, setup_warnings
