@@ -79,7 +79,7 @@ def test_live_websocket_session_id_job_registration():
     mock_engine = MagicMock()
     mock_engine.load = MagicMock()
     # Mock return value to be a tuple (words, duration)
-    mock_engine.transcription_engine.transcribe.return_value = ([], 0.0)
+    mock_engine.transcription_engine.transcribe.return_value = ([], 0.0, False)
     
     # Mock process_file to return a valid TranscriptionResult
     from backend.core.engine import TranscriptionResult

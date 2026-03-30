@@ -34,6 +34,10 @@
         <div class="fr-container fr-py-4w">
             <div class="fr-grid-row fr-grid-row--gutters">
                 <div class="fr-col-12">
+                    <div id="albertRateLimitAlert" class="fr-alert fr-alert--info fr-mb-3w" style="display:none;">
+                        <h3 class="fr-alert__title">💡 API Albert en pause (Quota atteint)</h3>
+                        <p>Le système utilise temporairement le moteur local (CPU). Retour automatique à Albert dans <span id="fallbackTimer">--</span>s.</p>
+                    </div>
                     <h1 class="fr-h1">🎙️ Console de Transcription</h1>
                     <div class="fr-highlight fr-mb-3w">
                         <p class="fr-text--sm">

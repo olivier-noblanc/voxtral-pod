@@ -94,9 +94,11 @@ class TranscriptionEngine:
         # Le basculement vers le modèle CPU ne dépend donc pas du rate‑limiter.
         
         # Tâche 2 : Bascule de secours (Fallback) sur limite de requêtes
+        used_fallback = False
         if self.use_albert and not use_local_model and albert_rate_limiter.should_use_cpu_fallback_mode():
             # Tâche 2 : Bascule silencieuse sur le modèle local (CPU)
             print(f"[*] Basculage sur modèle local (fallback CPU) en raison du rate limit")
+            used_fallback = True
             use_local_model = True
             # Charger le modèle local si nécessaire
             if self.model is None:
@@ -106,7 +108,7 @@ class TranscriptionEngine:
             # Utiliser le modèle local (Whisper ou Vosk)
             if self.model_id == "mock":
                 duration = len(audio_np) / 16000
-                return [{"start": 0.0, "end": duration, "word": "[MOCK] Transcription de test mélangée (Micro + Système)"}], duration
+                return [{"start": 0.0, "end": duration, "word": "[MOCK] Transcription de test mélangée (Micro + Système)"}], duration, False
 
             if self.model is None:
                 self.load()
@@ -134,7 +136,7 @@ class TranscriptionEngine:
                     else:
                         all_words.append({"start": s.start, "end": s.end, "word": s.text.strip(), "speaker": "UNKNOWN"})
 
-                return all_words, info.duration
+                return all_words, info.duration, used_fallback
 
             else:
                 # Vosk
@@ -152,17 +154,11 @@ class TranscriptionEngine:
                     for w in res["result"]:
                         all_words.append({"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"})
 
-                return all_words, len(audio_np) / 16000
+                return all_words, len(audio_np) / 16000, used_fallback
         else:
             # Utiliser l'API Albert
-            # Pour Albert, on passe is_partial comme argument supplémentaire si le modèle le supporte
-            try:
-                return self._transcribe_albert(audio_np, language, progress_callback, is_partial=is_partial)
-            except TypeError as e:
-                # Si l'argument is_partial n'est pas supporté, on appelle sans cet argument
-                if "unexpected keyword argument 'is_partial'" in str(e):
-                    return self._transcribe_albert(audio_np, language, progress_callback)
-                raise
+            res_words, res_dur = self._transcribe_albert(audio_np, language, progress_callback)
+            return res_words, res_dur, False
 
     def _find_best_cut(self, audio_np, target_sec, current_t=0):
         """

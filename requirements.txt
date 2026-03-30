@@ -33,8 +33,4 @@ soxr
 boto3
 matplotlib
 scikit-learn
-jinja2
-flask
-wtforms_json
-deprecation
-flask_appbuilder
+jinja2

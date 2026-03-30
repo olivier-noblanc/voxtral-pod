@@ -56,6 +56,26 @@ function updateVolumeBar(data) {
     console.debug('Audio level:', level.toFixed(2) + '%');
 }
 
+async function checkRateLimitStatus() {
+    const alert = document.getElementById('albertRateLimitAlert');
+    const timer = document.getElementById('fallbackTimer');
+    if (!alert || !timer) return;
+
+    try {
+        const res = await fetch('/rate_limiter_status');
+        const data = await res.json();
+        
+        if (data.fallback_active) {
+            alert.style.display = 'block';
+            timer.innerText = data.fallback_remaining_seconds;
+        } else {
+            alert.style.display = 'none';
+        }
+    } catch (e) {
+        // Ignorer silencieusement pour éviter de polluer la console en cas de micro-coupure
+    }
+}
+
 // ========================= GESTION MICRO / SYSTEME =========================
 async function toggleMicrophone() {
     console.log('toggleMicrophone clicked, isRecording:', isRecording);
@@ -400,8 +420,7 @@ const res = await fetch('/transcriptions/?client_id=' + getClientId());
             downloadAudioLink.textContent = 'Audio';
 
             const rttmLink = document.createElement('a');
-            const rttmFilename = audioFilename.replace('.wav', '.rttm');
-            rttmLink.href = '/download_rttm/' + getClientId() + '/' + rttmFilename;
+            rttmLink.href = '/download_rttm/' + getClientId() + '/' + f;
             rttmLink.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w';
             rttmLink.download = true;
             rttmLink.textContent = '💾 RTTM';
@@ -724,6 +743,10 @@ if (modelDisplay && modelSelect) {
 
     // Verifier les mises a jour Git
     checkGitStatus();
+
+    // Verifier le statut du rate limiter Albert
+    checkRateLimitStatus();
+    setInterval(checkRateLimitStatus, 10000);
 
     // Reprendre le suivi d'un batch en cours apres rafraichissement
     const pendingJob = localStorage.getItem('pending_job');
