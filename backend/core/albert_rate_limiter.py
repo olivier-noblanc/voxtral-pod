@@ -22,6 +22,10 @@ class AlbertRateLimiter:
         self.max_429_count = 1  # Basculer dès la première 429
         self.reset_timeout = 900  # Temps de reset en secondes (15 minutes) - comme demandé
         self.min_interval_seconds = 1.0  # Intervalle minimal entre les requêtes
+        # Fallback configuration
+        self.base_fallback_duration = 900  # 15 minutes (en secondes)
+        self.current_fallback_duration = self.base_fallback_duration
+        self._fallback_task: Optional[asyncio.Task] = None
         
         # État du rate limiter
         self._consecutive_429 = 0
@@ -40,30 +44,37 @@ class AlbertRateLimiter:
         self._lock = Lock()
         
     def should_use_cpu_fallback_mode(self) -> bool:
-        """Détermine si on doit utiliser le fallback CPU (en raison du rate limit)."""
-        # Si pas de clé API, on utilise toujours le mode mock (pas de fallback CPU)
+        """Détermine si on doit activer le fallback CPU après dépassement du quota."""
+        # Pas de clé API valide → on ne bascule jamais (on reste en mode mock pour les tests)
         if not self._has_valid_api_key:
             return False
-            
-        # Si on est en mode mock, vérifier si on peut revenir en mode normal
-        if self._in_mock_mode and self._mock_mode_until:
-            if time.time() < self._mock_mode_until:
-                return False  # Pas de fallback CPU en mode mock
-            else:
-                # Temps écoulé, on sort du mode mock
-                self._in_mock_mode = False
-                self._mock_mode_until = None
-                self._consecutive_429 = 0
-                return False
-                
-        # Vérification du nombre de 429 consécutifs
+
+        # Si le nombre de 429 consécutifs dépasse la limite, on active le fallback CPU
         if self._consecutive_429 >= self.max_429_count:
-            # Au lieu de basculer en mode mock, on bascule directement en mode CPU
-            # Cela permet de fournir un service continu à l'utilisateur
-            print(f"[*] 429 consécutifs détectés ({self._consecutive_429}), basculement vers transcription CPU")
-            return True  # Activer le fallback CPU
-            
-        return False  # Pas de fallback CPU sauf cas particulier
+            from backend import state as backend_state
+            backend_state.set_current_model("cpu")
+            print(f"[*] {self._consecutive_429} 429 consécutifs – bascule vers fallback CPU")
+
+            # Planifie le retour au modèle Albert après la durée de fallback actuelle
+            async def _revert():
+                await asyncio.sleep(self.current_fallback_duration)
+                backend_state.set_current_model("albert")
+                print(f"[RATELIMITER] Retour au modèle Albert après {self.current_fallback_duration}s")
+                # Réinitialiser le compteur et la durée de fallback
+                self._consecutive_429 = 0
+                self.current_fallback_duration = self.base_fallback_duration
+
+            # Annule toute tâche de revert précédente
+            if self._fallback_task and not self._fallback_task.done():
+                self._fallback_task.cancel()
+            self._fallback_task = asyncio.create_task(_revert())
+
+            # Double la durée de fallback pour le prochain basculement (exponential backoff)
+            self.current_fallback_duration = min(self.current_fallback_duration * 2, 24 * 3600)  # cap à 24 h
+
+            return True
+
+        return False
         
     def can_make_request(self) -> bool:
         """Vérifie si on peut faire une nouvelle requête selon le rate limit."""
@@ -91,7 +102,8 @@ class AlbertRateLimiter:
                 # Réinitialiser le compteur de 429 si ce n'est pas un 429
                 if status_code != 429 and self._consecutive_429 > 0:
                     self._consecutive_429 = 0
-                    print(f"[RATELIMITER] Réinitialisation du compteur 429.")
+                    self.current_fallback_duration = self.base_fallback_duration
+                    print(f"[RATELIMITER] Réinitialisation du compteur 429 et remise à zéro du fallback.")
                     
     def get_retry_delay(self, attempt: int) -> float:
         """Calcule le délai de retry exponentiel."""

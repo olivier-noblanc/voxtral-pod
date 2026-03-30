@@ -88,6 +88,10 @@ class TranscriptionEngine:
             use_local_model = True
         else:
             use_local_model = not self.use_albert or self.model_id == "mock"
+
+        # NOTE : les transcriptions partielles sont toujours réalisées en local (CPU)
+        # Elles ne passent jamais par l'API Albert, même si le fallback est actif.
+        # Le basculement vers le modèle CPU ne dépend donc pas du rate‑limiter.
         
         # Tâche 2 : Bascule de secours (Fallback) sur limite de requêtes
         if self.use_albert and not use_local_model and albert_rate_limiter.should_use_cpu_fallback_mode():
