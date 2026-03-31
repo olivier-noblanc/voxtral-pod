@@ -1,5 +1,6 @@
 import asyncio
 import os
+import shutil
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -69,7 +70,8 @@ def clean_old_files(days: int) -> int:
                 try:
                     if not os.listdir(dirpath):
                         os.rmdir(dirpath)
-                except Exception:
+                except Exception:  # noqa: S110
+                    # Ignore errors when directory is not empty or cannot be removed
                     pass
 
     return deleted_count
@@ -79,11 +81,18 @@ def _compress_single_file(filepath: str) -> bool:
     try:
         mp3_path = os.path.splitext(filepath)[0] + ".mp3"
         if not os.path.exists(mp3_path):
+            ffmpeg_path = shutil.which("ffmpeg")
+            if not ffmpeg_path:
+                print("[!] ffmpeg non trouvé dans le PATH")
+                return False
+
             # Using -threads 0 to allow ffmpeg to use all available CPU cores for a single file compression
-            result = subprocess.run(
-                ["ffmpeg", "-y", "-threads", "0", "-i", filepath, "-b:a", "64k", mp3_path],
+            # nosec: ffmpeg is a trusted system command for audio processing
+            result = subprocess.run(  # noqa: S603
+                [ffmpeg_path, "-y", "-threads", "0", "-i", filepath, "-b:a", "64k", mp3_path],
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stderr=subprocess.DEVNULL,
+                check=False
             )
             if result.returncode == 0 and os.path.exists(mp3_path):
                 os.remove(filepath)
@@ -99,7 +108,7 @@ def compress_old_wavs(days: float = 0.1) -> int:
     Compress .wav files older than 'days' (default 0.1 day = 2.4 hours)
     to .mp3 in parallel using multi-CPU threads.
     """
-    compressed_count = 0
+    # compressed_count is calculated at the end
     now = time.time()
     cutoff = now - (days * 86400)
 
@@ -120,7 +129,8 @@ def compress_old_wavs(days: float = 0.1) -> int:
                     try:
                         if os.path.getmtime(filepath) < cutoff:
                             files_to_compress.append(filepath)
-                    except Exception:
+                    except Exception:  # noqa: S110
+                        # Ignore stat errors on individual files
                         pass
 
     if not files_to_compress:
@@ -132,9 +142,7 @@ def compress_old_wavs(days: float = 0.1) -> int:
     max_workers = 2
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         results = list(executor.map(_compress_single_file, files_to_compress))
-        compressed_count = sum(1 for r in results if r)
-
-    return compressed_count
+    return sum(1 for r in results if r)
 
 def run_cleanup(days: int = CLEANUP_RETENTION_DAYS) -> dict[str, int]:
     """Exécute les nettoyages base de données et fichiers, retourne les statistiques."""
@@ -153,7 +161,10 @@ def run_cleanup(days: int = CLEANUP_RETENTION_DAYS) -> dict[str, int]:
     # 4. Suppression des vieux fichiers (archives > days)
     files_deleted = clean_old_files(days)
     
-    print(f"[*] Nettoyage terminé: {jobs_deleted} jobs supprimés, {files_deleted} fichiers supprimés, {compressed_files} fichiers WAV compressés en MP3.")
+    print(
+        f"[*] Nettoyage terminé: {jobs_deleted} jobs supprimés, "
+        f"{files_deleted} fichiers supprimés, {compressed_files} fichiers WAV compressés en MP3."
+    )
     return {"jobs_deleted": jobs_deleted, "files_deleted": files_deleted, "compressed_files": compressed_files}
 
 async def periodic_cleanup_task(days: int) -> None:

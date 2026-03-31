@@ -47,7 +47,7 @@ def get_encoder() -> Any:
         except Exception as e:
             logging.error(f"[!] Failed to load SpeechBrain model: {e}")
             # Keep _encoder as None, but _encoder_tried is True to prevent retries
-            pass
+            pass  # noqa: S110
 
     return _encoder
 
@@ -67,7 +67,9 @@ class SpeakerManager:
             try:
                 with open(self.db_path, "r", encoding="utf-8") as f:
                     self.signatures = json.load(f)
-                logging.info(f"[*] Loaded {len(self.signatures)} speaker signatures from {self.db_path}")
+                logging.info(
+                    f"[*] Loaded {len(self.signatures)} speaker signatures from {self.db_path}"
+                )
             except Exception as e:
                 logging.error(f"[!] Failed to load speaker signatures: {e}")
                 self.signatures = {}
@@ -171,7 +173,11 @@ class SpeakerManager:
             logging.error(f"[!] Identification failed: {e}")
             return "Unknown", 0.0
 
-    def identify_speakers_in_segments(self, audio_path: str, segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def identify_speakers_in_segments(
+        self,
+        audio_path: str,
+        segments: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         Takes a list of segments [{start, end}] and identifies the speaker for each.
         """

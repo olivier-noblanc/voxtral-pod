@@ -23,7 +23,8 @@ _ALBERT_MODEL_IDS = frozenset({"albert"})
 # Limite de taille du payload (en Mo) – on vise < 20 Mo
 MAX_PAYLOAD_MB = 19
 # Chunk limit disabled – aucune contrainte de durée fixe ; la segmentation s’appuie sur la taille du payload
-# Nous limitons la durée maximale d’un chunk à 40 minutes (2400 s). Le bitrate est ajusté à 64 kbit/s afin que le MP3 reste < 20 Mo même pour la durée maximale.
+# Nous limitons la durée maximale d’un chunk à 40 minutes (2400 s). 
+# Le bitrate est ajusté à 64 kbit/s afin que le MP3 reste < 20 Mo même pour la durée maximale.
 CHUNK_LIMIT_SEC = 2400
 
 # Additional fix for KaldiRecognizer cleanup issue
@@ -101,7 +102,11 @@ class TranscriptionEngine:
         
         # Tâche 2 : Bascule de secours (Fallback) sur limite de requêtes
         used_fallback = False
-        if self.use_albert and not use_local_model and albert_rate_limiter.should_use_cpu_fallback_mode():
+        if (
+            self.use_albert and 
+            not use_local_model and 
+            albert_rate_limiter.should_use_cpu_fallback_mode()
+        ):
             # Task 2: Silent switch to local model (CPU)
             print("[*] Switching to local model (CPU fallback) due to rate limit")
             used_fallback = True
@@ -114,7 +119,8 @@ class TranscriptionEngine:
             # Utiliser le modèle local (Whisper ou Vosk)
             if self.model_id == "mock":
                 duration = len(audio_np) / 16000
-                return [{"start": 0.0, "end": duration, "word": "[MOCK] Transcription de test mélangée (Micro + Système)"}], duration, False
+                msg = "[MOCK] Transcription de test mélangée (Micro + Système)"
+                return [{"start": 0.0, "end": duration, "word": msg}], duration, False
 
             if self.model is None:
                 self.load()
@@ -138,9 +144,19 @@ class TranscriptionEngine:
 
                     if hasattr(s, "words") and s.words:
                         for w in s.words:
-                            all_words.append({"start": w.start, "end": w.end, "word": w.word, "speaker": "UNKNOWN"})
+                            all_words.append({
+                                "start": w.start,
+                                "end": w.end,
+                                "word": w.word,
+                                "speaker": "UNKNOWN"
+                            })
                     else:
-                        all_words.append({"start": s.start, "end": s.end, "word": s.text.strip(), "speaker": "UNKNOWN"})
+                        all_words.append({
+                            "start": s.start,
+                            "end": s.end,
+                            "word": s.text.strip(),
+                            "speaker": "UNKNOWN"
+                        })
 
                 return all_words, info.duration, used_fallback
 
@@ -158,11 +174,18 @@ class TranscriptionEngine:
             all_words = []
             if "result" in res:
                 for w in res["result"]:
-                    all_words.append({"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"})
+                    all_words.append({
+                        "start": w["start"],
+                        "end": w["end"],
+                        "word": w["word"],
+                        "speaker": "UNKNOWN"
+                    })
 
             return all_words, len(audio_np) / 16000, used_fallback
         # Utiliser l'API Albert
-        res_words, res_dur = self._transcribe_albert(audio_np, language, progress_callback)
+        res_words, res_dur = self._transcribe_albert(
+            audio_np, language, progress_callback
+        )
         return res_words, res_dur, False
 
     def _find_best_cut(self, audio_np: np.ndarray, target_sec: float, current_t: float = 0) -> float:
@@ -250,7 +273,9 @@ class TranscriptionEngine:
                 prog_base = 45 + int((idx / len(tranches)) * 40)
                 progress_callback(f"Albert ({idx+1}/{len(tranches)})", prog_base)
 
-            chunk_audio = audio_np[int(start_time*16000) : int((start_time+duration)*16000)]
+            chunk_audio = audio_np[
+                int(start_time * 16000): int((start_time + duration) * 16000)
+            ]
             
             # 1. Compression (fallback to MP3) – utilise ffmpeg via ffmpeg‑python
             import ffmpeg
@@ -296,7 +321,13 @@ class TranscriptionEngine:
                     
                     buffer.seek(0)
                     print(f"[*] Tentative {attempt+1}/3 - Envoi en cours...")
-                    response = requests.post(f"{self.albert_base_url}/audio/transcriptions", headers=headers, files=files, data=data, timeout=1800)
+                    response = requests.post(
+                        f"{self.albert_base_url}/audio/transcriptions",
+                        headers=headers,
+                        files=files,
+                        data=data,
+                        timeout=1800
+                    )
                     print(f"[*] Réponse reçue en {time.time() - start_req:.2f}s (Statut: {response.status_code})")
                     
                     # Enregistrer la requête avant de traiter la réponse
@@ -307,7 +338,9 @@ class TranscriptionEngine:
                     if response.status_code == 200:
                         break
                     if response.status_code == 429:
-                        retry_after = int(response.headers.get("Retry-After", 2 ** (attempt + 1)))
+                        retry_after = int(
+                            response.headers.get("Retry-After", 2 ** (attempt + 1))
+                        )
                         print(f"[!] Rate limit (429). Attente {retry_after}s avant retry...")
                         time.sleep(retry_after)
                         response = None  # ← reset pour forcer la détection d'échec
@@ -334,7 +367,12 @@ class TranscriptionEngine:
             chunk_words = []
             if result.get("words"):
                 chunk_words = [
-                    {"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"}
+                    {
+                        "start": w["start"],
+                        "end": w["end"],
+                        "word": w["word"],
+                        "speaker": "UNKNOWN"
+                    }
                     for w in result["words"]
                 ]
                 print(f"[*] Tranche {idx+1}: {len(chunk_words)} mots récupérés (format: words).")
@@ -343,7 +381,12 @@ class TranscriptionEngine:
                 for s in segments:
                     if s.get("words"):
                         for w in s["words"]: 
-                            chunk_words.append({"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"})
+                            chunk_words.append({
+                                "start": w["start"],
+                                "end": w["end"],
+                                "word": w["word"],
+                                "speaker": "UNKNOWN"
+                            })
                     else:
                         chunk_words.append({
                             "start": s.get("start", 0.0), 
@@ -351,14 +394,28 @@ class TranscriptionEngine:
                             "word": s.get("text", "").strip(),
                             "speaker": "UNKNOWN"
                         })
-                print(f"[*] Tranche {idx+1}: {len(segments)} segments ({len(chunk_words)} mots) récupérés (format: segments).")
+                print(
+                    f"[*] Tranche {idx+1}: {len(segments)} segments "
+                    f"({len(chunk_words)} mots) récupérés (format: segments)."
+                )
             elif result.get("text"):
-                chunk_words.append({"start": 0.0, "end": duration, "word": result["text"].strip(), "speaker": "UNKNOWN"})
-                print(f"[*] Tranche {idx+1}: Texte brut récupéré ({len(result['text'])} caractères).")
+                chunk_words.append({
+                    "start": 0.0,
+                    "end": duration,
+                    "word": result["text"].strip(),
+                    "speaker": "UNKNOWN"
+                })
+                print(
+                    f"[*] Tranche {idx+1}: Texte brut récupéré "
+                    f"({len(result['text'])} caractères)."
+                )
 
             # 5. Décalage des timestamps
             if chunk_words:
-                print(f"[*] Tranche {idx+1}: Recalage temporel de {len(chunk_words)} éléments (+{start_time:.2f}s)...")
+                print(
+                    f"[*] Tranche {idx+1}: Recalage temporel de "
+                    f"{len(chunk_words)} éléments (+{start_time:.2f}s)..."
+                )
             for w in chunk_words:
                 all_final_words.append({
                     "start": w["start"] + start_time, 

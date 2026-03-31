@@ -63,10 +63,16 @@ async def _call_albert(prompt: str) -> str:
                 if not hasattr(response, "json") or not callable(response.json):
                     data = response.json if hasattr(response, "json") else {}
                 else:
-                    raise RuntimeError(f"Unable to parse JSON from Albert API response: {e}. Raw content: {response.text[:200]}")
+                    msg = (
+                        f"Unable to parse JSON from Albert API response: {e}. "
+                        f"Raw content: {response.text[:200]}"
+                    )
+                    raise RuntimeError(msg)
             
             if not isinstance(data, dict):
-                 raise RuntimeError(f"Albert API returned invalid format: expected dict, got {type(data)}")
+                 raise RuntimeError(
+                     f"Albert API returned invalid format: expected dict, got {type(data)}"
+                 )
 
             choices = data.get("choices")
             if not choices or not isinstance(choices, list) or len(choices) == 0:
@@ -84,7 +90,7 @@ async def _call_albert(prompt: str) -> str:
                 logger.error(f"Albert API message exists but has no content. Full data: {data}")
                 return ""
             
-            return content
+            return str(content)
         except requests.exceptions.HTTPError:
             if attempt == 2:
                 status_code = response.status_code if response is not None else "N/A"

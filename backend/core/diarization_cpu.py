@@ -7,6 +7,7 @@ Intègre SpeakerManager pour l'identification automatique des locuteurs.
 import logging
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import time
@@ -77,7 +78,11 @@ def _download_with_r_proxy(url: str, dest_path: Path, proxy_settings: dict[str, 
             cmd.extend(extra_args)
         
         logger.info(f"[*] Exécution de la commande curl : {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        curl_path = shutil.which("curl")
+        if curl_path:
+            cmd[0] = curl_path
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)  # noqa: S603
         if result.returncode != 0:
             raise Exception(f"curl failed: {result.stderr}")
     except subprocess.CalledProcessError as e:
@@ -100,11 +105,11 @@ def _download_with_urllib_windows(url: str, dest_path: Path) -> None:
         opener.addheaders = [('User-agent', 'Mozilla/5.0')]
         urllib.request.install_opener(opener)
         
-        urllib.request.urlretrieve(url, str(dest_path))
+        urllib.request.urlretrieve(url, str(dest_path))  # noqa: S310
     except Exception as e:
         # Si tout échoue, essayer sans proxy
         logger.warning(f"[*] Tentative de téléchargement sans proxy: {e}")
-        urllib.request.urlretrieve(url, str(dest_path))
+        urllib.request.urlretrieve(url, str(dest_path))  # noqa: S310
 
 
 def _ensure_model() -> None:
@@ -124,7 +129,7 @@ def _ensure_model() -> None:
             _download_with_r_proxy(_HF_MIRROR_URL, tmp_path, proxy_settings)
         else:
             # Fallback à la méthode originale
-            urllib.request.urlretrieve(_HF_MIRROR_URL, tmp_path)
+            urllib.request.urlretrieve(_HF_MIRROR_URL, tmp_path)  # noqa: S310
         tmp_path.rename(_MODEL_PATH)
         logger.info("[*] Modèle WeSpeaker prêt.")
     except Exception as e:
@@ -224,7 +229,10 @@ class LightDiarizationEngine:
             identified_segments = manager.identify_speakers_in_segments(tmp_path, raw_segments)
             
             # 3. Conversion en TUPLES pour merger.py
-            return [(float(s["start"]), float(s["end"]), str(s["speaker"])) for s in identified_segments]
+            return [
+                (float(s["start"]), float(s["end"]), str(s["speaker"]))
+                for s in identified_segments
+            ]
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)

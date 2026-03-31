@@ -4,8 +4,10 @@ Vérifie que le parsing regex fonctionne correctement sur le format
 [0.10s -> 1.20s] [SPEAKER_00] texte... sans corrompre les données.
 """
 import os
+from typing import Any, List, Tuple
 
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
 os.environ["TESTING"] = "1"
@@ -18,7 +20,7 @@ _CLIENT_ID = "user_testsg"
 
 
 @pytest.fixture(autouse=True)
-def _transcript_file(tmp_path, monkeypatch):
+def _transcript_file(tmp_path: Any, monkeypatch: MonkeyPatch) -> Any:
     """
     Crée un fichier de transcription temporaire dans un répertoire isolé
     et redirige TRANSCRIPTIONS_DIR vers ce répertoire.
@@ -40,7 +42,7 @@ def _transcript_file(tmp_path, monkeypatch):
     return transcript
 
 
-def test_segment_update_preserves_timestamp(_transcript_file):
+def test_segment_update_preserves_timestamp(_transcript_file: Any) -> None:
     """Le speaker doit être modifié sans toucher au timestamp ni au texte."""
     resp = client.post("/segment_update", json={
         "client_id": _CLIENT_ID,
@@ -66,12 +68,15 @@ def test_segment_update_preserves_timestamp(_transcript_file):
     # La ligne 2 ne doit pas être touchée
     assert "[SPEAKER_01]" in lines[1], f"Ligne 2 corrompue: {lines[1]}"
 
-def test_segment_update_triggers_profile_extraction(_transcript_file, monkeypatch):
+def test_segment_update_triggers_profile_extraction(
+    _transcript_file: Any,
+    monkeypatch: MonkeyPatch
+) -> None:
     """Vérifier que modifier un speaker déclenche bien l'extraction de l'empreinte biométrique en tâche de fond."""
     import backend.routes.speakers as speakers_module
     
-    called_args = []
-    def dummy_extract_and_save(*args, **kwargs):
+    called_args: List[Tuple[Any, Any]] = []
+    def dummy_extract_and_save(*args: Any, **kwargs: Any) -> None:
         called_args.append((args, kwargs))
         
     monkeypatch.setattr(speakers_module, "_extract_and_save_profile_sync", dummy_extract_and_save)
@@ -93,7 +98,7 @@ def test_segment_update_triggers_profile_extraction(_transcript_file, monkeypatc
     assert "live_user_testsg_20260101_000000.wav" in args[0], "Le chemin audio généré est incorrect"
 
 
-def test_segment_update_second_line(_transcript_file):
+def test_segment_update_second_line(_transcript_file: Any) -> None:
     """La modification d'une ligne différente de la première doit aussi fonctionner."""
     resp = client.post("/segment_update", json={
         "client_id": _CLIENT_ID,
@@ -113,7 +118,7 @@ def test_segment_update_second_line(_transcript_file):
     assert "[SPEAKER_00]" in lines[0]
 
 
-def test_segment_update_out_of_range(_transcript_file):
+def test_segment_update_out_of_range(_transcript_file: Any) -> None:
     """Un segment_index hors limites doit lever 400."""
     resp = client.post("/segment_update", json={
         "client_id": _CLIENT_ID,
@@ -124,7 +129,7 @@ def test_segment_update_out_of_range(_transcript_file):
     assert resp.status_code == 400
 
 
-def test_segment_update_missing_client(_transcript_file):
+def test_segment_update_missing_client(_transcript_file: Any) -> None:
     """Un payload incomplet doit lever 400."""
     resp = client.post("/segment_update", json={
         "filename": "live_20260101_000000.txt",
@@ -134,7 +139,7 @@ def test_segment_update_missing_client(_transcript_file):
     assert resp.status_code == 400
 
 
-def test_segment_update_file_not_found():
+def test_segment_update_file_not_found() -> None:
     """Un fichier inexistant doit lever 404."""
     resp = client.post("/segment_update", json={
         "client_id": _CLIENT_ID,

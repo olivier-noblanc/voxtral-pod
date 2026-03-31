@@ -22,7 +22,7 @@ def get_db() -> sqlite3.Connection:
     try:
         conn.execute("PRAGMA journal_mode=WAL;")
     except sqlite3.Error:
-        pass  # Fallback si WAL n'est pas supporté
+        pass  # noqa: S110 - Fallback si WAL n'est pas supporté
     return conn
 
 def cleanup_stuck_jobs() -> None:
@@ -49,8 +49,9 @@ def cleanup_stuck_jobs() -> None:
                             (json.dumps(data, ensure_ascii=False), row['job_id'])
                         )
                 except Exception as e:
+                    job_id = row.get('job_id', 'unknown')
                     logger.error(
-                        f"Error processing job {row.get('job_id', 'unknown')} during stuck cleanup: {e}"
+                        f"Error processing job {job_id} during stuck cleanup: {e}"
                     )
             conn.commit()
     except Exception as e:

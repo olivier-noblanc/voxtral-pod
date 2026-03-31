@@ -11,7 +11,12 @@ from backend.config import setup_gpu
 os.environ.setdefault("DISABLE_NNPACK", "1")
 
 class DiarizationEngine:
-    def __init__(self, model_id: str = "pyannote/speaker-diarization-3.1", hf_token: str | None = None, use_cpu: bool = False) -> None:
+    def __init__(
+        self,
+        model_id: str = "pyannote/speaker-diarization-3.1",
+        hf_token: str | None = None,
+        use_cpu: bool = False
+    ) -> None:
         self.model_id = model_id
         self.hf_token = hf_token
         self.pipeline = None

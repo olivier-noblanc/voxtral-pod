@@ -215,9 +215,12 @@ class AlbertRateLimiter:
                     self._quota_limit = info_data["quota"]
 
             self._last_quota_update = time.time()
-            logger.info(f"[RATELIMITER] Quota Albert (ASR): {self._quota_asr_usage}/{self._quota_limit} (Total: {self._quota_usage})")
+            logger.info(
+                f"[RATELIMITER] Quota Albert (ASR): {self._quota_asr_usage}/{self._quota_limit} "
+                f"(Total: {self._quota_usage})"
+            )
             
-        except Exception:
+        except Exception:  # noqa: S110
             # Silent fail for quota update to avoid breaking main flow
             pass
 

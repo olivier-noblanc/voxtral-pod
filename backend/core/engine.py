@@ -32,7 +32,9 @@ class TranscriptionResult:
             duration = s["end"] - start
             speaker = s["speaker"]
             # Formatting as required by RTTM spec
-            lines.append(f"SPEAKER {file_id} 1 {start:.3f} {duration:.3f} <NA> <NA> {speaker} <NA> <NA>")
+            lines.append(
+                f"SPEAKER {file_id} 1 {start:.3f} {duration:.3f} <NA> <NA> {speaker} <NA> <NA>"
+            )
         return "\n".join(lines)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -112,7 +114,11 @@ class SotaASR:
             print(f"[!] Diarization engine load failed: {e}")
             # Fallback to a no‑op engine that returns empty segments.
             class _NoOpEngine:
-                def diarize(self, audio_float32: np.ndarray, hook: Any = None) -> list[tuple[float, float, str]]:
+                def diarize(
+                    self,
+                    audio_float32: np.ndarray,
+                    hook: Any = None
+                ) -> list[tuple[float, float, str]]:
                     return []
                 def load(self) -> None:
                     pass
@@ -149,7 +155,7 @@ class SotaASR:
                         try:
                             item = v.item() # type: ignore
                             return float(item)
-                        except Exception:
+                        except Exception:  # noqa: S110
                             pass
                     if isinstance(v, (list, np.ndarray)):
                         if len(v) > 0:
@@ -174,7 +180,7 @@ class SotaASR:
                     progress_callback(f"Diarisation : {display_step}", 5 + sub_pct)
                 else:
                     progress_callback(f"Diarisation : {display_step}...", 5)
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
 
         # 3. Diarize + Transcribe (parallel pour Albert, séquentiel sinon)
@@ -184,7 +190,10 @@ class SotaASR:
             mock_segments = [
                 {"start": 0.0, "end": 1.0, "speaker": "SPEAKER_00", "text": " ".join([w['word'] for w in words])}
             ]
-            transcript = "\n".join([f"[{s['start']:.2f}s -> {s['end']:.2f}s] [{s['speaker']}] {s['text']}" for s in mock_segments])
+            transcript = "\n".join([
+                f"[{s['start']:.2f}s -> {s['end']:.2f}s] [{s['speaker']}] {s['text']}"
+                for s in mock_segments
+            ])
             return TranscriptionResult(transcript=transcript, segments=mock_segments)
         
         parallel = (self.model_id == "albert")
@@ -200,7 +209,9 @@ class SotaASR:
                 diar_segments = cast(list[tuple[float, float, str]], diar_segments_raw)
                 words, _, used_fallback = cast(tuple[List[Dict[str, Any]], float, bool], trans_result)
             else:
-                words, _, used_fallback = await asyncio.to_thread(self.transcription_engine.transcribe, audio_np, progress_callback=None)
+                words, _, used_fallback = await asyncio.to_thread(
+                    self.transcription_engine.transcribe, audio_np, progress_callback=None
+                )
                 diar_segments = []  # type: ignore[var-annotated]
             if progress_callback:
                 progress_callback("Fusion des résultats...", 80)
@@ -220,7 +231,10 @@ class SotaASR:
             )
 
         # 4. Merge
-        print(f"[*] Post-traitement: Alignement de {len(words)} mots avec {len(diar_segments)} segments de locuteurs...")
+        print(
+            f"[*] Post-traitement: Alignement de {len(words)} mots avec "
+            f"{len(diar_segments)} segments de locuteurs..."
+        )
         words_with_speakers = assign_speakers_to_words(words, diar_segments)
         
         print("[*] Post-traitement: Lissage des micro-tours de parole...")

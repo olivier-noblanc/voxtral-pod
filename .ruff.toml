@@ -1,3 +1,8 @@
-line-length = 88
-select = ["E", "F", "I", "R", "S"]  # erreurs, flake8, imports, ruff, stylistic
+line-length = 120
+
+[lint]
+select = ["E", "F", "I", "R", "S"]
 exclude = ["tests/conftest.py"]
+
+[lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]

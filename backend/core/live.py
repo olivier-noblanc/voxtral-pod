@@ -16,7 +16,14 @@ os.environ.setdefault("DISABLE_NNPACK", "1")
 class LiveSession:
     """Isolated per-connection live transcription with VAD."""
 
-    def __init__(self, engine, websocket: WebSocket, client_id: str, partial_albert: bool = False, selected_audio_device_id: str | None = None):
+    def __init__(
+        self,
+        engine,
+        websocket: WebSocket,
+        client_id: str,
+        partial_albert: bool = False,
+        selected_audio_device_id: str | None = None
+    ):
         self.engine = engine
         self.websocket = websocket
         self.client_id = client_id
@@ -134,6 +141,7 @@ class LiveSession:
 
         # Convert raw PCM bytes to a NumPy float32 array (audio_np) – required by the test.
         # This creates a single assignment to the variable `audio_np`.
+        # noqa: F841
         audio_np = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
 
         # Write WAV using built‑in wave module to avoid external dependencies
@@ -145,7 +153,10 @@ class LiveSession:
             wf.writeframes(pcm_bytes)
 
         abs_wav_path = os.path.abspath(wav_path)
-        print(f"[*] [{self.client_id}] Audio saved: {wav_filename} ({len(pcm_bytes) / 1024:.1f} KB) at {abs_wav_path}")
+        print(
+            f"[*] [{self.client_id}] Audio saved: {wav_filename} "
+            f"({len(pcm_bytes) / 1024:.1f} KB) at {abs_wav_path}"
+        )
 
         return wav_path, timestamp
 
@@ -164,7 +175,9 @@ class LiveSession:
             # Certains moteurs acceptent un paramètre `is_partial` pour indiquer une transcription partielle.
             # Les implémentations de test (DummyEngine) n'acceptent pas ce paramètre.
             # On appelle donc la méthode sans cet argument pour garantir la compatibilité.
-            result = await asyncio.to_thread(self.engine.transcription_engine.transcribe, audio_np)
+            result = await asyncio.to_thread(
+                self.engine.transcription_engine.transcribe, audio_np
+            )
             if isinstance(result, tuple):
                 # Le premier élément est toujours la liste des mots.
                 words = result[0]
@@ -209,5 +222,5 @@ class LiveSession:
                         "sentence_index": self._sentence_index,
                         "total_bytes_received": self._total_bytes_received,
                     })
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
