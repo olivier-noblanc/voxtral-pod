@@ -1,12 +1,12 @@
 from __future__ import annotations
 import os
 import pathlib
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse
 from backend.config import TRANSCRIPTIONS_DIR
 from backend.utils import format_transcription
-from backend.routes.utils import _safe_join, _validate_client_id, markdown, templates
+from backend.routes.utils import _safe_join, markdown, templates
 
 router = APIRouter()
 

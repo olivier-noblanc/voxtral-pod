@@ -4,11 +4,11 @@ import shutil
 import datetime
 import logging
 import json
-from typing import Any, Dict, Optional
+from typing import Dict
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from backend.config import TEMP_DIR, TRANSCRIPTIONS_DIR
-from backend.state import add_job, get_asr_engine, update_job
+from backend.state import add_job, get_asr_engine
 from backend.routes.utils import _safe_join, _validate_client_id, _update_job_status
 import asyncio
 
