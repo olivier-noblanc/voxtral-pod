@@ -44,3 +44,5 @@ speaker_signatures.json
 hf_cache/
 *.mp3
 *.wav
+ancien.txt
+debug_home_page.py
