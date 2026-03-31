@@ -78,19 +78,10 @@ class AlbertRateLimiter:
                 self._fallback_active = True
                 self._fallback_until = time.time() + self.current_fallback_duration
 
-                def _revert():
-                    backend_state.set_current_model("albert")
-                    print(f"[RATELIMITER] Retour au modèle Albert après {self.current_fallback_duration}s")
-                    # Réinitialiser le compteur et la durée de fallback
-                    self._consecutive_429 = 0
-                    self.current_fallback_duration = self.base_fallback_duration
-                    self._fallback_active = False
-                    self._fallback_until = 0.0
-
                 # Annule tout timer de revert précédent
                 if isinstance(self._fallback_task, threading.Timer):
                     self._fallback_task.cancel()
-                self._fallback_task = threading.Timer(self.current_fallback_duration, _revert)
+                self._fallback_task = threading.Timer(self.current_fallback_duration, self._revert)
                 self._fallback_task.start()
 
                 # Double la durée de fallback pour le prochain basculement (exponential backoff)
@@ -98,6 +89,17 @@ class AlbertRateLimiter:
             return True
 
         return False
+        
+    def _revert(self):
+        """Fonction de revert pour revenir au modèle Albert après le fallback."""
+        from backend import state as backend_state
+        backend_state.set_current_model("albert")
+        print(f"[RATELIMITER] Retour au modèle Albert après {self.current_fallback_duration}s")
+        # Réinitialiser le compteur et la durée de fallback
+        self._consecutive_429 = 0
+        self.current_fallback_duration = self.base_fallback_duration
+        self._fallback_active = False
+        self._fallback_until = 0.0
         
     def can_make_request(self) -> bool:
         """Vérifie si on peut faire une nouvelle requête selon le rate limit."""
