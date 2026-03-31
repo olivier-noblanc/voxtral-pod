@@ -7,7 +7,7 @@ import logging
 from typing import Optional
 from fastapi import HTTPException, Request
 from fastapi.templating import Jinja2Templates
-from backend.config import BASE_DIR, TRANSCRIPTIONS_DIR
+from backend.config import BASE_DIR
 from backend.state import update_job
 
 logger = logging.getLogger(__name__)
