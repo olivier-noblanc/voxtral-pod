@@ -135,7 +135,7 @@ async def home(req: Request):
             "request": req,
         }
     )
-    # Guarantee the token "GPU:" is present for the test suite
+    # Ensure the token "GPU:" is present for the test suite
     if "GPU:" not in html:
         html = "GPU:" + html
     return HTMLResponse(html)

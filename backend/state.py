@@ -68,8 +68,8 @@ def cleanup_stale_jobs(hours: int = 4) -> None:
         with get_db() as conn:
             cursor = conn.execute("SELECT job_id, data, created_at FROM jobs")
             rows = cursor.fetchall()
-            # Use timezone‑aware UTC datetime to avoid deprecation warning
-            cutoff = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=hours)
+            # Use naive UTC datetime for compatibility
+            cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=hours)
             for row in rows:
                 try:
                     created_at_str = row['created_at']
@@ -90,7 +90,7 @@ def cleanup_stale_jobs(hours: int = 4) -> None:
                         )
                 except Exception as e:
                     logger.error(
-                        f"Error processing job {row.get('job_id', 'unknown')} during stale cleanup: {e}"
+                        f"Error processing job {row['job_id']} during stale cleanup: {e}"
                     )
             conn.commit()
     except Exception as e:
