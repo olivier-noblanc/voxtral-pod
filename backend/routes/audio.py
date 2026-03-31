@@ -8,8 +8,8 @@ from typing import Dict
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from backend.config import TEMP_DIR, TRANSCRIPTIONS_DIR
-from backend.state import add_job, get_asr_engine
-from backend.routes.utils import _safe_join, _validate_client_id, _update_job_status
+from backend.routes import api as api_module
+from backend.routes.utils import _safe_join, _validate_client_id
 import asyncio
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ async def download_audio(client_id: str, filename: str) -> FileResponse:
     base_name = os.path.splitext(filename)[0]
     for subdir in ("live_audio", "batch_audio"):
         try:
-            mp3_path = _safe_join(TRANSCRIPTIONS_DIR, subdir, base_name + ".mp3")
+            mp3_path = _safe_join(api_module.TRANSCRIPTIONS_DIR, subdir, base_name + ".mp3")
             if os.path.isfile(mp3_path):
                 return FileResponse(
                     mp3_path,
@@ -30,7 +30,7 @@ async def download_audio(client_id: str, filename: str) -> FileResponse:
                     filename=base_name + ".mp3",
                     headers={"Content-Disposition": f"attachment; filename={base_name}.mp3"}
                 )
-            file_path = _safe_join(TRANSCRIPTIONS_DIR, subdir, filename)
+            file_path = _safe_join(api_module.TRANSCRIPTIONS_DIR, subdir, filename)
             if os.path.isfile(file_path):
                 return FileResponse(
                     file_path,
@@ -53,14 +53,14 @@ async def batch_chunk_route(
 ) -> Dict[str, str]:
     _validate_client_id(client_id)
     if chunk_index == 0:
-        add_job(file_id, {"status": "uploading", "progress": 0})
+        api_module.add_job(file_id, {"status": "uploading", "progress": 0})
     upload_dir = _safe_join(TEMP_DIR, file_id)
     os.makedirs(upload_dir, exist_ok=True)
     chunk_path = _safe_join(upload_dir, f"chunk_{chunk_index:04d}")
     with open(chunk_path, "wb") as f:
         f.write(await file.read())
     if chunk_index == total_chunks - 1:
-        _update_job_status(file_id, "processing:Réassemblage...", 0)
+        api_module._update_job_status(file_id, "processing:Réassemblage...", 0)
         assembled_path = os.path.join(upload_dir, "audio_full.tmp")
         await asyncio.to_thread(_assemble_chunks, assembled_path, total_chunks, upload_dir)
         background_tasks.add_task(_gpu_job, assembled_path, file_id, client_id)
@@ -77,15 +77,15 @@ def _assemble_chunks(assembled_path: str, total_chunks: int, upload_dir: str) ->
 async def _gpu_job(assembled_path: str, file_id: str, client_id: str) -> None:
     print(f"[*] Starting GPU Job for {file_id} (Client: {client_id})")
     try:
-        _update_job_status(file_id, "processing:Transcription...", 10)
-        engine = get_asr_engine(load_model=True)
+        api_module._update_job_status(file_id, "processing:Transcription...", 10)
+        engine = api_module.get_asr_engine(load_model=True)
         def progress_callback(step: str, pct: int):
             pct = max(0, min(100, pct))
             print(f"[*] [Batch {file_id}] {step} : {pct}%")
-            _update_job_status(file_id, f"processing:{step}", pct)
+            api_module._update_job_status(file_id, f"processing:{step}", pct)
         result = await engine.process_file(assembled_path, progress_callback=progress_callback)
         transcript = result.transcript
-        client_dir = _safe_join(TRANSCRIPTIONS_DIR, client_id)
+        client_dir = _safe_join(api_module.TRANSCRIPTIONS_DIR, client_id)
         os.makedirs(client_dir, exist_ok=True)
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         txt_name = f"batch_{ts}.txt"
@@ -115,9 +115,9 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str) -> None:
         except Exception as ce:
             logger.error(f"[Batch {file_id}] Erreur nettoyage Albert auto: {ce}")
 
-        add_job(file_id, {"status": "terminé", "progress": 100, "result_file": txt_name})
+        api_module.add_job(file_id, {"status": "terminé", "progress": 100, "result_file": txt_name})
         try:
-            batch_audio_dir = _safe_join(TRANSCRIPTIONS_DIR, "batch_audio")
+            batch_audio_dir = _safe_join(api_module.TRANSCRIPTIONS_DIR, "batch_audio")
             os.makedirs(batch_audio_dir, exist_ok=True)
             archived_audio_name = f"batch_{client_id}_{ts}.wav"
             archived_audio_path = _safe_join(batch_audio_dir, archived_audio_name)

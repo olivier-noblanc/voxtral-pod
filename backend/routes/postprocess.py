@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
-from backend.config import TRANSCRIPTIONS_DIR
+from backend.routes import api as api_module
 from backend.routes.utils import _safe_join, _validate_client_id, markdown, templates
 
 logger = logging.getLogger(__name__)
@@ -25,9 +25,9 @@ def _render_postprocess_page(request: Request, title: str, content: str, filenam
 @router.post("/summary/{filename}")
 async def generate_summary(filename: str, client_id: str) -> Dict[str, Any]:
     _validate_client_id(client_id)
-    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
+    file_path = _safe_join(api_module.TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
-        raise HTTPException(status_code=404, detail="Transcription introuvable.")
+        raise HTTPException(status_code=404, detail=f"Transcription introuvable : {file_path}")
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
     from backend.core.postprocess import summarize_text
@@ -40,9 +40,9 @@ async def generate_summary(filename: str, client_id: str) -> Dict[str, Any]:
 @router.post("/actions/{filename}")
 async def generate_actions(filename: str, client_id: str) -> Dict[str, Any]:
     _validate_client_id(client_id)
-    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
+    file_path = _safe_join(api_module.TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
-        raise HTTPException(status_code=404, detail="Transcription introuvable.")
+        raise HTTPException(status_code=404, detail=f"Transcription introuvable : {file_path}")
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
     from backend.core.postprocess import extract_actions_text
@@ -56,9 +56,9 @@ async def generate_actions(filename: str, client_id: str) -> Dict[str, Any]:
 @router.post("/cleanup/{filename}")
 async def generate_cleanup(filename: str, client_id: str) -> Dict[str, Any]:
     _validate_client_id(client_id)
-    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
+    file_path = _safe_join(api_module.TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
-        raise HTTPException(status_code=404, detail="Transcription introuvable.")
+        raise HTTPException(status_code=404, detail=f"Transcription introuvable : {file_path}")
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
     from backend.core.postprocess import clean_text
@@ -71,9 +71,9 @@ async def generate_cleanup(filename: str, client_id: str) -> Dict[str, Any]:
 @router.get("/view_summary/{client_id}/{filename}")
 async def view_summary(client_id: str, filename: str, req: Request) -> Response:
     _validate_client_id(client_id)
-    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
+    file_path = _safe_join(api_module.TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
-        raise HTTPException(status_code=404, detail="Transcription introuvable.")
+        raise HTTPException(status_code=404, detail=f"Transcription introuvable : {file_path}")
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
     from backend.core.postprocess import summarize_text
@@ -86,9 +86,9 @@ async def view_summary(client_id: str, filename: str, req: Request) -> Response:
 @router.get("/view_actions/{client_id}/{filename}")
 async def view_actions(client_id: str, filename: str, req: Request) -> Response:
     _validate_client_id(client_id)
-    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
+    file_path = _safe_join(api_module.TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
-        raise HTTPException(status_code=404, detail="Transcription introuvable.")
+        raise HTTPException(status_code=404, detail=f"Transcription introuvable : {file_path}")
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
     from backend.core.postprocess import extract_actions_text
@@ -102,9 +102,9 @@ async def view_actions(client_id: str, filename: str, req: Request) -> Response:
 @router.get("/view_cleanup/{client_id}/{filename}")
 async def view_cleanup(client_id: str, filename: str, req: Request) -> Response:
     _validate_client_id(client_id)
-    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
+    file_path = _safe_join(api_module.TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
-        raise HTTPException(status_code=404, detail="Transcription introuvable.")
+        raise HTTPException(status_code=404, detail=f"Transcription introuvable : {file_path}")
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
     from backend.core.postprocess import clean_text

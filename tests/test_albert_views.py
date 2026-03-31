@@ -22,8 +22,11 @@ def mock_postprocess():
 def setup_data():
     temp_dir = tempfile.mkdtemp()
     from backend.routes import api as api_module
+    from backend import config as config_module
     old_dir = api_module.TRANSCRIPTIONS_DIR
     api_module.TRANSCRIPTIONS_DIR = temp_dir
+    # Also update the config constant used elsewhere
+    config_module.TRANSCRIPTIONS_DIR = temp_dir
     
     client_id = "user_test123"
     client_dir = os.path.join(temp_dir, client_id)
@@ -36,6 +39,7 @@ def setup_data():
     
     shutil.rmtree(temp_dir)
     api_module.TRANSCRIPTIONS_DIR = old_dir
+    config_module.TRANSCRIPTIONS_DIR = old_dir
 
 def test_view_summary_route(setup_data, mock_postprocess):
     data = setup_data
