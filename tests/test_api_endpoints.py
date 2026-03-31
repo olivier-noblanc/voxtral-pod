@@ -84,7 +84,7 @@ def test_live_websocket_session_id_job_registration() -> None:
     res = TranscriptionResult(transcript="", segments=[])
     mock_engine.process_file = AsyncMock(return_value=res)
 
-    with patch("backend.routes.api.get_asr_engine", return_value=mock_engine):
+    with patch("backend.routes.live.get_asr_engine", return_value=mock_engine):
         with client.websocket_connect("/live?client_id=user_testws&session_id=live_test_999") as websocket:
             websocket.send_bytes(dummy_audio)
             # Ensure the server has received bytes and the VAD has started
