@@ -8,7 +8,6 @@ const CHUNK_SIZE = 4 * 1024 * 1024;
 // Counter to uniquely identify each transcript segment (used for drag‑and‑drop)
 let segmentCounter = 0;
 let audioDeviceCount;
-fetch("/speaker_profiles");
 
 
 
@@ -61,18 +60,18 @@ async function checkRateLimitStatus() {
     const timer = document.getElementById('fallbackTimer');
     const quotaBadge = document.getElementById('albertQuotaBadge');
     const modelSelector = document.getElementById('modelSelector');
-    
+
     if (!alert || !timer || !quotaBadge || !modelSelector) return;
 
     try {
         const res = await fetch('/rate_limiter_status');
         const data = await res.json();
-        
+
         // Affichage du quota uniquement si le modèle Albert est sélectionné
         if (modelSelector.value === 'albert') {
             quotaBadge.style.display = 'inline-flex';
             quotaBadge.innerText = `Quota ASR Albert : ${data.quota_asr_usage} / ${data.quota_limit}`;
-            
+
             // Changer la couleur selon l'usage ASR
             const ratio = data.quota_asr_usage / data.quota_limit;
             if (ratio > 0.9) {
@@ -128,14 +127,14 @@ async function startRecording() {
     const barCont = document.getElementById('audioBarCont');
     try {
         if (captureType === "system") {
-            audioStream = await navigator.mediaDevices.getDisplayMedia({ video:true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+            audioStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
         } else if (captureType === "meeting") {
             // Mixed mode: capture both mic and system
             const micConstraints = { audio: selectedAudioDeviceId === "default" ? true : { deviceId: { exact: selectedAudioDeviceId } } };
             const micStream = await navigator.mediaDevices.getUserMedia(micConstraints);
 
-            const sysStream = await navigator.mediaDevices.getDisplayMedia({ video:true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-            
+            const sysStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+
             // Combine tracks into a single stream for easier cleanup, 
             // but we'll create separate sources for mixing in AudioContext.
             audioStream = new MediaStream([...micStream.getTracks(), ...sysStream.getTracks()]);
@@ -174,7 +173,7 @@ async function startRecording() {
         // Use default sample rate to match the MediaStream source
         audioContext = new AudioContext();
         console.log('AudioContext created with sampleRate', audioContext.sampleRate);
-        
+
         await audioContext.audioWorklet.addModule('data:text/javascript;base64,' + btoa(workletCode));
         console.log('AudioWorklet module added');
         processor = new AudioWorkletNode(audioContext, 'audio-processor');
@@ -207,8 +206,7 @@ async function startRecording() {
             for (let i = 0; i < downsampled.length; i++) {
                 pcm[i] = Math.max(-1, Math.min(1, downsampled[i])) * 0x7FFF;
             }
-            if (ws.readyState === 1)
-            {
+            if (ws.readyState === 1) {
                 ws.send(pcm.buffer);
             }
             //console.log('PCM data sent (downsampled by factor', factor, ')');
@@ -334,7 +332,7 @@ function stopRecording() {
     // La sauvegarde finale se fait de manière asynchrone côté serveur
     // via 'save_audio_file' lors de la déconnexion de la websocket.
     if (ws) { ws.close(); ws = null; }
-    
+
     // Ajout d'un indicateur visuel de l'effort de repasse en cours
     const box = document.getElementById('liveTranscript');
     if (box && isRecording && box.innerText.trim() !== "" && !box.innerText.includes("Repasse finale de l'IA en cours")) {
@@ -357,11 +355,11 @@ function stopRecording() {
         setTimeout(loadHistory, 15000);
     }
     if (audioContext) { audioContext.close(); audioContext = null; }
-    if (audioStream) { 
-        audioStream.getTracks().forEach(track => track.stop()); 
+    if (audioStream) {
+        audioStream.getTracks().forEach(track => track.stop());
         if (audioStream._micStream) audioStream._micStream.getTracks().forEach(t => t.stop());
         if (audioStream._sysStream) audioStream._sysStream.getTracks().forEach(t => t.stop());
-        audioStream = null; 
+        audioStream = null;
     }
     processor = null;
     source = null;
@@ -385,7 +383,7 @@ function stopRecording() {
 async function loadHistory() {
     const list = document.getElementById('transcriptionList');
     try {
-const res = await fetch('/transcriptions/?client_id=' + getClientId());
+        const res = await fetch('/transcriptions/?client_id=' + getClientId());
         const files = await res.json();
         list.innerHTML = "";
         if (files.length === 0) {
@@ -393,7 +391,7 @@ const res = await fetch('/transcriptions/?client_id=' + getClientId());
             return;
         }
 
-        files.forEach(function(item) {
+        files.forEach(function (item) {
             const f = item.name;
             const hasCleanup = item.has_cleanup;
             const isBatch = f.startsWith('batch_');
@@ -432,7 +430,7 @@ const res = await fetch('/transcriptions/?client_id=' + getClientId());
             deleteBtn.dataset.filename = f;
             deleteBtn.style.color = '#c00';
             deleteBtn.innerHTML = '&#x2716;';
-            deleteBtn.onclick = function() { deleteTranscription(this); };
+            deleteBtn.onclick = function () { deleteTranscription(this); };
 
             const downloadAudioLink = document.createElement('a');
             downloadAudioLink.href = downloadUrl;
@@ -450,7 +448,7 @@ const res = await fetch('/transcriptions/?client_id=' + getClientId());
             diarBtn.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w';
             diarBtn.dataset.filename = f;
             diarBtn.textContent = '🔍 Diarisation';
-            diarBtn.onclick = function() {
+            diarBtn.onclick = function () {
                 const clientId = getClientId();
                 const filename = this.getAttribute('data-filename');
                 window.open("/view_diarization/" + clientId + "/" + encodeURIComponent(filename), "_blank");
@@ -462,13 +460,13 @@ const res = await fetch('/transcriptions/?client_id=' + getClientId());
                 summaryBtn.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w';
                 summaryBtn.dataset.filename = f;
                 summaryBtn.textContent = '📄 Compte Rendu (Albert)';
-                summaryBtn.onclick = function() { generateSummary(this); };
+                summaryBtn.onclick = function () { generateSummary(this); };
 
                 actionsBtn = document.createElement('button');
                 actionsBtn.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w';
                 actionsBtn.dataset.filename = f;
                 actionsBtn.textContent = '📝 Actions (Albert)';
-                actionsBtn.onclick = function() { generateActions(this); };
+                actionsBtn.onclick = function () { generateActions(this); };
             }
 
             cardDiv.appendChild(title);
@@ -495,7 +493,7 @@ async function deleteTranscription(btn) {
     const filename = btn.getAttribute('data-filename');
     const clientId = getClientId();
     if (!confirm('Confirmer la suppression de ' + filename + ' ?')) return;
-const res = await fetch('/transcriptions/' + encodeURIComponent(filename) + '?client_id=' + clientId, { method: 'DELETE' });
+    const res = await fetch('/transcriptions/' + encodeURIComponent(filename) + '?client_id=' + clientId, { method: 'DELETE' });
     if (res.ok) {
         loadHistory();
     } else {
@@ -522,12 +520,12 @@ window.generateActions = generateActions;
 
 
 
- // ========================= CONFIGURATION MODELE =========================
- function changeModel(e) {
-     const model = e.target.value;
-     if (!model) return;
-     // Appelle l'API sans authentification forte
-     fetch('/change_model?model=' + encodeURIComponent(model), { method: 'POST' })
+// ========================= CONFIGURATION MODELE =========================
+function changeModel(e) {
+    const model = e.target.value;
+    if (!model) return;
+    // Appelle l'API sans authentification forte
+    fetch('/change_model?model=' + encodeURIComponent(model), { method: 'POST' })
         .then(res => {
             if (!res.ok) alert("Erreur ou accès refusé lors du changement de modèle");
             else {
@@ -536,7 +534,7 @@ window.generateActions = generateActions;
             }
         })
         .catch(err => console.error(err));
- }
+}
 
 
 
@@ -600,7 +598,7 @@ async function uploadFile() {
     document.getElementById('uploadProgressContainer').style.display = 'block';
     const statusElem = document.getElementById('batchStatus');
     for (let i = 0; i < total; i++) {
-        if (statusElem) statusElem.innerText = `⏳ Téléchargement morceau ${i+1}/${total}...`;
+        if (statusElem) statusElem.innerText = `⏳ Téléchargement morceau ${i + 1}/${total}...`;
         const formData = new FormData();
         formData.append("file_id", id);
         formData.append("client_id", getClientId());
@@ -686,7 +684,7 @@ async function checkGitStatus() {
                 const updResp = await fetch('/git_update', { method: 'POST' });
                 const updData = await updResp.json();
                 alert('Résultat de la mise à jour :\n' + (updData.stdout || "Succès."));
-                
+
                 // Afficher un message de redémarrage
                 const statusElem = document.getElementById('batchStatus');
                 if (statusElem) {
@@ -694,7 +692,7 @@ async function checkGitStatus() {
                     document.getElementById('uploadProgressContainer').style.display = 'block';
                     document.getElementById('uploadProgressFill').style.width = '100%';
                 }
-                
+
                 // Attendre que le serveur redémarre (environ 10s)
                 setTimeout(() => {
                     location.reload();
@@ -718,96 +716,93 @@ window.onload = () => {
     const elUpload = document.getElementById('uploadBtn');
     if (elUpload) elUpload.addEventListener('click', handleBatchAction);
 
-        const elToggleSpeaker = document.getElementById('toggleSpeakerEditorBtn');
-        if (elToggleSpeaker) elToggleSpeaker.addEventListener('click', toggleSpeakerEditor);
+    const elToggleSpeaker = document.getElementById('toggleSpeakerEditorBtn');
+    if (elToggleSpeaker) elToggleSpeaker.addEventListener('click', toggleSpeakerEditor);
 
     const elModelSelector = document.getElementById('modelSelector');
     if (elModelSelector) elModelSelector.addEventListener('change', changeModel);
 
-        // Add event listener for audio device selection
-        const elAudioDeviceSelect = document.getElementById('audioDeviceSelect');
-        if (elAudioDeviceSelect) {
-            elAudioDeviceSelect.addEventListener('change', (e) => {
-                selectedAudioDeviceId = e.target.value;
-                console.log('Selected audio device:', selectedAudioDeviceId);
-            });
-        }
-
-        // Load available audio devices when page loads
-loadAudioDevices();
-// ---------- Notification de fallback CPU ----------
-(function() {
-    // Crée un conteneur de notification s'il n'existe pas
-    let fallbackDiv = document.getElementById('fallbackNotice');
-    if (!fallbackDiv) {
-        fallbackDiv = document.createElement('div');
-        fallbackDiv.id = 'fallbackNotice';
-        fallbackDiv.style.position = 'fixed';
-        fallbackDiv.style.top = '0';
-        fallbackDiv.style.left = '0';
-        fallbackDiv.style.right = '0';
-        fallbackDiv.style.backgroundColor = '#ffcc00';
-        fallbackDiv.style.color = '#000';
-        fallbackDiv.style.padding = '0.5rem';
-        fallbackDiv.style.textAlign = 'center';
-        fallbackDiv.style.fontWeight = 'bold';
-        fallbackDiv.style.zIndex = '1000';
-        fallbackDiv.style.display = 'none';
-        document.body.appendChild(fallbackDiv);
+    // Add event listener for audio device selection
+    const elAudioDeviceSelect = document.getElementById('audioDeviceSelect');
+    if (elAudioDeviceSelect) {
+        elAudioDeviceSelect.addEventListener('change', (e) => {
+            selectedAudioDeviceId = e.target.value;
+            console.log('Selected audio device:', selectedAudioDeviceId);
+        });
     }
 
-    // Fonction de vérification du statut du rate limiter
-    async function checkFallbackStatus() {
-        try {
-            const resp = await fetch('/rate_limiter_status');
-            if (!resp.ok) return;
-            const data = await resp.json();
-            if (data.fallback_active) {
-                const secs = data.fallback_remaining_seconds;
-                fallbackDiv.textContent = `⚠️ Le serveur est en mode de secours CPU pendant ${secs} seconde${secs !== 1 ? 's' : ''} suite à un dépassement de quota.`;
-                fallbackDiv.style.display = 'block';
-            } else {
-                fallbackDiv.style.display = 'none';
+    // Load available audio devices when page loads
+    loadAudioDevices();
+    // ---------- Notification de fallback CPU ----------
+    (function () {
+        // Crée un conteneur de notification s'il n'existe pas
+        let fallbackDiv = document.getElementById('fallbackNotice');
+        if (!fallbackDiv) {
+            fallbackDiv = document.createElement('div');
+            fallbackDiv.id = 'fallbackNotice';
+            fallbackDiv.style.position = 'fixed';
+            fallbackDiv.style.top = '0';
+            fallbackDiv.style.left = '0';
+            fallbackDiv.style.right = '0';
+            fallbackDiv.style.backgroundColor = '#ffcc00';
+            fallbackDiv.style.color = '#000';
+            fallbackDiv.style.padding = '0.5rem';
+            fallbackDiv.style.textAlign = 'center';
+            fallbackDiv.style.fontWeight = 'bold';
+            fallbackDiv.style.zIndex = '1000';
+            fallbackDiv.style.display = 'none';
+            document.body.appendChild(fallbackDiv);
+        }
+
+        // Fonction de vérification du statut du rate limiter
+        async function checkFallbackStatus() {
+            try {
+                const resp = await fetch('/rate_limiter_status');
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (data.fallback_active) {
+                    const secs = data.fallback_remaining_seconds;
+                    fallbackDiv.textContent = `⚠️ Le serveur est en mode de secours CPU pendant ${secs} seconde${secs !== 1 ? 's' : ''} suite à un dépassement de quota.`;
+                    fallbackDiv.style.display = 'block';
+                } else {
+                    fallbackDiv.style.display = 'none';
+                }
+            } catch (e) {
+                console.warn('Erreur lors de la récupération du statut du rate limiter :', e);
             }
-        } catch (e) {
-            console.warn('Erreur lors de la récupération du statut du rate limiter :', e);
         }
-    }
 
-    // Vérifie immédiatement puis toutes les 5 s
-    checkFallbackStatus();
-    setInterval(checkFallbackStatus, 5000);
-})();
+        // Vérifie immédiatement puis toutes les 5 s
+        checkFallbackStatus();
+        setInterval(checkFallbackStatus, 5000);
+    })();
 
-    // Explicit fetch to ensure the speaker_profiles route is exercised in tests
-    fetch("/speaker_profiles");
-    // Ensure the speaker profiles endpoint is referenced to satisfy contract tests
-    fetch("/speaker_profiles").catch(() => {});
 
-        // Chargement initial des donnees
-        loadHistory();
+
+    // Chargement initial des donnees
+    loadHistory();
 
 
     // Initialiser le sélecteur avec le modèle actuel envoyé par le serveur
-const modelDisplay = document.getElementById('currentModelDisplay');
-const modelSelect = document.getElementById('modelSelector');
-if (modelDisplay && modelSelect) {
-    const currentModel = modelDisplay.textContent.trim().toLowerCase();
-    // Si le modèle actuel est connu, on le sélectionne.
-    if (['whisper', 'voxtral', 'albert', 'mock'].includes(currentModel)) {
-        if (!modelSelect.disabled) {
-            modelSelect.value = currentModel;
-        }
-    } else {
-        // Cas CPU‑only : aucune option GPU disponible, on force Albert.
-        if (!modelSelect.disabled && modelSelect.options.length === 1) {
-            const onlyOption = modelSelect.options[0].value;
-            if (onlyOption === 'albert') {
-                modelSelect.value = 'albert';
+    const modelDisplay = document.getElementById('currentModelDisplay');
+    const modelSelect = document.getElementById('modelSelector');
+    if (modelDisplay && modelSelect) {
+        const currentModel = modelDisplay.textContent.trim().toLowerCase();
+        // Si le modèle actuel est connu, on le sélectionne.
+        if (['whisper', 'voxtral', 'albert', 'mock'].includes(currentModel)) {
+            if (!modelSelect.disabled) {
+                modelSelect.value = currentModel;
+            }
+        } else {
+            // Cas CPU‑only : aucune option GPU disponible, on force Albert.
+            if (!modelSelect.disabled && modelSelect.options.length === 1) {
+                const onlyOption = modelSelect.options[0].value;
+                if (onlyOption === 'albert') {
+                    modelSelect.value = 'albert';
+                }
             }
         }
     }
-}
 
     // Verifier les mises a jour Git
     checkGitStatus();
@@ -892,7 +887,7 @@ async function loadAudioDevices() {
         // Enumerate audio input devices
         const devices = await navigator.mediaDevices.enumerateDevices();
         const audioDevices = devices.filter(device => device.kind === 'audioinput');
-        
+
         const selectElement = document.getElementById('audioDeviceSelect');
         if (!selectElement) {
             console.warn('Audio device select element not found');
@@ -901,7 +896,7 @@ async function loadAudioDevices() {
 
         // Clear existing options (keep the default option)
         selectElement.innerHTML = '<option value="default">Système par défaut</option>';
-        
+
         // Add audio devices to the select dropdown
         audioDevices.forEach(device => {
             const option = document.createElement('option');
@@ -910,9 +905,9 @@ async function loadAudioDevices() {
             selectElement.appendChild(option);
         });
 
-console.log(`Loaded ${audioDevices.length} audio input devices`);
-audioDeviceCount = audioDevices.length;
-console.log('Audio device count:', audioDeviceCount);
+        console.log(`Loaded ${audioDevices.length} audio input devices`);
+        audioDeviceCount = audioDevices.length;
+        console.log('Audio device count:', audioDeviceCount);
     } catch (error) {
         console.error('Error loading audio devices:', error);
         // Even if we fail, keep the default option
@@ -922,29 +917,3 @@ console.log('Audio device count:', audioDeviceCount);
         }
     }
 };
-
-/* Dummy fetch calls to ensure all backend routes are referenced in the frontend.
-   These calls are no-ops and are only used for test coverage of route contracts.
-   They are placed in an explicitly dead code block to never execute. */
-if (window.__TEST__) {
-    fetch("/batch_chunk");
-    fetch("/change_model");
-    fetch("/download_audio/{client_id}/{filename}");
-    fetch("/download_transcript/{client_id}/{filename}");
-    fetch("/git_status");
-    fetch("/git_update");
-    fetch("/live");
-    fetch("/status/{file_id}");
-    fetch("/actions/{filename}");
-    fetch("/cleanup/{filename}");
-    fetch("/summary/{filename}");
-    fetch("/cleanup");
-    fetch("/transcription/{filename}");
-    fetch("/transcriptions");
-    fetch("/transcriptions/{filename}");
-    fetch("/view/{client_id}/{filename}");
-    fetch("/view_actions/{client_id}/{filename}");
-    fetch("/view_cleanup/{client_id}/{filename}");
-    fetch("/view_summary/{client_id}/{filename}");
-    fetch("/");
-}

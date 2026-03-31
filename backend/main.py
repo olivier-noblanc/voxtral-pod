@@ -49,19 +49,22 @@ if not os.path.isdir(static_path):
 app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 # Include routers
-app.include_router(api_module.router, prefix="/api")
 app.include_router(api_module.router)
+
 
 # Minimal SSR middleware for HTML response if needed (optional)
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next: Any) -> Any:
     import time
+
     start_time = time.time()
     response = await call_next(request)
     process_time = time.time() - start_time
     response.headers["X-Process-Time"] = str(process_time)
     return response
 
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)
