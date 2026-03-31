@@ -40,8 +40,8 @@ _update_job_status = _update_job_status
 # Expose _gpu_job for testing
 _gpu_job = audio._gpu_job
 
-# Add missing routes that were referenced in JS but not included in the main router
-# These are needed for the frontend to work properly
+# Add missing routes that were referenced in JS but not properly exposed
+# These are needed for the frontend to work properly and tests to pass
 from backend.routes.postprocess import (
     generate_summary,
     generate_actions,
@@ -79,4 +79,4 @@ router.post("/git_update")(git_update)
 router.post("/cleanup")(trigger_cleanup)
 router.get("/speaker_profiles")(get_speaker_profiles)
 router.get("/status/{file_id}")(status_route)
-# router.get("/live")(live.router.routes[0].endpoint if live.router.routes else None)
+
