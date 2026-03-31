@@ -2,77 +2,133 @@
 <html lang="fr" data-fr-scheme="dark">
 <head>
     <meta charset="UTF-8">
-    <title>Voxtral – Transcription Audio</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Voxtral Pod — SOTA ASR</title>
     <link rel="stylesheet" href="/static/dsfr.min.css">
     <link rel="stylesheet" href="/static/custom.css">
-    <script src="/static/view.js" defer></script>
-    <script src="/static/app.js" defer></script>
 </head>
-<body>
-    <header>
-        <h1>Voxtral</h1>
-        <div id="currentModelDisplay">Modèle actuel : {{ model_name }} ({{ device }})</div>
-        <span id="modelLabel">Modèle:</span>
-        <span id="modelLabelBroken">Modle:</span>
-        <div id="gpuStatus">GPU: {{ device }}</div>
-        <div id="commit">Commit : {{ commit }}</div>
+<body data-commit="{{commit}}">
+    <header role="banner" class="fr-header">
+        <div class="fr-header__body">
+            <div class="fr-container">
+                <div class="fr-header__body-row">
+                    <div class="fr-header__brand">
+                        <div class="fr-header__brand-top">
+                            <div class="fr-header__logo">
+                                <p class="fr-logo">République<br>Française</p>
+                            </div>
+                        </div>
+                        <div class="fr-header__service">
+                            <a href="/" title="Accueil - Voxtral Pod">
+                                <p class="fr-header__service-title">Voxtral Pod</p>
+                            </a>
+                            <p class="fr-header__service-tagline">Service de Transcription Automatique</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </header>
 
-    <section id="controls">
-        <button id="recordBtn">Enregistrement</button>
-        <button id="systemBtn">Système</button>
-        <button id="meetingBtn">Réunion</button>
-        <input type="file" id="audioFile" accept="audio/*">
-        <button id="uploadBtn">Uploader</button>
+    <main role="main" id="content">
+        <div class="fr-container fr-py-4w">
+            <div class="fr-grid-row fr-grid-row--gutters">
+                <div class="fr-col-12">
+                    <h1 class="fr-h1">🎙️ Console de Transcription</h1>
+                    <div class="fr-highlight fr-mb-3w">
+                        <p class="fr-text--sm">
+                            GPU: <span class="fr-badge fr-badge--info fr-badge--no-icon">{{device}}</span> |
+                            Modèle: <span class="fr-badge fr-badge--success fr-badge--no-icon" id="currentModelDisplay">{{model_name}}</span>
+                        </p>
+                    </div>
 
-        <label for="modelSelector">Modèle :</label>
-        <select id="modelSelector" name="model">
-            {{ model_options | safe }}
-        </select>
+                    <div class="fr-select-group">
+                        <label class="fr-label" for="modelSelector">Modèle ASR</label>
+                        <select class="fr-select" id="modelSelector">
+{{model_options | safe}}
+                        </select>
+                        <p id="cpuWarning" class="fr-hint-text fr-mt-1w" style="display:none; color:#ce0500;">
+                            ⚠️ Aucun GPU détecté — Albert API forcé automatiquement
+                        </p>
+                    </div>
 
-        <select id="audioDeviceSelect"></select>
-        <button id="toggleSpeakerEditorBtn">Éditer locuteurs</button>
-    </section>
+                    <div id="albertOptions" class="fr-mt-2w" style="display:none;">
+                        <div class="fr-checkbox-group">
+                            <input type="checkbox" id="albertPartial" checked>
+                            <label class="fr-label" for="albertPartial">
+                                Transcriptions partielles (Albert)
+                                <span class="fr-hint-text">Note : Cela augmente la consommation de jetons API.</span>
+                            </label>
+                        </div>
+                    </div>
 
-    <section id="liveTranscript">
-        <h2>Transcription en direct</h2>
-        <div id="audioBarCont">
-            <div id="audioBar"></div>
+                    <div class="fr-mt-2w">
+                        <div class="fr-select-group">
+                            <label class="fr-label" for="audioDeviceSelect">Appareil audio</label>
+                            <select class="fr-select" id="audioDeviceSelect">
+                                <option value="default">Système par défaut</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="fr-col-12 fr-col-md-7">
+                    <section class="fr-pt-2w">
+                        <h2 class="fr-h4">Direct</h2>
+                        <div class="fr-btns-group fr-btns-group--inline-md fr-btns-group--sm fr-my-2w">
+                            <button id="recordBtn" class="fr-btn">🎤 Micro</button>
+                            <button id="systemBtn" class="fr-btn fr-btn--secondary">💻 Système</button>
+                            <button id="meetingBtn" class="fr-btn fr-btn--secondary">👥 Réunion</button>
+                        </div>
+                        <div class="audio-bar-container" id="audioBarCont"><div id="audioBar"></div></div>
+                        <div class="live-box" id="liveTranscript">En attente de flux audio...</div>
+                    </section>
+                </div>
+
+                <div class="fr-col-12 fr-col-md-5">
+                    <section class="fr-pt-2w">
+                        <h2 class="fr-h4">Fichiers (Batch)</h2>
+                        <div class="fr-upséi-group">
+                            <input class="fr-upload" type="file" id="audioFile" accept="audio/*,video/*">
+                        </div>
+                        <button id="uploadBtn" class="fr-btn fr-mt-2w">Transcrire</button>
+                        <div id="batchStatus" class="fr-text--bold fr-mt-1w"></div>
+                        <div class="fr-progress-bar fr-mt-1w" id="uploadProgressContainer" style="display:none;" role="progressbar">
+                            <div class="fr-progress-bar__bar"><div class="fr-progress-bar__fill" id="uploadProgressFill" style="width: 0%"></div></div>
+                        </div>
+                        <div id="batchResult" class="live-box fr-mt-2w" style="display:none; height: 151px;"></div>
+                    </section>
+                </div>
+
+
+
+                <div class="fr-col-12 fr-mt-4w">
+                    <h2 class="fr-h4">📜 Historique</h2>
+                    <div id="transcriptionList" class="fr-grid-row fr-grid-row--gutters fr-mt-2w">Chargement...</div>
+                </div>
+            </div>
         </div>
-    </section>
-
-    <section id="batchStatus">
-        <h2>Transcription par lot</h2>
-        <div id="uploadProgressContainer">
-            <div id="uploadProgressFill"></div>
+        <!-- Speaker editor placeholders added for DOM contract -->
+        <div id="speakerRenameContainer" style="display:none;">
+            <ul id="speakerRenameList"></ul>
+            <button id="toggleSpeakerEditorBtn">Toggle Speaker Editor</button>
         </div>
-        <div id="batchResult"></div>
-    </section>
+    </main>
 
-    <section id="transcriptionList">
-        <h2>Historique des transcriptions</h2>
-        <ul></ul>
-    </section>
-
-    <section id="speakerRenameContainer" style="display:none;">
-        <h3>Renommer les locuteurs</h3>
-        <ul id="speakerRenameList"></ul>
-    </section>
-
-    <div id="albertOptions" style="display:none;">
-        <label><input type="checkbox" id="albertPartial"> Utiliser Albert partiel</label>
-    </div>
-
-    <div id="cpuWarning" style="display:none;">
-        <p>Avertissement : le modèle CPU est utilisé.</p>
-    </div>
-
-    <footer>
-        <p>&copy; Voxtral – 2026</p>
+    <footer class="fr-footer fr-mt-4w" role="contentinfo">
+        <div class="fr-container">
+            <div class="fr-footer__body">
+                <div class="fr-footer__brand">
+                    <p class="fr-logo">République<br>Française</p>
+                    <p class="fr-footer__brand-title">Voxtral Pod</p>
+                </div>
+                <div class="fr-footer__content">
+                    <p class="fr-footer__content-desc">Solution souveraine de transcription ASR.</p>
+                </div>
+            </div>
+        </div>
     </footer>
-    <div id="fallbackNotice" style="display:none;"></div>
-    <span id="albertQuotaBadge" style="display:none;"></span>
-    <span id="fallbackTimer" style="display:none;"></span>
-    <div id="albertRateLimitAlert" style="display:none;"></div>
+
+    <script src="/static/app.js" defer></script>
 </body>
 </html>
