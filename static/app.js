@@ -56,6 +56,47 @@ function updateVolumeBar(data) {
     console.debug('Audio level:', level.toFixed(2) + '%');
 }
 
+async function checkRateLimitStatus() {
+    const alert = document.getElementById('albertRateLimitAlert');
+    const timer = document.getElementById('fallbackTimer');
+    const quotaBadge = document.getElementById('albertQuotaBadge');
+    const modelSelector = document.getElementById('modelSelector');
+    
+    if (!alert || !timer || !quotaBadge || !modelSelector) return;
+
+    try {
+        const res = await fetch('/rate_limiter_status');
+        const data = await res.json();
+        
+        // Affichage du quota uniquement si le modèle Albert est sélectionné
+        if (modelSelector.value === 'albert') {
+            quotaBadge.style.display = 'inline-flex';
+            quotaBadge.innerText = `Quota ASR Albert : ${data.quota_asr_usage} / ${data.quota_limit}`;
+            
+            // Changer la couleur selon l'usage ASR
+            const ratio = data.quota_asr_usage / data.quota_limit;
+            if (ratio > 0.9) {
+                quotaBadge.className = 'fr-badge fr-badge--error fr-badge--no-icon fr-ml-1w';
+            } else if (ratio > 0.7) {
+                quotaBadge.className = 'fr-badge fr-badge--warning fr-badge--no-icon fr-ml-1w';
+            } else {
+                quotaBadge.className = 'fr-badge fr-badge--info fr-badge--no-icon fr-ml-1w';
+            }
+        } else {
+            quotaBadge.style.display = 'none';
+        }
+
+        if (data.fallback_active) {
+            alert.style.display = 'block';
+            timer.innerText = data.fallback_remaining_seconds;
+        } else {
+            alert.style.display = 'none';
+        }
+    } catch (e) {
+        // Ignorer silencieusement
+    }
+}
+
 // ========================= GESTION MICRO / SYSTEME =========================
 async function toggleMicrophone() {
     console.log('toggleMicrophone clicked, isRecording:', isRecording);
@@ -400,8 +441,7 @@ const res = await fetch('/transcriptions/?client_id=' + getClientId());
             downloadAudioLink.textContent = 'Audio';
 
             const rttmLink = document.createElement('a');
-            const rttmFilename = audioFilename.replace('.wav', '.rttm');
-            rttmLink.href = '/download_rttm/' + getClientId() + '/' + rttmFilename;
+            rttmLink.href = '/download_rttm/' + getClientId() + '/' + f;
             rttmLink.className = 'fr-btn fr-btn--sm fr-btn--secondary fr-mt-1w fr-mr-1w';
             rttmLink.download = true;
             rttmLink.textContent = '💾 RTTM';
@@ -486,11 +526,14 @@ window.generateActions = generateActions;
  function changeModel(e) {
      const model = e.target.value;
      if (!model) return;
-     // Appelle l'API sans authentification forte (le endpoint requiert X-Admin-Key si configuré, sinon ouvert)
+     // Appelle l'API sans authentification forte
      fetch('/change_model?model=' + encodeURIComponent(model), { method: 'POST' })
         .then(res => {
             if (!res.ok) alert("Erreur ou accès refusé lors du changement de modèle");
-            else console.log("Modèle changé avec succès.");
+            else {
+                console.log("Modèle changé avec succès.");
+                checkRateLimitStatus(); // Mise à jour immédiate de l'UI (quota, bandeau)
+            }
         })
         .catch(err => console.error(err));
  }
@@ -768,6 +811,10 @@ if (modelDisplay && modelSelect) {
 
     // Verifier les mises a jour Git
     checkGitStatus();
+
+    // Verifier le statut du rate limiter Albert
+    checkRateLimitStatus();
+    setInterval(checkRateLimitStatus, 10000);
 
     // Reprendre le suivi d'un batch en cours apres rafraichissement
     const pendingJob = localStorage.getItem('pending_job');

@@ -1,4 +1,5 @@
 import os
+import time
 import pathlib
 import importlib.util
 import numpy as np
@@ -154,19 +155,30 @@ async def delete_trans(filename: str, client_id: str):
     trans_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(trans_path):
         raise HTTPException(status_code=404, detail="Fichier transcription introuvable.")
-    os.remove(trans_path)
+    if os.path.isfile(trans_path):
+        os.remove(trans_path)
 
+    # Supprimer les versions nettoyées, RTTM et JSON de diarisation
+    base_name = pathlib.Path(filename).stem
+    for ext in (".cleaned.md", ".rttm", ".diar.json"):
+        extra_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, base_name + ext)
+        if os.path.isfile(extra_path):
+            os.remove(extra_path)
+
+    # Supprimer l'audio associé (WAV et MP3)
     if filename.startswith("batch_"):
         ts = filename.replace("batch_", "").replace(".txt", "")
-        audio_name = f"batch_{client_id}_{ts}.wav"
-        audio_path = _safe_join(TRANSCRIPTIONS_DIR, "batch_audio", audio_name)
+        audio_name_base = f"batch_{client_id}_{ts}"
+        audio_dir = "batch_audio"
     else:
         ts = filename.replace("live_", "").replace(".txt", "")
-        audio_name = f"live_{client_id}_{ts}.wav"
-        audio_path = _safe_join(TRANSCRIPTIONS_DIR, "live_audio", audio_name)
+        audio_name_base = f"live_{client_id}_{ts}"
+        audio_dir = "live_audio"
     
-    if os.path.isfile(audio_path):
-        os.remove(audio_path)
+    for ext in (".wav", ".mp3"):
+        audio_path = _safe_join(TRANSCRIPTIONS_DIR, audio_dir, audio_name_base + ext)
+        if os.path.isfile(audio_path):
+            os.remove(audio_path)
 
     return {"status": "ok"}
 
@@ -363,7 +375,7 @@ async def download_rttm(client_id: str, filename: str):
     """
     _validate_client_id(client_id)
     # The filename passed is the base name or .txt name
-    base_name = filename.replace(".txt", "").replace(".cleaned.md", "")
+    base_name = pathlib.Path(filename).stem
     rttm_filename = f"{base_name}.rttm"
     file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, rttm_filename)
     
@@ -377,7 +389,7 @@ async def get_diarization_data(client_id: str, filename: str):
     Retourne les données de diarisation brutes au format JSON.
     """
     _validate_client_id(client_id)
-    base_name = filename.replace(".txt", "").replace(".cleaned.md", "")
+    base_name = pathlib.Path(filename).stem
     json_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, f"{base_name}.diar.json")
     
     if not os.path.isfile(json_path):
@@ -392,7 +404,7 @@ async def view_diarization(client_id: str, filename: str, request: Request):
     Affiche un tableau HTML (SSR via Jinja2) des segments de diarisation.
     """
     _validate_client_id(client_id)
-    base_name = filename.replace(".txt", "").replace(".cleaned.md", "")
+    base_name = pathlib.Path(filename).stem
     json_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, f"{base_name}.diar.json")
     
     if not os.path.isfile(json_path):
@@ -471,6 +483,9 @@ async def rate_limiter_status():
     et le temps restant avant la reprise du modèle Albert.
     """
     from backend.core.albert_rate_limiter import albert_rate_limiter
+    # Mettre à jour les infos de quota (gère le throttle en interne)
+    await asyncio.to_thread(albert_rate_limiter.update_quota_info)
+    
     info = albert_rate_limiter.get_status_info()
     # Calcul du temps restant (en secondes) si le fallback est actif
     remaining = 0
@@ -480,7 +495,11 @@ async def rate_limiter_status():
     return {
         "fallback_active": info.get("fallback_active", False),
         "fallback_remaining_seconds": remaining,
-        "consecutive_429": info.get("consecutive_429", 0)
+        "consecutive_429": info.get("consecutive_429", 0),
+        "quota_limit": info.get("quota_limit", 1000),
+        "quota_usage": info.get("quota_usage", 0),
+        "quota_asr_usage": info.get("quota_asr_usage", 0),
+        "quota_llm_usage": info.get("quota_llm_usage", 0)
     }
 
 @router.get("/git_status")

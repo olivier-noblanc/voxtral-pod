@@ -25,6 +25,7 @@ numpy>=1.24.0
 fastapi>=0.100.0
 uvicorn>=0.23.0
 requests>=2.31.0
+keyring
 python-multipart
 scipy
 pandas
@@ -33,8 +34,4 @@ soxr
 boto3
 matplotlib
 scikit-learn
-jinja2
-flask
-wtforms_json
-deprecation
-flask_appbuilder
+jinja2

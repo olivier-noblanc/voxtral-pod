@@ -11,6 +11,11 @@ import os
 from threading import Lock
 import threading
 
+import requests
+import logging
+
+logger = logging.getLogger(__name__)
+
 # Ensure NNPACK is disabled for rate limiter operations
 os.environ.setdefault("DISABLE_NNPACK", "1")
 
@@ -39,7 +44,18 @@ class AlbertRateLimiter:
         self._response_history = deque(maxlen=20)
         
         # Vérification de la clé API
-        self._has_valid_api_key = bool(os.getenv("ALBERT_API_KEY"))
+        from backend.config import get_albert_api_key
+        self.albert_api_key = get_albert_api_key()
+        self._has_valid_api_key = bool(self.albert_api_key)
+        self.albert_base_url = os.getenv("ALBERT_BASE_URL", "https://albert.api.etalab.gouv.fr/v1")
+        
+        # Quotas (1000 est la valeur par défaut du user, on tentera de l'actualiser via /v1/me/info)
+        self._quota_limit: int = 1000
+        self._quota_usage: int = 0
+        self._quota_asr_usage: int = 0
+        self._quota_llm_usage: int = 0
+        self._last_quota_update: float = 0.0
+        self._quota_refresh_interval = 600  # 10 minutes
         
         # Lock pour les appels concurrents
         self._lock = Lock()
@@ -159,8 +175,69 @@ class AlbertRateLimiter:
             "last_429_time": self._last_429_time,
             "last_request_time": self._last_request_time,
             "fallback_active": getattr(self, "_fallback_active", False),
-            "fallback_until": getattr(self, "_fallback_until", 0.0)
+            "fallback_active": getattr(self, "_fallback_active", False),
+            "fallback_until": getattr(self, "_fallback_until", 0.0),
+            "quota_limit": self._quota_limit,
+            "quota_usage": self._quota_usage,
+            "quota_asr_usage": self._quota_asr_usage,
+            "quota_llm_usage": self._quota_llm_usage,
+            "last_quota_update": self._last_quota_update
         }
+
+    def update_quota_info(self):
+        """Récupère l'usage et les limites du compte Albert."""
+        if not self.albert_api_key:
+            return
+
+        # Éviter de rafraîchir trop souvent
+        if time.time() - self._last_quota_update < self._quota_refresh_interval:
+            return
+
+        try:
+            headers = {"Authorization": f"Bearer {self.albert_api_key}"}
+            # 1. On tente d'abord de récupérer l'usage global (cumulé)
+            usage_url = f"{self.albert_base_url}/me/usage"
+            # On prend un nombre important de records pour l'usage récent
+            r_usage = requests.get(f"{usage_url}?limit=100", headers=headers, timeout=5)
+            if r_usage.status_code == 200:
+                data = r_usage.json()
+                if "data" in data and isinstance(data["data"], list):
+                    total_global = 0
+                    total_asr = 0
+                    total_llm = 0
+                    for item in data["data"]:
+                        count = item.get("requests", 1)  # Si pas de requests, on compte 1 par record
+                        total_global += count
+                        
+                        model = (item.get("model") or "").lower()
+                        endpoint = (item.get("endpoint") or "").lower()
+                        
+                        # Classification ASR
+                        if "whisper" in model or "/audio/" in endpoint:
+                            total_asr += count
+                        # Classification LLM
+                        elif "chat" in endpoint or "completion" in endpoint:
+                            total_llm += count
+                            
+                    self._quota_usage = total_global
+                    self._quota_asr_usage = total_asr
+                    self._quota_llm_usage = total_llm
+            
+            # 2. On tente de récupérer les infos de limite (optionnel)
+            info_url = f"{self.albert_base_url}/me/info"
+            resp_info = requests.get(info_url, headers=headers, timeout=5)
+            if resp_info.status_code == 200:
+                info_data = resp_info.json()
+                if "limit" in info_data:
+                    self._quota_limit = info_data["limit"]
+                elif "quota" in info_data:
+                    self._quota_limit = info_data["quota"]
+
+            self._last_quota_update = time.time()
+            logger.info(f"[RATELIMITER] Quota Albert (ASR): {self._quota_asr_usage}/{self._quota_limit} (Total: {self._quota_usage})")
+            
+        except Exception as e:
+            logger.error(f"[RATELIMITER] Erreur lors de la récupération du quota Albert : {e}")
 
 
 # Instance globale du rate limiter

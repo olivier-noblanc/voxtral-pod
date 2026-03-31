@@ -34,11 +34,16 @@
         <div class="fr-container fr-py-4w">
             <div class="fr-grid-row fr-grid-row--gutters">
                 <div class="fr-col-12">
+                    <div id="albertRateLimitAlert" class="fr-alert fr-alert--info fr-mb-3w" style="display:none;">
+                        <h3 class="fr-alert__title">💡 API Albert en pause (Quota atteint)</h3>
+                        <p>Le système utilise temporairement le moteur local (CPU). Retour automatique à Albert dans <span id="fallbackTimer">--</span>s.</p>
+                    </div>
                     <h1 class="fr-h1">🎙️ Console de Transcription</h1>
                     <div class="fr-highlight fr-mb-3w">
                         <p class="fr-text--sm">
                             GPU: <span class="fr-badge fr-badge--info fr-badge--no-icon">{{device}}</span> | 
                             Modèle: <span class="fr-badge fr-badge--success fr-badge--no-icon" id="currentModelDisplay">{{model_name}}</span>
+                            <span id="albertQuotaBadge" class="fr-badge fr-badge--warning fr-badge--no-icon fr-ml-1w" style="display:none;">Quota Albert : -- / --</span>
                         </p>
                     </div>
                     

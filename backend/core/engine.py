@@ -168,8 +168,8 @@ class SotaASR:
 
         # 3. Diarize + Transcribe (parallel pour Albert, séquentiel sinon)
         if self.model_id == "mock":
-            # TranscriptionEngine.transcribe returns (words, None)
-            words, _ = await asyncio.to_thread(self.transcription_engine.transcribe, audio_np)
+            # TranscriptionEngine.transcribe returns (words, duration, used_fallback)
+            words, _, _ = await asyncio.to_thread(self.transcription_engine.transcribe, audio_np)
             mock_segments = [
                 {"start": 0.0, "end": 1.0, "speaker": "SPEAKER_00", "text": " ".join([w['word'] for w in words])}
             ]
@@ -185,9 +185,9 @@ class SotaASR:
                 diar_task = asyncio.to_thread(self.diarization_engine.diarize, audio_np, hook=None)
                 trans_task = asyncio.to_thread(self.transcription_engine.transcribe, audio_np, progress_callback=None)
                 # ``asyncio.gather`` renvoie deux résultats ; on désérialise correctement.
-                diar_segments, (words, _) = await asyncio.gather(diar_task, trans_task)  # type: ignore[assignment]
+                diar_segments, (words, _, used_fallback) = await asyncio.gather(diar_task, trans_task)  # type: ignore[assignment]
             else:
-                words, _ = await asyncio.to_thread(self.transcription_engine.transcribe, audio_np, progress_callback=None)
+                words, _, used_fallback = await asyncio.to_thread(self.transcription_engine.transcribe, audio_np, progress_callback=None)
                 diar_segments = []
             if progress_callback:
                 progress_callback("Fusion des résultats...", 80)
@@ -202,7 +202,7 @@ class SotaASR:
                 diar_segments = []
             if progress_callback:
                 progress_callback("Transcription...", 45)
-            words, _ = await asyncio.to_thread(
+            words, _, used_fallback = await asyncio.to_thread(
                 self.transcription_engine.transcribe, audio_np, progress_callback=progress_callback
             )
 
@@ -220,6 +220,10 @@ class SotaASR:
         # 5. Format final text
         print(f"[*] Post-traitement: Formattage du texte final...")
         output_lines = []
+        if used_fallback:
+            output_lines.append("[SYSTÈME] : Transcrit via moteur local (Fallback CPU - Quota Albert atteint)")
+            output_lines.append("")
+            
         for s in segments:
             output_lines.append(f"[{s['start']:.2f}s -> {s['end']:.2f}s] [{s['speaker']}] {s['text']}")
 
