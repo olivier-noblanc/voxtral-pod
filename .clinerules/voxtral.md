@@ -11,3 +11,5 @@ si tu vois qu'il manque un module dans le testing signale le moi plutot que de c
 toujours faire du lazy import de modules
 > **⚠️ Aucun fallback n’est autorisé** – si une dépendance est manquante, le démarrage doit échouer afin que vous puissiez l’installer correctement.
 l'environnement de test n'as pas accès au réseau web donc ne pas chercher a atteindre des api sur le net en testing
+ffmpeg est indispensable donc pas de stratégie de fallback
+toujours envoyer un mp3 à l'api transcription audio d'albert (jamais d'autre format wav, etc..)

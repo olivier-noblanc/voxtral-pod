@@ -43,7 +43,7 @@ def decode_audio(audio_path: str, sample_rate: int = 16000, timeout: int = 900) 
             '-loglevel', 'error',  # minimal logging
             '-'  # output to stdout
         ]
-        
+
         # Run ffmpeg and capture output
         result = subprocess.run(
             cmd,
@@ -51,18 +51,21 @@ def decode_audio(audio_path: str, sample_rate: int = 16000, timeout: int = 900) 
             check=True,
             timeout=timeout
         )
-        
         out = result.stdout
-        err = result.stderr
-        
     except subprocess.CalledProcessError as e:
-        # Handle ffmpeg errors properly
-        stderr_msg = e.stderr.decode(errors='ignore') if e.stderr else str(e)
-        raise RuntimeError(f"ffmpeg failed with return code {e.returncode}: {stderr_msg}") from e
+        # Fallback: try to read as WAV using wave module (handles .wav files with wrong extension)
+        import wave
+        try:
+            with wave.open(audio_path, 'rb') as wf:
+                frames = wf.readframes(wf.getnframes())
+                audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+                return audio
+        except Exception:
+            stderr_msg = e.stderr.decode(errors='ignore') if e.stderr else str(e)
+            raise RuntimeError(f"ffmpeg failed with return code {e.returncode}: {stderr_msg}") from e
     except subprocess.TimeoutExpired as e:
         raise RuntimeError(f"ffmpeg timed out after {timeout} seconds") from e
     except Exception as e:
-        # Handle other errors
         raise RuntimeError(f"ffmpeg failed: {str(e)}") from e
 
     # Convert raw bytes to NumPy float32 array

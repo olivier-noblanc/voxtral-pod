@@ -7,6 +7,7 @@ import sqlite3
 import json
 import logging
 import time
+import datetime
 from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
@@ -65,13 +66,17 @@ def cleanup_stale_jobs(hours: int = 4) -> None:
     """
     try:
         with get_db() as conn:
-            cursor = conn.execute(
-                "SELECT job_id, data FROM jobs WHERE created_at < datetime('now', ?)",
-                (f"-{hours} hours",)
-            )
+            cursor = conn.execute("SELECT job_id, data, created_at FROM jobs")
             rows = cursor.fetchall()
+            # Use timezone‑aware UTC datetime to avoid deprecation warning
+            cutoff = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=hours)
             for row in rows:
                 try:
+                    created_at_str = row['created_at']
+                    # SQLite stores timestamps as TEXT in UTC
+                    created_at = datetime.datetime.strptime(created_at_str, "%Y-%m-%d %H:%M:%S")
+                    if created_at >= cutoff:
+                        continue
                     data = json.loads(row['data'])
                     status = data.get("status", "")
                     if status not in ("terminé", "not_found", "erreur") and (
