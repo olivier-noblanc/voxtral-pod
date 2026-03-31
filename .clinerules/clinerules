@@ -1,6 +1,11 @@
 # .clinerules — Voxtral Pod
 # Règles de contexte pour LLM (Qwen 3 3B, Mistral Small, etc.)
 # Lire ce fichier EN PREMIER avant toute modification.
+- no side effects
+- pure functions only
+- full typing required
+- must pass ruff
+- must pass mypy strict
 
 ## STACK TECHNIQUE
 - Backend  : Python 3.11+, FastAPI, SQLite (jobs.db), asyncio
