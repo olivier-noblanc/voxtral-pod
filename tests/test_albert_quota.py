@@ -6,7 +6,7 @@ from backend.config import get_albert_api_key
 from backend.core.albert_rate_limiter import AlbertRateLimiter
 
 
-def test_get_albert_api_key_logic():
+def test_get_albert_api_key_logic() -> None:
     """Vérifie la priorité de récupération de la clé API."""
     with patch("os.getenv", return_value="env_key"):
         assert get_albert_api_key() == "env_key"

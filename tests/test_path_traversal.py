@@ -1,3 +1,4 @@
+from typing import Any
 """
 test_path_traversal.py
 ----------------------
@@ -72,7 +73,7 @@ def test_view_path_traversal(payload):
 
 # ── Test unitaire direct sur _safe_join ─────────────────────────────────────
 
-def test_safe_join_raises_on_traversal(tmp_path):
+def test_safe_join_raises_on_traversal(tmp_path: Any) -> None:
     """_safe_join doit lever HTTPException 400 sur les chemins malveillants."""
     from fastapi import HTTPException
 
@@ -90,7 +91,7 @@ def test_safe_join_raises_on_traversal(tmp_path):
     assert exc_info.value.status_code == 400
 
 
-def test_safe_join_legitimate_paths(tmp_path):
+def test_safe_join_legitimate_paths(tmp_path: Any) -> None:
     """_safe_join laisse passer les chemins normaux."""
     from backend.routes.api import _safe_join
 

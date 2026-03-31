@@ -1,5 +1,7 @@
 import os
 import subprocess
+from typing import cast
+
 import numpy as np
 
 # Ensure NNPACK is disabled for audio operations
@@ -106,4 +108,4 @@ def float32_to_pcm16(audio: np.ndarray) -> bytes:
     audio_clipped = np.clip(audio, -1.0, 1.0)
     # Scale to int16 range and convert (using 32768.0 and clipping to avoid overflow at +1.0)
     pcm16 = np.clip(audio_clipped * 32768.0, -32768, 32767).astype(np.int16)
-    return pcm16.tobytes()
+    return cast(bytes, pcm16.tobytes())

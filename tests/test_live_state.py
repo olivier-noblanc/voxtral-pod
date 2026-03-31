@@ -98,6 +98,6 @@ async def _run_live_session_telemetry():
     assert msg["total_bytes_received"] == session._total_bytes_received
 
 # Synchronous test entry point – runs the async helper via asyncio.run
-def test_live_session_telemetry():
+def test_live_session_telemetry() -> None:
     """Point d'entrée pytest pour le test de télémétrie live."""
     asyncio.run(_run_live_session_telemetry())

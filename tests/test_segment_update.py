@@ -4,7 +4,7 @@ Vérifie que le parsing regex fonctionne correctement sur le format
 [0.10s -> 1.20s] [SPEAKER_00] texte... sans corrompre les données.
 """
 import os
-from typing import Any, List, Tuple
+from typing import Any, Any, List, Tuple
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch

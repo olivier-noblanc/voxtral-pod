@@ -2,7 +2,7 @@ import pathlib
 import re
 
 
-def test_no_except_importerror_blocks():
+def test_no_except_importerror_blocks() -> None:
     """
     Ensure that the codebase does not contain generic ``except ImportError`` blocks
     that silently mask missing dependencies. Such blocks can hide real errors

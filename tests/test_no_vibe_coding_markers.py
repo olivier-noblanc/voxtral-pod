@@ -20,7 +20,7 @@ def _load_gitignore_patterns(root: pathlib.Path):
                 patterns.append(line)
     return patterns
 
-def test_no_vibe_coding_markers():
+def test_no_vibe_coding_markers() -> None:
     """
     Vérifie qu'aucun fichier source (.py, .js, .css) ne contient la chaîne
     « TRACE DE RECHERCHE », qui est une trace de l'outil de remplacement de code

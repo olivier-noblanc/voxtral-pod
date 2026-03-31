@@ -1,3 +1,4 @@
+from typing import Any
 """
 test_warnings_fixes.py
 ----------------------
@@ -17,7 +18,7 @@ from backend.main import app
 # ── 1. Rendu Jinja2 dans la home route ──────────────────────────────────────
 # (Anciens tests sur ws_url supprimés car la logique est désormais en frontend)
 
-def test_home_route_renders_with_jinja(tmp_path):
+def test_home_route_renders_with_jinja(tmp_path: Any) -> None:
     """Vérifie que la home route utilise bien Jinja2 et rend les variables de base."""
     client = TestClient(app)
     resp = client.get("/")
@@ -29,7 +30,7 @@ def test_home_route_renders_with_jinja(tmp_path):
 
 # ── 2. state.py : init_db() plus au module-level ────────────────────────────
 
-def test_state_module_no_init_db_at_import():
+def test_state_module_no_init_db_at_import() -> None:
     """
     Vérifier que init_db() n'est plus appelé au niveau module dans state.py.
     On inspecte le source AST plutôt que d'exécuter — plus fiable.
@@ -60,7 +61,7 @@ def test_state_module_no_init_db_at_import():
 
 # ── 3. _assemble_chunks() — test unitaire I/O ───────────────────────────────
 
-def test_assemble_chunks(tmp_path):
+def test_assemble_chunks(tmp_path: Any) -> None:
     """_assemble_chunks doit concaténer et supprimer les chunks."""
     from backend.routes.api import _assemble_chunks
 
@@ -73,7 +74,8 @@ def test_assemble_chunks(tmp_path):
     _assemble_chunks(assembled, 3, str(tmp_path))
 
     # Le fichier assemblé doit exister et contenir les 3 parties
-    result = open(assembled, "rb").read()
+    import pathlib
+    result = pathlib.Path(assembled).read_bytes()
     assert result == b"data0data1data2"
 
     # Les chunks doivent avoir été supprimés
@@ -83,7 +85,7 @@ def test_assemble_chunks(tmp_path):
 
 # ── 4. audio_np non doublé dans LiveSession ─────────────────────────────────
 
-def test_save_wav_only_no_duplicate_audio_np():
+def test_save_wav_only_no_duplicate_audio_np() -> None:
     """
     Vérifier via AST qu'audio_np n'est pas assigné deux fois dans save_wav_only.
     """
@@ -114,7 +116,7 @@ def test_save_wav_only_no_duplicate_audio_np():
 
 # ── 5. ProxyHeadersMiddleware avec trusted_hosts ────────────────────────────
 
-def test_proxy_middleware_has_trusted_hosts():
+def test_proxy_middleware_has_trusted_hosts() -> None:
     """
     Vérifier via AST que ProxyHeadersMiddleware est appelé avec trusted_hosts.
     """

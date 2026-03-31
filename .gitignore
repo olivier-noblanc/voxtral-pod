@@ -19,8 +19,9 @@ __pycache__/
 .env.dev.local
 .env.test.local
 .env.local.local
-
+ruff*.txt
 run.txt
+mypy*.txt
 node_modules
 export*.txt
 .history/
@@ -46,3 +47,6 @@ hf_cache/
 *.wav
 ancien.txt
 debug_home_page.py
+mypy_full.txt
+.hypothesis/
+ruff_final.txt

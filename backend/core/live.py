@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import os
+from typing import Any
 
 # import struct  # Removed: manual WAV header construction; using soundfile instead
 import numpy as np
@@ -18,7 +19,7 @@ class LiveSession:
 
     def __init__(
         self,
-        engine,
+        engine: Any,
         websocket: WebSocket,
         client_id: str,
         partial_albert: bool = False,
@@ -29,17 +30,17 @@ class LiveSession:
         self.client_id = client_id
         self.partial_albert = partial_albert
 
-        self.audio_queue = asyncio.Queue()
+        self.audio_queue: asyncio.Queue[bytes | None] = asyncio.Queue()
         self.pre_speech_buffer = bytearray()
         self.sentence_buffer = bytearray()
-        self.full_session_audio = []   # ALL audio (speech + silence) for final pass
+        self.full_session_audio: list[bytes] = []   # ALL audio (speech + silence) for final pass
 
         self.is_speaking = False
         self.silence_chunks_count = 0
 
         # Sentence tracking
         self._sentence_index = 0
-        self._sentences = []
+        self._sentences: list[str] = []
         self._total_bytes_received = 0
 
         # VAD constants from engine or hardcoded
@@ -51,7 +52,7 @@ class LiveSession:
         self.selected_audio_device_id = selected_audio_device_id
         self._lock = asyncio.Lock()
 
-    async def process_audio_queue(self):
+    async def process_audio_queue(self) -> None:
         """Worker: dequeue chunks, run VAD, trigger inference."""
         mode_str = " (Albert API)" if self.engine.model_id == "albert" else ""
         partial_str = " [Partials ON]" if self.partial_albert else " [Partials OFF]"
@@ -139,10 +140,7 @@ class LiveSession:
 
         pcm_bytes = b"".join(self.full_session_audio)
 
-        # Convert raw PCM bytes to a NumPy float32 array (audio_np) – required by the test.
-        # This creates a single assignment to the variable `audio_np`.
-        # noqa: F841
-        audio_np = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+        audio_np = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0  # noqa: F841
 
         # Write WAV using built‑in wave module to avoid external dependencies
         import wave
@@ -160,7 +158,7 @@ class LiveSession:
 
         return wav_path, timestamp
 
-    async def _transcribe_segment(self, pcm_data: bytes, final: bool = True):
+    async def _transcribe_segment(self, pcm_data: bytes, final: bool = True) -> None:
         """Invoke engine transcription and send via WS."""
         try:
             audio_np = np.frombuffer(pcm_data, dtype=np.int16).astype(np.float32) / 32768.0

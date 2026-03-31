@@ -1,6 +1,6 @@
 import sys
 import pathlib
-from typing import Generator
+from typing import Any, Callable, Generator
 import pytest
 from fastapi.testclient import TestClient
 
@@ -16,3 +16,11 @@ def client() -> Generator[TestClient, None, None]:
     """Provides a TestClient instance for the FastAPI app."""
     with TestClient(app) as client:
         yield client
+
+@pytest.fixture
+def dom_audit() -> Callable[[str], Any]:
+    """Provides a BeautifulSoup instance for HTML parsing in tests."""
+    from bs4 import BeautifulSoup
+    def _audit(html: str) -> BeautifulSoup:
+        return BeautifulSoup(html, "html.parser")
+    return _audit

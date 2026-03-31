@@ -2,7 +2,7 @@ import pathlib
 import py_compile
 
 
-def test_syntax():
+def test_syntax() -> None:
     """
     Verify that the entire project compiles without syntax errors,
     ignoring the .history directory.

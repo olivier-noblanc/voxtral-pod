@@ -9,7 +9,7 @@ import threading
 import time
 from collections import deque
 from threading import Lock
-from typing import Optional
+from typing import Any, Optional
 
 import requests
 
@@ -22,7 +22,7 @@ os.environ.setdefault("DISABLE_NNPACK", "1")
 class AlbertRateLimiter:
     """Gère les appels à l'API Albert avec rate limiting et circuit breaker."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         # Configuration
         self.max_429_count = 1  # Basculer dès la première 429
         self.reset_timeout = 900  # Temps de reset en secondes (15 minutes) - comme demandé
@@ -40,7 +40,7 @@ class AlbertRateLimiter:
         self._last_request_time: Optional[float] = None
         
         # Historique des codes de réponse pour le circuit breaker
-        self._response_history = deque(maxlen=20)
+        self._response_history: deque[int] = deque(maxlen=20)
         
         # Vérification de la clé API
         from backend.config import get_albert_api_key
@@ -91,7 +91,7 @@ class AlbertRateLimiter:
 
         return False
         
-    def _revert(self):
+    def _revert(self) -> None:
         """Fonction de revert pour revenir au modèle Albert après le fallback."""
         from backend import state as backend_state
         backend_state.set_current_model("albert")
@@ -116,12 +116,12 @@ class AlbertRateLimiter:
                 return elapsed >= self.min_interval_seconds
             return True
             
-    def record_request(self):
+    def record_request(self) -> None:
         """Enregistre qu'une requête a été effectuée."""
         with self._lock:
             self._last_request_time = time.time()
             
-    def handle_response(self, status_code: int):
+    def handle_response(self, status_code: int) -> None:
         """Traite une réponse de l'API Albert."""
         with self._lock:
             self._response_history.append(status_code)
@@ -140,14 +140,14 @@ class AlbertRateLimiter:
     def get_retry_delay(self, attempt: int) -> float:
         """Calcule le délai de retry exponentiel."""
         if attempt < 3:
-            return 2 ** attempt  # 1s, 2s, 4s
-        return 30  # Maximum 30s
+            return float(2 ** attempt)  # 1s, 2s, 4s
+        return 30.0  # Maximum 30s
         
     def is_in_mock_mode(self) -> bool:
         """Vérifie si on est actuellement en mode mock."""
         return self._in_mock_mode
         
-    def get_status_info(self) -> dict:
+    def get_status_info(self) -> dict[str, Any]:
         """Retourne les informations d'état du rate limiter, y compris le statut de fallback."""
         return {
             "in_mock_mode": self._in_mock_mode,
@@ -165,7 +165,7 @@ class AlbertRateLimiter:
             "last_quota_update": self._last_quota_update
         }
 
-    def update_quota_info(self):
+    def update_quota_info(self) -> None:
         """Récupère l'usage et les limites du compte Albert."""
         if not self.albert_api_key:
             return

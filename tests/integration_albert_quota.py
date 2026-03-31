@@ -4,7 +4,7 @@ import requests
 from backend.core.albert_rate_limiter import albert_rate_limiter
 
 
-def test_real_albert_quota():
+def test_real_albert_quota() -> None:
     """
     Test d'intégration REEL. 
     Interroge l'API Albert avec la clé du keyring.

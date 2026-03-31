@@ -7,7 +7,7 @@ import pytest
 from backend.routes import api
 
 
-def test_api_exposes_necessary_functions_for_tests():
+def test_api_exposes_necessary_functions_for_tests() -> None:
     """Vérifie que toutes les fonctions nécessaires aux tests sont exposées dans backend.routes.api"""
     
     # Fonctions nécessaires pour les tests (comme dans les tests qui échouaient)
@@ -26,7 +26,7 @@ def test_api_exposes_necessary_functions_for_tests():
         assert hasattr(api, func_name), f"La fonction {func_name} doit être exposée dans backend.routes.api"
 
 
-def test_segment_update_route_exists():
+def test_segment_update_route_exists() -> None:
     """Vérifie que la route /segment_update est accessible"""
     from fastapi.testclient import TestClient
 
@@ -46,7 +46,7 @@ def test_segment_update_route_exists():
     assert response.status_code != 404 or "not found" in response.text.lower()
 
 
-def test_all_required_imports_work():
+def test_all_required_imports_work() -> None:
     """Vérifie que tous les imports nécessaires fonctionnent"""
     
     # Test des imports spécifiques qui causaient des erreurs

@@ -7,7 +7,7 @@
 from backend.utils import format_transcription
 
 
-def test_format_timestamp_speaker_text():
+def test_format_timestamp_speaker_text() -> None:
     """
     Input  : "[0.50s -> 1.20s] [SPEAKER_00] Bonjour"
     Expected: HTML structure with div.segment, span.segment-time and span.segment-speaker with data-speaker
@@ -23,7 +23,7 @@ def test_format_timestamp_speaker_text():
     assert "Bonjour" in html
 
 
-def test_format_timestamp_no_speaker():
+def test_format_timestamp_no_speaker() -> None:
     """
     Input  : "[0.50s -> 1.20s] Bonjour"
     Expected: HTML structure with time but NO speaker span
@@ -36,7 +36,7 @@ def test_format_timestamp_no_speaker():
     assert "Bonjour" in html
 
 
-def test_format_speaker_no_timestamp():
+def test_format_speaker_no_timestamp() -> None:
     """
     Input  : "[SPEAKER_01] Hello"
     Expected: HTML structure with speaker but NO time span
@@ -50,7 +50,7 @@ def test_format_speaker_no_timestamp():
     assert "Hello" in html
 
 
-def test_format_plain_text_fallback():
+def test_format_plain_text_fallback() -> None:
     """
     Input without metadata should be rendered as plain text inside a div.segment
     """
@@ -63,7 +63,7 @@ def test_format_plain_text_fallback():
     assert 'class="segment-text"' in html
 
 
-def test_format_escapes_html_injection():
+def test_format_escapes_html_injection() -> None:
     """
     Ensure HTML tags in text are escaped.
     """
@@ -74,7 +74,7 @@ def test_format_escapes_html_injection():
     assert "<script>" not in html
 
 
-def test_format_timestamp_text_speaker():
+def test_format_timestamp_text_speaker() -> None:
     """
     Input  : "[5.10s -> 8.00s] Et voici un speaker à la fin. [SPEAKER_02]"
     Expected: HTML structure with correct timestamp and speaker extraction
@@ -89,9 +89,9 @@ def test_format_timestamp_text_speaker():
     assert "Et voici un speaker à la fin." in html
 
 
-def test_format_empty_input():
+def test_format_empty_input() -> None:
     """
     Empty string should return an empty string.
     """
     html = format_transcription("")
-    assert html == ""
+    assert html == ""

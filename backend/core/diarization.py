@@ -3,7 +3,7 @@ import os
 from typing import Any
 
 import numpy as np
-from resemblyzer import VoiceEncoder, preprocess_wav  # type: ignore[import-untyped]
+from resemblyzer import VoiceEncoder, preprocess_wav
 
 import backend.core.speaker_profiles as speaker_profiles
 from backend.config import setup_gpu
@@ -19,7 +19,7 @@ class DiarizationEngine:
     ) -> None:
         self.model_id = model_id
         self.hf_token = hf_token
-        self.pipeline = None
+        self.pipeline: Any = None
         self.sample_rate = 16000
         self.use_cpu = use_cpu
         self._fallback_until: float = 0.0
@@ -38,7 +38,7 @@ class DiarizationEngine:
         try:
             # Lazy import of pyannote.audio – may not be installed in the test env.
             import torch
-            from pyannote.audio import Pipeline  # type: ignore[import-untyped]
+            from pyannote.audio import Pipeline
 
             print(f"[*] Loading Pyannote pipeline: {self.model_id}")
             self.pipeline = Pipeline.from_pretrained(

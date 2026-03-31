@@ -7,7 +7,7 @@ import pathlib
 APP_JS = pathlib.Path(__file__).parent.parent / "static" / "app.js"
 
 
-def test_no_dom_getbyid_override():
+def test_no_dom_getbyid_override() -> None:
     """
     Vérifie que le patch debug `document.getElementById = ...` a bien été retiré
     de app.js. Sa présence en production ralentit tous les accès DOM et peut
@@ -21,7 +21,7 @@ def test_no_dom_getbyid_override():
     )
 
 
-def test_no_debug_comment_block():
+def test_no_debug_comment_block() -> None:
     """Vérifie aussi que le commentaire '// DEBUG — à retirer en prod' est absent."""
     content = APP_JS.read_text(encoding="utf-8")
     assert "DEBUG — à retirer en prod" not in content, (

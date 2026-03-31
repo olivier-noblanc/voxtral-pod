@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Any, Dict
+from typing import Any, Any, Dict
 from unittest.mock import MagicMock, patch
 
 import pytest

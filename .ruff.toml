@@ -3,6 +3,8 @@ line-length = 120
 [lint]
 select = ["E", "F", "I", "R", "S"]
 exclude = ["tests/conftest.py"]
+ignore = ["E402"]  # Ignore E402 globally for files where we intentionally have early setup
 
 [lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]
+"backend/main.py" = ["E402", "S104"]

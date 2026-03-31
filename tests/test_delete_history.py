@@ -69,4 +69,4 @@ def test_delete_transcription_endpoint(setup_transcription):
 
     # Les fichiers doivent être supprimés du système de fichiers
     assert not os.path.isfile(trans_path), "Le fichier de transcription n'a pas été supprimé"
-    assert not os.path.isfile(audio_path), "Le fichier audio associé n'a pas été supprimé"
+    assert not os.path.isfile(audio_path), "Le fichier audio associé n'a pas été supprimé"

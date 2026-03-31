@@ -34,4 +34,11 @@ soxr
 boto3
 matplotlib
 scikit-learn
-jinja2
+jinja2
+
+# Testing & Quality (Cadrage LLM)
+pytest-cov
+hypothesis
+mutmut
+pytest-snapshot
+beautifulsoup4

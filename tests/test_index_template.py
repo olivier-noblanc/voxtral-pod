@@ -1,5 +1,6 @@
+from typing import Any
 
-def test_index_includes_assets(client):
+def test_index_includes_assets(client: Any) -> None:
     """
     Régression : le template index.html doit charger les assets essentiels
     (app.js, dsfr.min.css, custom.css).

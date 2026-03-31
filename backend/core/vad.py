@@ -2,6 +2,7 @@ import asyncio
 import concurrent.futures
 import os
 import warnings
+from typing import Any
 
 import numpy as np
 
@@ -20,14 +21,14 @@ if _torch_spec is not None:
         torch.backends.nnpack.enabled = False # type: ignore
 
 # Lazy import helper for webrtcvad
-def _lazy_get_webrtcvad():
+def _lazy_get_webrtcvad() -> Any:
     """Attempt to import webrtcvad; if unavailable, provide a fallback stub."""
     import webrtcvad
     return webrtcvad
 
 
 # Lazy import of silero_vad
-def _lazy_load_silero_vad(onnx: bool = True):
+def _lazy_load_silero_vad(onnx: bool = True) -> Any:
     from silero_vad import load_silero_vad
     return load_silero_vad(onnx=onnx)
 
@@ -202,7 +203,7 @@ import vosk
 # Store the original __del__ method
 _original_del = getattr(vosk.KaldiRecognizer, '__del__', None)
 
-def patched_kaldi_recognizer_del(self):
+def patched_kaldi_recognizer_del(self: Any) -> None:
     """Patched __del__ method to prevent AttributeError when _handle doesn't exist."""
     try:
         if hasattr(self, '_handle') and self._handle is not None:

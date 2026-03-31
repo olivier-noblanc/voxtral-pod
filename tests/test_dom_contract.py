@@ -9,7 +9,7 @@ for _p in (_PROJECT_ROOT, _PROJECT_ROOT / "scripts"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from check_dom_contract import (  # type: ignore
+from check_dom_contract import (
     extract_html_ids,
     extract_js_ids,
     find_add_event_listener_issues,
@@ -17,7 +17,7 @@ from check_dom_contract import (  # type: ignore
 )
 
 
-def _paths():
+def _paths() -> tuple[pathlib.Path, pathlib.Path]:
     """Retourne (js_path, html_path) — résolution à l'appel, pas à l'import."""
     js_path   = _PROJECT_ROOT / "static"  / "app.js"
     html_path = _PROJECT_ROOT / "backend" / "templates" / "index.html"
@@ -26,7 +26,7 @@ def _paths():
     return js_path, html_path
 
 
-def test_all_js_ids_exist_in_html():
+def test_all_js_ids_exist_in_html() -> None:
     """Vérifie que chaque ID utilisé dans le JS existe dans le HTML."""
     js_path, html_path = _paths()
     js_code   = js_path.read_text(encoding="utf-8")
@@ -38,7 +38,7 @@ def test_all_js_ids_exist_in_html():
     )
 
 
-def test_no_silent_fail_addeventlistener():
+def test_no_silent_fail_addeventlistener() -> None:
     """Vérifie l'absence du pattern addEventListener sans log d'erreur."""
     js_path, _ = _paths()
     js_code = js_path.read_text(encoding="utf-8")
@@ -49,7 +49,7 @@ def test_no_silent_fail_addeventlistener():
     )
 
 
-def test_websocket_send_has_readystate_check():
+def test_websocket_send_has_readystate_check() -> None:
     """Vérifie que chaque ws.send() vérifie readyState === 1."""
     js_path, _ = _paths()
     js_code = js_path.read_text(encoding="utf-8")

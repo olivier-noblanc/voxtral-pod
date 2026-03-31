@@ -11,7 +11,7 @@ def fresh_db(tmp_path, monkeypatch):
     yield
 
 
-def test_jobs_db_fifo_rotation():
+def test_jobs_db_fifo_rotation() -> None:
     for i in range(501):
         add_job(f"job_{i}", {"status": "queued"})
     with state.get_db() as conn:
@@ -20,7 +20,7 @@ def test_jobs_db_fifo_rotation():
     assert get_job("job_0") == {}
 
 
-def test_add_job_overwrites_existing():
+def test_add_job_overwrites_existing() -> None:
     add_job("dup", {"status": "first", "progress": 10})
     add_job("dup", {"status": "second", "progress": 20})
     with state.get_db() as conn:
@@ -31,12 +31,12 @@ def test_add_job_overwrites_existing():
     assert get_job("dup")["status"] == "second"
 
 
-def test_get_job_missing_returns_empty():
+def test_get_job_missing_returns_empty() -> None:
     result = get_job("nonexistent")
     assert result == {}
 
 
-def test_cleanup_stuck_jobs_on_init():
+def test_cleanup_stuck_jobs_on_init() -> None:
     """
     Test that jobs stuck in 'uploading' or 'processing:...' states
     are properly moved to 'erreur' when the DB is re-initialized (or explicitly cleaned).
@@ -60,4 +60,4 @@ def test_cleanup_stuck_jobs_on_init():
     # Verify other jobs are untouched
     assert get_job("ok_job")["status"] == "terminé"
     assert get_job("not_found_job")["status"] == "not_found"
-    assert get_job("error_job")["status"] == "erreur"
+    assert get_job("error_job")["status"] == "erreur"

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 
 
-def test_run_silero_chunk_sizes():
+def test_run_silero_chunk_sizes() -> None:
     """Vérifie que _run_silero padde correctement tous les chunks à 512."""
     
     received_sizes = []

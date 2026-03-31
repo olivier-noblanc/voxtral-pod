@@ -2,7 +2,7 @@ import pathlib
 
 APP_JS_PATH = pathlib.Path(__file__).parents[1] / "static" / "app.js"
 
-def test_app_js_not_shrunk():
+def test_app_js_not_shrunk() -> None:
     """
     Ensure that the JavaScript file still contains a reasonable amount of code.
     The original file had several hundred lines; after refactoring it should
@@ -14,7 +14,7 @@ def test_app_js_not_shrunk():
     # The file should contain at least 200 non‑empty lines.
     assert len(lines) >= 200, f"app.js appears to have been overly reduced ({len(lines)} lines)."
 
-def test_essential_functions_present():
+def test_essential_functions_present() -> None:
     """
     Verify that key functions required for the application are still present
     in static/app.js after the recent changes.
@@ -33,7 +33,7 @@ def test_essential_functions_present():
     assert not missing, f"The following essential functions are missing from app.js: {missing}"
 
 
-def test_live_partial_row_tracking():
+def test_live_partial_row_tracking() -> None:
     """
     Ensure that the live transcript uses a `partialRow` variable to track the
     current in-progress partial segment instead of scanning all DOM rows.
@@ -50,7 +50,7 @@ def test_live_partial_row_tracking():
     )
 
 
-def test_live_partial_uses_sindex_attribute():
+def test_live_partial_uses_sindex_attribute() -> None:
     """
     Ensure that partial sentence rows store a `data-sindex` attribute containing
     the backend sentence_index so that the final message can locate the correct
@@ -66,7 +66,7 @@ def test_live_partial_uses_sindex_attribute():
     )
 
 
-def test_live_final_looks_up_by_sindex_before_fallback():
+def test_live_final_looks_up_by_sindex_before_fallback() -> None:
     """
     Ensure that when a `final` sentence message arrives the handler first tries
     to find the partial row via its data-sindex attribute (querySelector), then
@@ -83,7 +83,7 @@ def test_live_final_looks_up_by_sindex_before_fallback():
     )
 
 
-def test_pending_job_server_validated_before_ui():
+def test_pending_job_server_validated_before_ui() -> None:
     """
     Regression guard: when a pending_job is found in localStorage on page load,
     the app must NOT immediately disable the upload button or show the progress
@@ -115,7 +115,7 @@ def test_pending_job_server_validated_before_ui():
     )
 
 
-def test_pending_job_cleared_on_not_found():
+def test_pending_job_cleared_on_not_found() -> None:
     """
     Regression guard: when /status returns 'not_found', the app must call
     clearPendingJob() (or equivalent) to silently clean localStorage.
@@ -139,7 +139,7 @@ def test_pending_job_cleared_on_not_found():
     )
 
 
-def test_pending_job_cleared_on_network_error():
+def test_pending_job_cleared_on_network_error() -> None:
     """
     Regression guard: if the /status fetch throws (server unreachable), the app
     must clean up localStorage and leave the UI in a usable state — never leave
@@ -164,7 +164,7 @@ def test_pending_job_cleared_on_network_error():
         "a network error will permanently disable the upload button."
     )
 
-def test_live_polling_initialization():
+def test_live_polling_initialization() -> None:
     """
     Regression guard: Ensure that when a live session ends, the app uses
     `window.currentLiveSessionId` to start polling via `pollStatus()`
@@ -182,7 +182,7 @@ def test_live_polling_initialization():
         "pollStatus must be called with the live session ID when recording stops."
     )
 
-def test_pending_job_cleared_on_uploading():
+def test_pending_job_cleared_on_uploading() -> None:
     """
     Regression guard: when /status returns 'uploading' during page load,
     the app must call clearPendingJob() because a browser refresh kills
@@ -203,7 +203,7 @@ def test_pending_job_cleared_on_uploading():
         "the UI will remain stuck at 0%."
     )
 
-def test_upload_progress_updates_dsfr_var():
+def test_upload_progress_updates_dsfr_var() -> None:
     """
     Regression guard: Ensure that upload progress updates both `style.width`
     and the DSFR-specific `--progress` CSS variable.

@@ -13,7 +13,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from backend.core.transcription import TranscriptionEngine
 
 
-def test_repro():
+def test_repro() -> None:
     """Simule un audio avec silences et vérifie le découpage."""
     engine = TranscriptionEngine(model_id="albert")
     sr = 16000

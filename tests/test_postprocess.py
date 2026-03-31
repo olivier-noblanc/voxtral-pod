@@ -22,7 +22,7 @@ def _mock_albert_response(prompt):
 # ----------------------------------------------------------------------
 # Tests
 # ----------------------------------------------------------------------
-def test_words_to_text():
+def test_words_to_text() -> None:
     words = [{"word": "Bonjour"}, {"word": "le"}, {"word": "monde"}]
     assert words_to_text(words) == "Bonjour le monde"
 

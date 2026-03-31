@@ -7,7 +7,7 @@ Cela prévient la régression du problème de style DSFR
 import pytest
 
 
-def test_all_templates_have_dsfr_scheme():
+def test_all_templates_have_dsfr_scheme() -> None:
     """Test que tous les templates incluent l'attribut data-fr-scheme"""
     templates_to_check = [
         'backend/templates/index.html',
@@ -24,7 +24,7 @@ def test_all_templates_have_dsfr_scheme():
         assert 'data-fr-scheme="dark"' in content, f"Le template {template_path} doit inclure data-fr-scheme='dark'"
 
 
-def test_index_template_has_complete_dsfr_structure():
+def test_index_template_has_complete_dsfr_structure() -> None:
     """Test que le template index.html contient la structure DSFR complète"""
     with open('backend/templates/index.html', 'r', encoding='utf-8') as f:
         content = f.read()

@@ -58,8 +58,7 @@ def find_ws_send_issues(js_code: str) -> list[int]:
     for i, line in enumerate(lines, start=1):
         if re.search(r"""\bws\.send\(""", line):
             guard_found = any(
-                re.search(r"""if\s*\(\s*ws\.readyState\s*===\s*1\s*\)""", lines[j])
-                for j in range(max(0, i - 5), i)
+                re.search(r"""if\s*\(\s*ws\.readyState\s*===\s*1\s*\)""", lines[j]) for j in range(max(0, i - 5), i)
             )
             if not guard_found:
                 issues.append(i)
@@ -68,7 +67,7 @@ def find_ws_send_issues(js_code: str) -> list[int]:
 
 def main() -> int:
     project_root = Path(__file__).resolve().parents[1]
-    js_path   = project_root / "static"  / "app.js"
+    js_path = project_root / "static" / "app.js"
     html_path = project_root / "backend" / "html_ui.py"
 
     if not js_path.is_file():
@@ -78,12 +77,12 @@ def main() -> int:
         print(f"❌ HTML file not found: {html_path}", file=sys.stderr)
         return 1
 
-    js_code   = js_path.read_text(encoding="utf-8")
+    js_code = js_path.read_text(encoding="utf-8")
     html_code = html_path.read_text(encoding="utf-8")
 
-    missing_ids      = extract_js_ids(js_code) - extract_html_ids(html_code)
-    listener_issues  = find_add_event_listener_issues(js_code)
-    ws_issues        = find_ws_send_issues(js_code)
+    missing_ids = extract_js_ids(js_code) - extract_html_ids(html_code)
+    listener_issues = find_add_event_listener_issues(js_code)
+    ws_issues = find_ws_send_issues(js_code)
 
     if missing_ids:
         print("❌ IDs in JS but missing in HTML:")

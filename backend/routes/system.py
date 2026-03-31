@@ -106,7 +106,7 @@ async def git_update(req: Request) -> Dict[str, str]:
         import subprocess
         subprocess.run(["git", "fetch", "origin", "main"], check=True)
         res = subprocess.run(["git", "reset", "--hard", "origin/main"], capture_output=True, text=True, check=True)
-        async def _restart():
+        async def _restart() -> None:
             await asyncio.sleep(2)
             print("[INFO] Git CLI update OK. Exiting container...")
             os._exit(0)

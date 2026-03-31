@@ -1,3 +1,4 @@
+from typing import Any
 """
 test_import_no_torch.py
 -----------------------
@@ -48,7 +49,7 @@ def _restore_torch(original):
 
 # ── Bug #2 : config.py importable sans torch ────────────────────────────────
 
-def test_config_importable_without_torch(monkeypatch):
+def test_config_importable_without_torch(monkeypatch: Any) -> None:
     """config.py ne doit pas importer torch au niveau module."""
     original = _hide_torch()
     try:
@@ -65,7 +66,7 @@ def test_config_importable_without_torch(monkeypatch):
 
 # ── Bug #1 : TranscriptionEngine instanciable sans torch ────────────────────
 
-def test_transcription_engine_init_without_torch(monkeypatch):
+def test_transcription_engine_init_without_torch(monkeypatch: Any) -> None:
     """TranscriptionEngine doit s'instancier (device='cpu') même sans torch."""
     # On injecte un stub qui signale l'absence de CUDA
     fake = _FakeTorch("torch")
@@ -83,7 +84,7 @@ def test_transcription_engine_init_without_torch(monkeypatch):
     assert engine.model_id == "whisper"
 
 
-def test_transcription_engine_device_param():
+def test_transcription_engine_device_param() -> None:
     """Un device explicite doit être respecté sans appel à torch."""
     for mod in list(sys.modules):
         if "backend.core.transcription" in mod:

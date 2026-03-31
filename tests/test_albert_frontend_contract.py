@@ -3,7 +3,7 @@ import re
 
 APP_JS_PATH = pathlib.Path(__file__).parents[1] / "static" / "app.js"
 
-def test_albert_buttons_use_window_open():
+def test_albert_buttons_use_window_open() -> None:
     """
     Ensure that Albert buttons (Summary, Actions, Clean) use window.open 
     and the correct view routes.
@@ -18,7 +18,7 @@ def test_albert_buttons_use_window_open():
     assert re.search(r"function generateActions\(.*\)\s*\{[\s\S]*window\.open\(\"/view_actions/\"", content), \
         "generateActions does not use window.open to /view_actions/"
 
-def test_no_formatTextForOS_leftover():
+def test_no_formatTextForOS_leftover() -> None:
     """
     Ensure the formatTextForOS utility was actually removed from app.js as it's no longer needed.
     """

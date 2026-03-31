@@ -10,13 +10,14 @@ from typing import Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from backend.config import TRANSCRIPTIONS_DIR
+from backend.core.live import LiveSession
 from backend.routes.utils import _safe_join, _update_job_status
 from backend.state import add_job, get_asr_engine, update_job
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp: Optional[str]):
+async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp: Optional[str]) -> None:
     """
     Process the final live audio file as a background job using Diarization.
     """
@@ -25,7 +26,7 @@ async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp:
         _update_job_status(job_id, "processing:Transcription avancée...", 5)
         engine = get_asr_engine(load_model=True)
 
-        def progress_callback(step: str, pct: int):
+        def progress_callback(step: str, pct: int) -> None:
             pct = max(0, min(100, pct))
             print(f"[*] [LiveFinal {job_id}] {step} : {pct}%")
             _update_job_status(job_id, f"processing:{step}", pct)
@@ -78,7 +79,7 @@ async def live_endpoint(
     partial_albert: bool = False,
     device_id: Optional[str] = None,
     session_id: Optional[str] = None,
-):
+) -> None:
     if not client_id or client_id == "anonymous" or not client_id.startswith("user_"):
         await websocket.close(code=4003)
         return
@@ -86,7 +87,6 @@ async def live_endpoint(
     if session_id:
         add_job(session_id, {"status": "en_attente", "progress": 0})
     await websocket.accept()
-    from backend.core.live import LiveSession
     engine = get_asr_engine(load_model=True)
     session = LiveSession(engine, websocket, client_id, partial_albert=partial_albert, selected_audio_device_id=device_id)
     processor = asyncio.create_task(session.process_audio_queue())

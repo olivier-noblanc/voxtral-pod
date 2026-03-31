@@ -42,7 +42,7 @@ async def _call_albert(prompt: str) -> str:
     for attempt in range(3):
         response = None
         if attempt > 0:
-            await asyncio.to_thread(asyncio.sleep, 2**attempt)
+            await asyncio.sleep(2**attempt)
         try:
             response = await asyncio.to_thread(
                 requests.post,

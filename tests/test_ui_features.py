@@ -4,7 +4,7 @@ from pathlib import Path
 APP_JS_PATH = Path(__file__).parents[1] / "static" / "app.js"
 INDEX_HTML_PATH = Path(__file__).parents[1] / "backend" / "templates" / "index.html"
 
-def test_ai_buttons_exist_in_frontend():
+def test_ai_buttons_exist_in_frontend() -> None:
     """Vérifie que les boutons pour solliciter l'IA de post-traitement (Albert) 
     sont bien présents dans la génération de l'Historique, et que les handlers existent."""
     js_code = APP_JS_PATH.read_text(encoding="utf-8")
@@ -17,7 +17,7 @@ def test_ai_buttons_exist_in_frontend():
     assert 'async function generateSummary' in js_code, "Régression: implémentation manquante pour generateSummary."
     assert 'async function generateActions' in js_code, "Régression: implémentation manquante pour generateActions."
 
-def test_model_selector_is_wired():
+def test_model_selector_is_wired() -> None:
     """Vérifie que le menu de sélection de modèle ASR est fonctionnel et envoie 
     bien sa valeur au backend lorsqu'il change."""
     js_code = APP_JS_PATH.read_text(encoding="utf-8")
@@ -33,7 +33,7 @@ def test_model_selector_is_wired():
     # Appel vers l'API
     assert "fetch('/change_model" in js_code, "Régression: La logique JS ne requête plus /change_model en backend."
 
-def test_albert_partial_checkbox():
+def test_albert_partial_checkbox() -> None:
     """Vérifier que la case à cocher des transcriptions partielles (économie d'API) est présente et exploitée."""
     js_code = APP_JS_PATH.read_text(encoding="utf-8")
     html_code = INDEX_HTML_PATH.read_text(encoding="utf-8")

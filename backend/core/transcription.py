@@ -128,7 +128,7 @@ class TranscriptionEngine:
             duration = len(audio_np) / 16000
 
             if self.model_id == "whisper":
-                segments, info = self.model.transcribe(  # type: ignore
+                segments, info = self.model.transcribe(
                     audio_np,
                     beam_size=5,
                     language=language,
@@ -226,15 +226,15 @@ class TranscriptionEngine:
             cut_sec = start_sec + (last_silent * frame_len) / sr
             # Si le silence est très proche de la fin ou du début, on ajuste
             if cut_sec >= target_sec - 0.5 or cut_sec <= start_sec + 0.5:
-                return target_sec
-            return cut_sec
+                return float(target_sec)
+            return float(cut_sec)
 
         # Fallback : cadre avec l'énergie la plus faible
         min_idx = np.argmin(energies)
         cut_sec = start_sec + (min_idx * frame_len) / sr
         if cut_sec >= target_sec - 0.5 or cut_sec <= start_sec + 0.5:
-            return target_sec
-        return cut_sec
+            return float(target_sec)
+        return float(cut_sec)
 
     def _transcribe_albert(
         self,
@@ -252,10 +252,16 @@ class TranscriptionEngine:
         if albert_rate_limiter.is_in_mock_mode():
             print("[*] Using mock mode for Albert (quota exceeded)")
             # Return a mock transcription with an error message
-            return [{"start": 0.0, "end": duration_total, "word": "[MOCK MODE] API quota exceeded. Use fallback mode."}], duration_total
+            return [
+                {
+                    "start": 0.0,
+                    "end": duration_total,
+                    "word": "[MOCK MODE] API quota exceeded. Use fallback mode."
+                }
+            ], duration_total
 
         tranches = []
-        t = 0
+        t: float = 0.0
         while t < duration_total:
             remaining = duration_total - t
             if remaining <= CHUNK_LIMIT_SEC + 60:  # +60s de marge finale
@@ -287,7 +293,7 @@ class TranscriptionEngine:
             # Conversion MP3 64k
             out, err = (
                 ffmpeg
-                .input('pipe:0', format='wav')  # type: ignore
+                .input('pipe:0', format='wav')
                 .output('pipe:1', format='mp3', audio_bitrate='64k', vbr='on')
                 .run(input=wav_buffer.read(), capture_stdout=True, capture_stderr=True)
             )

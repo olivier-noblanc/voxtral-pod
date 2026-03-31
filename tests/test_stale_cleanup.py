@@ -3,7 +3,7 @@ import datetime
 from backend.state import add_job, cleanup_stale_jobs, get_db, get_job
 
 
-def test_cleanup_stale_jobs_marks_as_error():
+def test_cleanup_stale_jobs_marks_as_error() -> None:
     """
     Vérifie que cleanup_stale_jobs marque bien les vieux jobs 'uploading' comme erreur.
     """
@@ -25,7 +25,7 @@ def test_cleanup_stale_jobs_marks_as_error():
     assert job["status"] == "erreur"
     assert "expiré" in job["error_details"]
 
-def test_cleanup_stale_jobs_ignores_recent_jobs():
+def test_cleanup_stale_jobs_ignores_recent_jobs() -> None:
     """
     Vérifie que cleanup_stale_jobs ne touche pas aux jobs récents (ex: 30 min).
     """
@@ -39,7 +39,7 @@ def test_cleanup_stale_jobs_ignores_recent_jobs():
     job = get_job(job_id)
     assert job["status"] == "uploading"
 
-def test_cleanup_stale_jobs_ignores_finished_jobs():
+def test_cleanup_stale_jobs_ignores_finished_jobs() -> None:
     """
     Vérifie que cleanup_stale_jobs ne touche pas aux jobs déjà terminés, 
     même s'ils sont vieux.

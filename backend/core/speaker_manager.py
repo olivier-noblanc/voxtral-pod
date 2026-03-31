@@ -35,9 +35,7 @@ def get_encoder() -> Any:
 
         _encoder_tried = True
         try:
-            from speechbrain.inference.speaker import (
-                EncoderClassifier,  # type: ignore[import-untyped]
-            )
+            from speechbrain.inference.speaker import EncoderClassifier
             logging.info("[*] Loading SpeechBrain ECAPA-TDNN model (CPU singleton)...")
             # Ensure it runs on CPU as requested
             _encoder = EncoderClassifier.from_hparams(
@@ -125,11 +123,11 @@ class SpeakerManager:
         # 3. Normalize and format
         results = []
         for i in range(batch_size):
-            e = emb[i]
-            norm = np.linalg.norm(e)
+            embedding = emb[i]
+            norm = np.linalg.norm(embedding)
             if norm > 1e-6:
-                e = e / norm
-            results.append(e)
+                embedding = embedding / norm
+            results.append(embedding)
             
         return results
 

@@ -5,7 +5,7 @@ import logging
 import os
 import pathlib
 import re
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import HTTPException, Request
 from fastapi.templating import Jinja2Templates
@@ -53,7 +53,7 @@ else:
             if in_list:
                 html_lines.append("</ul>")
             return "\n".join(html_lines)
-    markdown = _FallbackMarkdown()
+    markdown: Any = _FallbackMarkdown()
 
 # Setup Templates
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "backend", "templates"))

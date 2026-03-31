@@ -82,7 +82,7 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str) -> None:
     try:
         api_module._update_job_status(file_id, "processing:Transcription...", 10)
         engine = api_module.get_asr_engine(load_model=True)
-        def progress_callback(step: str, pct: int):
+        def progress_callback(step: str, pct: int) -> None:
             pct = max(0, min(100, pct))
             print(f"[*] [Batch {file_id}] {step} : {pct}%")
             api_module._update_job_status(file_id, f"processing:{step}", pct)

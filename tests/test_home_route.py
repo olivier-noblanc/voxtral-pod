@@ -1,5 +1,6 @@
+from typing import Any
 
-def test_home_route_returns_html(client):
+def test_home_route_returns_html(client: Any) -> None:
     """
     Régression : la route d’accueil doit renvoyer du HTML via HTMLResponse
     et contenir le token « GPU: » ajouté par le serveur.

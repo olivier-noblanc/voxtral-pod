@@ -5,7 +5,7 @@ from backend.core.assistant import AlbertAssistant
 from backend.core.postprocess import process_text, process_transcription
 
 
-def test_process_text_uses_albertassistant_methods():
+def test_process_text_uses_albertassistant_methods() -> None:
     async def run():
         with patch.object(AlbertAssistant, "summarize", new_callable=AsyncMock, return_value="Résumé mocké") as mock_summarize, \
              patch.object(AlbertAssistant, "cleanup_text", new_callable=AsyncMock, return_value="Texte nettoyé mocké") as mock_cleanup, \
@@ -20,7 +20,7 @@ def test_process_text_uses_albertassistant_methods():
 
     asyncio.run(run())
 
-def test_process_transcription_uses_albertassistant_methods():
+def test_process_transcription_uses_albertassistant_methods() -> None:
     async def run():
         with patch.object(AlbertAssistant, "summarize", new_callable=AsyncMock, return_value="Résumé mocké") as mock_summarize, \
              patch.object(AlbertAssistant, "cleanup_text", new_callable=AsyncMock, return_value="Texte nettoyé mocké") as mock_cleanup, \

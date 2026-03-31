@@ -1,3 +1,4 @@
+from typing import Any
 import asyncio
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -5,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from backend.core.engine import TranscriptionResult
 
 
-def test_batch_audio_persistence(tmp_path):
+def test_batch_audio_persistence(tmp_path: Any) -> None:
     """Vérifie que l'audio réassemblé est bien copié dans le dossier permanent avant suppression."""
     
     # On définit les dossiers temporaires

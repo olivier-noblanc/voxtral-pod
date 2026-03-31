@@ -172,7 +172,7 @@ async def periodic_cleanup_task(days: int) -> None:
     Tâche asynchrone tournant en boucle.
     Nettoie les jobs stale toutes les heures, et les archives toutes les 24h.
     """
-    last_full_cleanup = 0
+    last_full_cleanup: float = 0.0
     while True:
         try:
             # Attend d'abord légèrement pour ne pas bloquer le démarrage
@@ -182,7 +182,7 @@ async def periodic_cleanup_task(days: int) -> None:
             # Nettoyage complet (fichiers) toutes les 24h, sinon juste les jobs stale
             if now - last_full_cleanup > 86400:
                 await asyncio.to_thread(run_cleanup, days)
-                last_full_cleanup = now
+                last_full_cleanup = float(now)
             else:
                 # Juste les jobs stale (plus léger)
                 from backend.state import cleanup_stale_jobs
