@@ -34,22 +34,22 @@ class TestChangeModelAuth:
 
     def test_change_model_no_env_key_is_accessible(self, monkeypatch):
         monkeypatch.delenv("ADMIN_API_KEY", raising=False)
-        resp = client.post("/api/change_model?model=mock")
+        resp = client.post("/change_model?model=mock")
         assert resp.status_code == 200, f"Attendu 200 sans clé env, obtenu {resp.status_code}"
 
     def test_change_model_wrong_key_returns_403(self, monkeypatch):
         monkeypatch.setenv("ADMIN_API_KEY", _VALID_KEY)
-        resp = client.post("/api/change_model?model=mock", headers={"X-Admin-Key": "mauvaise"})
+        resp = client.post("/change_model?model=mock", headers={"X-Admin-Key": "mauvaise"})
         assert resp.status_code == 403
 
     def test_change_model_no_key_header_returns_403(self, monkeypatch):
         monkeypatch.setenv("ADMIN_API_KEY", _VALID_KEY)
-        resp = client.post("/api/change_model?model=mock")
+        resp = client.post("/change_model?model=mock")
         assert resp.status_code == 403
 
     def test_change_model_valid_key_returns_200(self, monkeypatch):
         monkeypatch.setenv("ADMIN_API_KEY", _VALID_KEY)
-        resp = client.post("/api/change_model?model=mock", headers={"X-Admin-Key": _VALID_KEY})
+        resp = client.post("/change_model?model=mock", headers={"X-Admin-Key": _VALID_KEY})
         assert resp.status_code == 200
         assert resp.json().get("status") == "ok"
 
@@ -59,15 +59,15 @@ class TestGitUpdateAuth:
 
     def test_git_update_no_env_key_does_not_raise_403(self, monkeypatch):
         monkeypatch.delenv("ADMIN_API_KEY", raising=False)
-        resp = client.post("/api/git_update")
+        resp = client.post("/git_update")
         assert resp.status_code != 403
 
     def test_git_update_wrong_key_returns_403(self, monkeypatch):
         monkeypatch.setenv("ADMIN_API_KEY", _VALID_KEY)
-        resp = client.post("/api/git_update", headers={"X-Admin-Key": "wrong"})
+        resp = client.post("/git_update", headers={"X-Admin-Key": "wrong"})
         assert resp.status_code == 403
 
     def test_git_update_missing_header_returns_403(self, monkeypatch):
         monkeypatch.setenv("ADMIN_API_KEY", _VALID_KEY)
-        resp = client.post("/api/git_update")
+        resp = client.post("/git_update")
         assert resp.status_code == 403
