@@ -1,7 +1,5 @@
 import os
-import shutil
 import asyncio
-import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from backend.core.engine import TranscriptionResult
 

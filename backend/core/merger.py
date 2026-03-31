@@ -3,7 +3,11 @@ import os
 # Ensure NNPACK is disabled for merger operations
 os.environ.setdefault("DISABLE_NNPACK", "1")
 
-def assign_speakers_to_words(words, diarization_segments):
+from typing import Any
+
+def assign_speakers_to_words(
+    words: list[dict[str, Any]], diarization_segments: list[tuple[float, float, str]]
+) -> list[dict[str, Any]]:
     """
     Assign a speaker to each word based on diarization segments.
     Reference logic from TranscriptionSuite.
@@ -48,9 +52,12 @@ def assign_speakers_to_words(words, diarization_segments):
                 midpoint_speaker = dspk
 
             # Pass 3: nearest turn
-            if w_mid < ds: dist = ds - w_mid
-            elif w_mid > de: dist = w_mid - de
-            else: dist = 0.0
+            if w_mid < ds:
+                dist = ds - w_mid
+            elif w_mid > de:
+                dist = w_mid - de
+            else:
+                dist = 0.0
 
             if dist <= 0.120:  # 120ms fallback
                 if nearest_distance is None or dist < nearest_distance:
@@ -58,11 +65,16 @@ def assign_speakers_to_words(words, diarization_segments):
                     nearest_speaker = dspk
 
         # Fallback chain
-        if best_speaker is not None and best_overlap > 0.0: chosen = best_speaker
-        elif midpoint_speaker is not None: chosen = midpoint_speaker
-        elif nearest_speaker is not None: chosen = nearest_speaker
-        elif prev_speaker is not None and (w_start - prev_end) <= 0.200: chosen = prev_speaker
-        else: chosen = "UNKNOWN"
+        if best_speaker is not None and best_overlap > 0.0:
+            chosen = best_speaker
+        elif midpoint_speaker is not None:
+            chosen = midpoint_speaker
+        elif nearest_speaker is not None:
+            chosen = nearest_speaker
+        elif prev_speaker is not None and (w_start - prev_end) <= 0.200:
+            chosen = prev_speaker
+        else:
+            chosen = "UNKNOWN"
 
         w["speaker"] = chosen
         result.append(w)
@@ -72,7 +84,9 @@ def assign_speakers_to_words(words, diarization_segments):
     return result
 
 
-def smooth_micro_turns(words, max_run_length=1):
+def smooth_micro_turns(
+    words: list[dict[str, Any]], max_run_length: int = 1
+) -> list[dict[str, Any]]:
     """
     Relabel isolated micro-turns (single word flips) to surrounding speaker.
     Code from TranscriptionSuite.
@@ -105,7 +119,9 @@ def smooth_micro_turns(words, max_run_length=1):
     return words
 
 
-def build_speaker_segments(words_with_speakers):
+def build_speaker_segments(
+    words_with_speakers: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """
     Group words into contiguous speaker segments.
     """

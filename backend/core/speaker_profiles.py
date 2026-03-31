@@ -2,7 +2,7 @@ import os
 import json
 import sqlite3
 import numpy as np
-from typing import Optional, Tuple, Dict, List
+from typing import Optional
 
 # Ensure NNPACK is disabled for speaker profiles operations
 os.environ.setdefault("DISABLE_NNPACK", "1")
@@ -15,7 +15,7 @@ os.environ.setdefault("DISABLE_NNPACK", "1")
 def _db_path() -> str:
     return os.getenv("SPEAKER_PROFILES_DB", "speaker_profiles.db")
 # Threshold for cosine similarity (default 0.75, configurable via env)
-THRESHOLD = float(os.getenv("VOICE_ID_THRESHOLD", "0.75"))
+THRESHOLD: float = float(os.getenv("VOICE_ID_THRESHOLD", "0.75"))
 
 # ----------------------------------------------------------------------
 # SQLite helper
@@ -38,7 +38,7 @@ def _get_connection() -> sqlite3.Connection:
 # ----------------------------------------------------------------------
 # Public API
 # ----------------------------------------------------------------------
-def load_profiles() -> Dict[str, Tuple[str, Optional[np.ndarray]]]:
+def load_profiles() -> dict[str, tuple[str, Optional[np.ndarray]]]:
     """
     Returns a dict mapping speaker_id -> (name, embedding_array_or_None)
     """
@@ -125,7 +125,7 @@ def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 
 def match_embedding(
     embedding: np.ndarray, threshold: float = THRESHOLD
-) -> Optional[Tuple[str, str]]:
+) -> Optional[tuple[str, str]]:
     # ``embedding`` peut être ``None`` dans des scénarios de test ; on le protège.
     if embedding is None:  # pragma: no cover
         return None

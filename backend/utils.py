@@ -11,7 +11,9 @@ def format_transcription(line: str) -> str:
         return ""
 
     text = line
-    start, end, speaker = None, None, None
+    start: str | None = None
+    end: str | None = None
+    speaker: str | None = None
 
     # 1. Extraire les timestamps [0.00s -> 5.00s]
     time_match = re.search(r"\[([0-9.]+)s\s*->\s*([0-9.]+)s\]", text)

@@ -11,7 +11,7 @@ import asyncio
 import numpy as np
 
 from backend.core.live import LiveSession
-from typing import cast, Any
+from typing import cast, Any, Dict, List, Optional
 from fastapi import WebSocket
 from backend.core.vad import VADManager
 
@@ -21,32 +21,32 @@ from backend.core.vad import VADManager
 
 class DummyWebSocket:
     """Mock pour WebSocket FastAPI capturant les messages envoyés."""
-    def __init__(self):
-        self.messages = []
+    def __init__(self) -> None:
+        self.messages: List[Dict[str, Any]] = []
 
-    async def send_json(self, data):
+    async def send_json(self, data: Dict[str, Any]) -> None:
         """Enregistre le JSON envoyé."""
         self.messages.append(data)
 
 
 class DummyTranscriptionEngine:
     """Mock pour le moteur de transcription Whisper/Albert."""
-    def transcribe(self, _audio_np):
+    def transcribe(self, _audio_np: np.ndarray) -> tuple[list[dict[str, Any]], Optional[float]]:
         """Renvoie toujours 'bonjour monde'."""
         return ([{"word": "bonjour"}, {"word": "monde"}], None)
 
 
 class DummyEngine:
     """Mock pour le wrapper de modèle Engine."""
-    def __init__(self, model_id="test"):
-        self.model_id = model_id
+    def __init__(self, model_id: str = "test") -> None:
+        self.model_id: str = model_id
         self.transcription_engine = DummyTranscriptionEngine()
 
 
 class DummyEmptyEngine:
     """Mock pour le wrapper de modèle Engine renvoyant du vide."""
-    def __init__(self, model_id="empty"):
-        self.model_id = model_id
+    def __init__(self, model_id: str = "empty") -> None:
+        self.model_id: str = model_id
         self.transcription_engine = type('Dummy', (), {'transcribe': lambda _self, _x: ([], None)})()
 
 
@@ -62,7 +62,7 @@ class SpeechThenSilenceVAD:
       2. live.py appelle check_deactivation() sur les chunks suivants
          → dès que speech_chunks épuisés, retourne False = silence
     """
-    def __init__(self, speech_chunks: int = 3):
+    def __init__(self, speech_chunks: int = 3) -> None:
         self._n = speech_chunks          # nb de chunks de « parole »
         self._speech_calls = 0           # compteur is_speech()
 
@@ -106,7 +106,7 @@ def make_pcm_chunk(duration_ms: int = 100, amplitude: float = 0.5) -> bytes:
 
 # ---- Tests ----
 
-async def _test_ws_receives_final_sentence():
+async def _test_ws_receives_final_sentence() -> None:
     """
     3 chunks où is_speech=True (activation),
     puis 6 chunks où check_deactivation=False (silence).
@@ -147,7 +147,7 @@ async def _test_ws_receives_final_sentence():
     assert "total_bytes_received" in msg
 
 
-async def _test_ws_receives_partial_sentence():
+async def _test_ws_receives_partial_sentence() -> None:
     """
     5 chunks de 500ms = 80 000 bytes > seuil partial 64 000.
     VAD toujours actif → pas de fin → seuls des partials.
@@ -172,17 +172,17 @@ async def _test_ws_receives_partial_sentence():
     assert partials[0]["type"] == "sentence"
 
 
-def test_ws_receives_final_sentence():
+def test_ws_receives_final_sentence() -> None:
     """Le WebSocket doit recevoir au moins une phrase finale (final=True)."""
     asyncio.run(_test_ws_receives_final_sentence())
 
 
-def test_ws_receives_partial_sentence():
+def test_ws_receives_partial_sentence() -> None:
     """Le WebSocket doit recevoir au moins un partial (final=False)."""
     asyncio.run(_test_ws_receives_partial_sentence())
 
 
-async def _test_ws_receives_empty_final_sentence():
+async def _test_ws_receives_empty_final_sentence() -> None:
     """
     Vérifie qu'un segment qui ne contient QUE du silence (ou que l'IA ignore) 
     envoie quand même un message final=True pour clore la ligne côté frontend.
@@ -204,6 +204,6 @@ async def _test_ws_receives_empty_final_sentence():
     assert final_msgs[0]["text"] == ""
 
 
-def test_ws_receives_empty_final_sentence():
+def test_ws_receives_empty_final_sentence() -> None:
     """Pytest entry for empty final sentence test."""
     asyncio.run(_test_ws_receives_empty_final_sentence())

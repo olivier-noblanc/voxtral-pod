@@ -1,0 +1,188 @@
+tests\test_routes_contract.py:10: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_routes_contract.py:19: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_routes_contract.py:28: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_routes_contract.py:28: note: Use "-> None" if function does not return a value
+tests\test_routes_contract.py:43: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_routes_contract.py:43: note: Use "-> None" if function does not return a value
+tests\test_no_vibe_coding_markers.py:3: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_no_vibe_coding_markers.py:3: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+tests\test_no_vibe_coding_markers.py:8: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_no_vibe_coding_markers.py:22: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_no_dom_debug_override.py:10: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_no_dom_debug_override.py:10: note: Use "-> None" if function does not return a value
+tests\test_no_dom_debug_override.py:24: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_no_dom_debug_override.py:24: note: Use "-> None" if function does not return a value
+tests\test_import_error_handling.py:4: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_import_error_handling.py:4: note: Use "-> None" if function does not return a value
+tests\test_dom_contract.py:20: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_dom_contract.py:29: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_dom_contract.py:29: note: Use "-> None" if function does not return a value
+tests\test_dom_contract.py:31: error: Call to untyped function "_paths" in typed context  [no-untyped-call]
+tests\test_dom_contract.py:41: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_dom_contract.py:41: note: Use "-> None" if function does not return a value
+tests\test_dom_contract.py:43: error: Call to untyped function "_paths" in typed context  [no-untyped-call]
+tests\test_dom_contract.py:52: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_dom_contract.py:52: note: Use "-> None" if function does not return a value
+tests\test_dom_contract.py:54: error: Call to untyped function "_paths" in typed context  [no-untyped-call]
+tests\test_app_js_integrity.py:5: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_app_js_integrity.py:5: note: Use "-> None" if function does not return a value
+tests\test_app_js_integrity.py:17: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_app_js_integrity.py:17: note: Use "-> None" if function does not return a value
+tests\test_app_js_integrity.py:36: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_app_js_integrity.py:36: note: Use "-> None" if function does not return a value
+tests\test_app_js_integrity.py:53: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_app_js_integrity.py:53: note: Use "-> None" if function does not return a value
+tests\test_app_js_integrity.py:69: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_app_js_integrity.py:69: note: Use "-> None" if function does not return a value
+tests\test_app_js_integrity.py:86: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_app_js_integrity.py:86: note: Use "-> None" if function does not return a value
+tests\test_app_js_integrity.py:118: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_app_js_integrity.py:118: note: Use "-> None" if function does not return a value
+tests\test_app_js_integrity.py:142: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_app_js_integrity.py:142: note: Use "-> None" if function does not return a value
+tests\test_app_js_integrity.py:167: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_app_js_integrity.py:167: note: Use "-> None" if function does not return a value
+tests\test_app_js_integrity.py:185: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_app_js_integrity.py:185: note: Use "-> None" if function does not return a value
+tests\test_app_js_integrity.py:206: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_app_js_integrity.py:206: note: Use "-> None" if function does not return a value
+tests\test_albert_frontend_contract.py:6: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_albert_frontend_contract.py:6: note: Use "-> None" if function does not return a value
+tests\test_albert_frontend_contract.py:21: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_albert_frontend_contract.py:21: note: Use "-> None" if function does not return a value
+backend\core\merger.py:6: error: Function is missing a type annotation  [no-untyped-def]
+backend\core\merger.py:75: error: Function is missing a type annotation  [no-untyped-def]
+backend\core\merger.py:108: error: Function is missing a type annotation  [no-untyped-def]
+tests\test_pylint_errors.py:4: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_pylint_errors.py:4: note: Use "-> None" if function does not return a value
+tests\test_format_transcription.py:10: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_format_transcription.py:10: note: Use "-> None" if function does not return a value
+tests\test_format_transcription.py:26: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_format_transcription.py:26: note: Use "-> None" if function does not return a value
+tests\test_format_transcription.py:39: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_format_transcription.py:39: note: Use "-> None" if function does not return a value
+tests\test_format_transcription.py:53: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_format_transcription.py:53: note: Use "-> None" if function does not return a value
+tests\test_format_transcription.py:66: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_format_transcription.py:66: note: Use "-> None" if function does not return a value
+tests\test_format_transcription.py:77: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_format_transcription.py:77: note: Use "-> None" if function does not return a value
+tests\test_format_transcription.py:92: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_format_transcription.py:92: note: Use "-> None" if function does not return a value
+tests\test_ui_features.py:7: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_ui_features.py:7: note: Use "-> None" if function does not return a value
+tests\test_ui_features.py:20: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_ui_features.py:20: note: Use "-> None" if function does not return a value
+tests\test_ui_features.py:36: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_ui_features.py:36: note: Use "-> None" if function does not return a value
+tests\test_index_template.py:2: error: Function is missing a type annotation  [no-untyped-def]
+tests\test_home_route.py:2: error: Function is missing a type annotation  [no-untyped-def]
+tests\test_merger.py:9: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_merger.py:9: note: Use "-> None" if function does not return a value
+tests\test_merger.py:20: error: Call to untyped function "assign_speakers_to_words" in typed context  [no-untyped-call]
+tests\test_merger.py:26: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_merger.py:26: note: Use "-> None" if function does not return a value
+tests\test_merger.py:31: error: Call to untyped function "assign_speakers_to_words" in typed context  [no-untyped-call]
+tests\test_merger.py:36: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_merger.py:36: note: Use "-> None" if function does not return a value
+tests\test_merger.py:41: error: Call to untyped function "assign_speakers_to_words" in typed context  [no-untyped-call]
+tests\test_merger.py:47: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_merger.py:47: note: Use "-> None" if function does not return a value
+tests\test_merger.py:54: error: Call to untyped function "smooth_micro_turns" in typed context  [no-untyped-call]
+tests\test_merger.py:58: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_merger.py:58: note: Use "-> None" if function does not return a value
+tests\test_merger.py:66: error: Call to untyped function "smooth_micro_turns" in typed context  [no-untyped-call]
+tests\test_merger.py:70: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_merger.py:70: note: Use "-> None" if function does not return a value
+tests\test_merger.py:77: error: Call to untyped function "build_speaker_segments" in typed context  [no-untyped-call]
+backend\cli_tools.py:4: error: Function is missing a return type annotation  [no-untyped-def]
+backend\cli_tools.py:4: note: Use "-> None" if function does not return a value
+backend\cli_tools.py:18: error: Call to untyped function "main" in typed context  [no-untyped-call]
+tests\ping_albert.py:4: error: Function is missing a return type annotation  [no-untyped-def]
+tests\ping_albert.py:4: note: Use "-> None" if function does not return a value
+tests\ping_albert.py:32: error: Call to untyped function "ping_albert" in typed context  [no-untyped-call]
+backend\core\assistant.py:7: error: Function is missing a return type annotation  [no-untyped-def]
+backend\core\assistant.py:7: note: Use "-> None" if function does not return a value
+backend\core\postprocess.py:42: error: Value of type "Coroutine[Any, Any, None]" must be used  [unused-coroutine]
+backend\core\postprocess.py:42: note: Are you missing an await?
+backend\core\postprocess.py:84: error: Returning Any from function declared to return "str"  [no-any-return]
+backend\core\postprocess.py:99: error: Function is missing a type annotation  [no-untyped-def]
+backend\core\postprocess.py:103: error: Function is missing a return type annotation  [no-untyped-def]
+backend\core\postprocess.py:103: note: Use "-> None" if function does not return a value
+backend\core\postprocess.py:120: error: Call to untyped function "_ensure_ffmpeg" in typed context  [no-untyped-call]
+backend\core\postprocess.py:121: error: Skipping analyzing "pydub": module is installed, but missing library stubs or py.typed marker  [import-untyped]
+backend\core\postprocess.py:131: error: Function is missing a type annotation  [no-untyped-def]
+backend\core\postprocess.py:145: error: Function is missing a type annotation  [no-untyped-def]
+backend\core\postprocess.py:148: error: Call to untyped function "AlbertAssistant" in typed context  [no-untyped-call]
+backend\core\postprocess.py:160: error: Function is missing a type annotation  [no-untyped-def]
+backend\core\postprocess.py:182: error: Function is missing a type annotation  [no-untyped-def]
+backend\core\postprocess.py:184: error: Call to untyped function "words_to_text" in typed context  [no-untyped-call]
+backend\core\postprocess.py:185: error: Call to untyped function "process_text" in typed context  [no-untyped-call]
+backend\core\postprocess.py:188: error: Function is missing a type annotation  [no-untyped-def]
+backend\core\postprocess.py:190: error: Call to untyped function "AlbertAssistant" in typed context  [no-untyped-call]
+backend\core\postprocess.py:192: error: Call to untyped function "extract_actions_text" in typed context  [no-untyped-call]
+tests\test_postprocess.py:11: error: Function is missing a type annotation  [no-untyped-def]
+tests\test_postprocess.py:25: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_postprocess.py:25: note: Use "-> None" if function does not return a value
+tests\test_postprocess.py:27: error: Call to untyped function "words_to_text" in typed context  [no-untyped-call]
+tests\test_postprocess.py:31: error: Function is missing a type annotation  [no-untyped-def]
+tests\test_postprocess.py:32: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_postprocess.py:34: error: Function is missing a type annotation  [no-untyped-def]
+tests\test_postprocess.py:38: error: Call to untyped function "_mock_albert_response" in typed context  [no-untyped-call]
+tests\test_postprocess.py:43: error: Call to untyped function "process_text" in typed context  [no-untyped-call]
+tests\test_postprocess.py:56: error: Call to untyped function "run" in typed context  [no-untyped-call]
+tests\test_postprocess.py:60: error: Function is missing a type annotation  [no-untyped-def]
+tests\test_postprocess.py:61: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_postprocess.py:64: error: Function is missing a type annotation  [no-untyped-def]
+tests\test_postprocess.py:67: error: Call to untyped function "_mock_albert_response" in typed context  [no-untyped-call]
+tests\test_postprocess.py:72: error: Call to untyped function "process_transcription" in typed context  [no-untyped-call]
+tests\test_postprocess.py:79: error: Call to untyped function "run" in typed context  [no-untyped-call]
+tests\test_assistant_usage.py:6: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_assistant_usage.py:6: note: Use "-> None" if function does not return a value
+tests\test_assistant_usage.py:7: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_assistant_usage.py:7: note: Use "-> None" if function does not return a value
+tests\test_assistant_usage.py:12: error: Call to untyped function "process_text" in typed context  [no-untyped-call]
+tests\test_assistant_usage.py:19: error: Call to untyped function "run" in typed context  [no-untyped-call]
+tests\test_assistant_usage.py:21: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_assistant_usage.py:21: note: Use "-> None" if function does not return a value
+tests\test_assistant_usage.py:22: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_assistant_usage.py:22: note: Use "-> None" if function does not return a value
+tests\test_assistant_usage.py:28: error: Call to untyped function "process_transcription" in typed context  [no-untyped-call]
+tests\test_assistant_usage.py:35: error: Call to untyped function "run" in typed context  [no-untyped-call]
+backend\core\audio.py:109: error: Returning Any from function declared to return "bytes"  [no-any-return]
+tests\test_no_style_tags.py:13: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_no_style_tags.py:37: error: Call to untyped function "_python_files" in typed context  [no-untyped-call]
+tests\test_no_style_tags.py:38: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_no_script_tags.py:13: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_no_script_tags.py:37: error: Call to untyped function "_python_files" in typed context  [no-untyped-call]
+tests\test_no_script_tags.py:38: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_no_cdn_script_src.py:13: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_no_cdn_script_src.py:27: error: Call to untyped function "_all_files" in typed context  [no-untyped-call]
+tests\test_no_cdn_script_src.py:28: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_diarization_render.py:11: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_diarization_render.py:14: error: Function is missing a type annotation  [no-untyped-def]
+tests\test_diarization_render.py:43: error: Function is missing a type annotation  [no-untyped-def]
+tests\test_diarization_render.py:62: error: Function is missing a type annotation  [no-untyped-def]
+tests\test_speaker_profiles.py:6: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_speaker_profiles.py:6: note: Use "-> None" if function does not return a value
+tests\test_speaker_profiles.py:33: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_speaker_profiles.py:33: note: Use "-> None" if function does not return a value
+tests\test_diarize.py:5: error: Skipping analyzing "soundfile": module is installed, but missing library stubs or py.typed marker  [import-untyped]
+tests\test_diarize.py:7: error: Skipping analyzing "diarize": module is installed, but missing library stubs or py.typed marker  [import-untyped]
+tests\test_diarize.py:14: error: Function is missing a type annotation  [no-untyped-def]
+tests\test_diarize.py:36: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_diarize.py:36: note: Use "-> None" if function does not return a value
+tests\test_diarize.py:44: error: Call to untyped function "get_heaviest_audio_file" in typed context  [no-untyped-call]
+tests\test_diarize.py:85: error: Value of type variable "SupportsRichComparisonT" of "max" cannot be "object"  [type-var]
+tests\test_diarize.py:86: error: Unsupported operand types for / ("float" and "object")  [operator]
+tests\test_diarize.py:88: error: Unsupported operand types for / ("object" and "int")  [operator]
+tests\test_diarize.py:89: error: Unsupported left operand type for - ("object")  [operator]
+tests\test_diarize.py:117: error: Call to untyped function "test_diarize_benchmark" in typed context  [no-untyped-call]
+tests\test_audio.py:14: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_audio.py:23: error: Unused "type: ignore" comment  [unused-ignore]
+tests\test_audio.py:31: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_audio.py:31: note: Use "-> None" if function does not return a value
+tests\test_audio.py:55: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_audio.py:55: note: Use "-> None" if function does not return a value
+tests\test_audio.py:70: error: Function is missing a return type annotation  [no-untyped-def]
+tests\test_audio.py:70: note: Use "-> None" if function does not return a value

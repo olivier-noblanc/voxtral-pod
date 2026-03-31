@@ -1,6 +1,5 @@
 import os
 import time
-import shutil
 import asyncio
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
@@ -137,7 +136,7 @@ def compress_old_wavs(days: float = 0.1) -> int:
 
     return compressed_count
 
-def run_cleanup(days: int = CLEANUP_RETENTION_DAYS) -> dict:
+def run_cleanup(days: int = CLEANUP_RETENTION_DAYS) -> dict[str, int]:
     """Exécute les nettoyages base de données et fichiers, retourne les statistiques."""
     print(f"[*] Démarrage du nettoyage automatique (Rétention: {days} jours)...")
     
@@ -157,7 +156,7 @@ def run_cleanup(days: int = CLEANUP_RETENTION_DAYS) -> dict:
     print(f"[*] Nettoyage terminé: {jobs_deleted} jobs supprimés, {files_deleted} fichiers supprimés, {compressed_files} fichiers WAV compressés en MP3.")
     return {"jobs_deleted": jobs_deleted, "files_deleted": files_deleted, "compressed_files": compressed_files}
 
-async def periodic_cleanup_task(days: int):
+async def periodic_cleanup_task(days: int) -> None:
     """
     Tâche asynchrone tournant en boucle.
     Nettoie les jobs stale toutes les heures, et les archives toutes les 24h.

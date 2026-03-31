@@ -1,4 +1,3 @@
-import pytest
 import numpy as np
 from unittest.mock import MagicMock, patch
 
@@ -20,7 +19,7 @@ def test_run_silero_chunk_sizes():
         'silero_vad': MagicMock(load_silero_vad=MagicMock(return_value=fake_silero)),
         'torch': MagicMock(from_numpy=lambda x: x),
     }):
-        from backend.core.vad import VADManager, _SILERO_CHUNK_SIZE
+        from backend.core.vad import VADManager
 
         vad = VADManager.__new__(VADManager)
         vad.silero_model = fake_silero

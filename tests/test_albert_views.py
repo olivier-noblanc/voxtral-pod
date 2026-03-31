@@ -2,7 +2,7 @@ import os
 import shutil
 import tempfile
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import sys

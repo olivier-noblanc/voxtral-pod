@@ -4,6 +4,8 @@ import os
 import tempfile
 import soundfile as sf
 import pytest
+from typing import Optional, Any, Dict, List
+
 from diarize import diarize
 
 # === Configuration ===
@@ -11,7 +13,7 @@ AUDIO_FILE = "test_3h.wav"
 OUTPUT_JSON = "diarize_results.json"
 MAX_BENCH_DURATION = 120.0  # seconds (2 minutes for a fast benchmark)
 
-def get_heaviest_audio_file(search_dir="."):
+def get_heaviest_audio_file(search_dir: str = ".") -> Optional[str]:
     """Finds the largest audio file in the specified directory recursively."""
     extensions = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac"}
     heaviest_file = None
@@ -33,7 +35,7 @@ def get_heaviest_audio_file(search_dir="."):
                     continue
     return heaviest_file
 
-def test_diarize_benchmark():
+def test_diarize_benchmark() -> None:
     """
     Test de performance (benchmark) pour la diarisation batch.
     S'assure que le RTF est < 1.0 sur un fichier réel.
@@ -49,7 +51,7 @@ def test_diarize_benchmark():
     print(f"[*] Using audio file for benchmark: {audio_to_use} ({os.path.getsize(audio_to_use)/1024/1024:.1f} MB)")
 
     # === Truncation for faster benchmark ===
-    temp_audio_file = None
+    temp_audio_file: Optional[str] = None
     try:
         info = sf.info(audio_to_use)
         if info.duration > MAX_BENCH_DURATION:
@@ -72,7 +74,7 @@ def test_diarize_benchmark():
         elapsed = time.time() - start_time
 
         # Extraction et conversion des segments (objets -> dict) pour compatibilité
-        segments = [
+        segments: List[Dict[str, Any]] = [
             {"start": float(s.start), "end": float(s.end), "speaker": str(s.speaker)}
             for s in result.segments
         ]
@@ -89,7 +91,7 @@ def test_diarize_benchmark():
         avg_segment_duration = sum(s["end"] - s["start"] for s in segments) / len(segments)
 
         # === Logs ===
-        print(f"\n=== DIARIZE BATCH RESULT ===")
+        print("\n=== DIARIZE BATCH RESULT ===")
         print(f"Total time: {elapsed:.2f}s")
         print(f"RTF: {rtf:.3f}")
         print(f"Speakers: {len(speakers)}")

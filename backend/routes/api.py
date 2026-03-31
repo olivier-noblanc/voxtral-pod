@@ -1,20 +1,24 @@
+from __future__ import annotations
 import os
 import time
 import pathlib
 import importlib.util
 import numpy as np
 import datetime
-import time
 import asyncio
 import shutil
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, Response
-from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
 import re
 import json
 import logging
-from backend.core.engine import TranscriptionResult
+from typing import Any, Dict, List, Union, Optional
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, Response, HTMLResponse
+from fastapi.templating import Jinja2Templates
+
+# Import shared state
+from backend.state import get_job, update_job, add_job, get_asr_engine, get_current_model, set_current_model
+from backend.config import TEMP_DIR, TRANSCRIPTIONS_DIR, BASE_DIR
+from backend.utils import format_transcription
 
 logger = logging.getLogger(__name__)
 
@@ -58,11 +62,6 @@ else:
             return "\n".join(html_lines)
     markdown = _FallbackMarkdown()
 
-# Import shared state
-from backend.state import get_job, update_job, add_job, JOBS_DB_MAX_SIZE, get_asr_engine, get_current_model, set_current_model
-from backend.config import TEMP_DIR, TRANSCRIPTIONS_DIR, BASE_DIR
-from backend.utils import format_transcription
-
 router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "backend", "templates"))
 templates.env.cache = None  # Disable Jinja2 caching to avoid unhashable globals issue
@@ -79,12 +78,12 @@ def _safe_join(base: str, *parts: str) -> str:
         raise HTTPException(status_code=400, detail="Chemin invalide.")
     return str(target)
 
-def _validate_client_id(client_id: str):
+def _validate_client_id(client_id: str) -> None:
     """Vérifie que le client_id est valide (format user_xxxxxxxx)."""
     if not client_id or client_id == "anonymous" or not client_id.startswith("user_") or len(client_id) < 6:
         raise HTTPException(status_code=400, detail="Identifiant client (UUID) invalide ou anonyme non autorisé.")
 
-def _require_admin_key(request: Request):
+def _require_admin_key(request: Request) -> None:
     admin_key = os.getenv("ADMIN_API_KEY")
     if not admin_key:
         return
@@ -93,7 +92,7 @@ def _require_admin_key(request: Request):
         raise HTTPException(status_code=403, detail="Clé admin invalide ou manquante.")
 
 # ---------- Helper ----------
-def _update_job_status(job_id: str, status: str, progress: int = 0, result_file: str | None = None):
+def _update_job_status(job_id: str, status: str, progress: int = 0, result_file: Optional[str] = None) -> None:
     data = {"status": status, "progress": progress}
     if result_file:
         data["result_file"] = result_file
@@ -101,7 +100,7 @@ def _update_job_status(job_id: str, status: str, progress: int = 0, result_file:
 
 # ---------- GET routes ----------
 @router.get("/")
-async def home(req: Request):
+async def home(req: Request) -> HTMLResponse:
     try:
         import subprocess
         commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()[:7]
@@ -141,8 +140,7 @@ async def home(req: Request):
     return HTMLResponse(html)
 
 @router.get("/transcriptions")
-async def list_trans(client_id: str):
-    base = pathlib.Path(TRANSCRIPTIONS_DIR).resolve()
+async def list_trans(client_id: str) -> List[Dict[str, Any]]:
     p = _safe_join(TRANSCRIPTIONS_DIR, client_id)
     if not os.path.isdir(p):
         return []
@@ -154,11 +152,11 @@ async def list_trans(client_id: str):
     return result
 
 @router.get("/transcriptions/")
-async def list_trans_slash(client_id: str):
+async def list_trans_slash(client_id: str) -> List[Dict[str, Any]]:
     return await list_trans(client_id)
 
 @router.delete("/transcriptions/{filename}")
-async def delete_trans(filename: str, client_id: str):
+async def delete_trans(filename: str, client_id: str) -> Dict[str, str]:
     trans_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(trans_path):
         raise HTTPException(status_code=404, detail="Fichier transcription introuvable.")
@@ -190,14 +188,14 @@ async def delete_trans(filename: str, client_id: str):
     return {"status": "ok"}
 
 @router.get("/transcription/{filename}")
-async def get_trans(filename: str, client_id: str):
+async def get_trans(filename: str, client_id: str) -> FileResponse:
     p = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(p):
         raise HTTPException(status_code=404, detail="Fichier introuvable.")
     return FileResponse(p, media_type="text/plain", filename=filename)
 
 @router.post("/summary/{filename}")
-async def generate_summary(filename: str, client_id: str):
+async def generate_summary(filename: str, client_id: str) -> Dict[str, Any]:
     _validate_client_id(client_id)
     file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
@@ -212,7 +210,7 @@ async def generate_summary(filename: str, client_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/actions/{filename}")
-async def generate_actions(filename: str, client_id: str):
+async def generate_actions(filename: str, client_id: str) -> Dict[str, Any]:
     _validate_client_id(client_id)
     file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
@@ -228,7 +226,7 @@ async def generate_actions(filename: str, client_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/cleanup/{filename}")
-async def generate_cleanup(filename: str, client_id: str):
+async def generate_cleanup(filename: str, client_id: str) -> Dict[str, Any]:
     _validate_client_id(client_id)
     file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
@@ -243,7 +241,7 @@ async def generate_cleanup(filename: str, client_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/download_audio/{client_id}/{filename}")
-async def download_audio(client_id: str, filename: str):
+async def download_audio(client_id: str, filename: str) -> FileResponse:
     if f"_{client_id}_" not in filename:
         raise HTTPException(status_code=403, detail="Accès refusé : ce fichier n'appartient pas à votre session.")
     base_name = os.path.splitext(filename)[0]
@@ -270,7 +268,7 @@ async def download_audio(client_id: str, filename: str):
     raise HTTPException(status_code=404, detail="Fichier audio non trouvé.")
 
 @router.get("/download_transcript/{client_id}/{filename}")
-async def download_transcript(client_id: str, filename: str):
+async def download_transcript(client_id: str, filename: str) -> Response:
     file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Fichier transcript introuvable.")
@@ -286,7 +284,7 @@ async def download_transcript(client_id: str, filename: str):
     )
 
 @router.get("/view/{client_id}/{filename}")
-async def view_transcription(client_id: str, filename: str, req: Request):
+async def view_transcription(client_id: str, filename: str, req: Request) -> Response:
     client_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     cleaned_path = client_path.replace(".txt", ".cleaned.md")
     
@@ -302,7 +300,7 @@ async def view_transcription(client_id: str, filename: str, req: Request):
     else:
         temp_path = _safe_join(TRANSCRIPTIONS_DIR, "live_audio", filename)
         if os.path.isfile(temp_path):
-            if f"_user_" in filename and f"_{client_id}_" not in filename:
+            if "_user_" in filename and f"_{client_id}_" not in filename:
                 raise HTTPException(status_code=403, detail="Accès refusé.")
             file_path = temp_path
             is_cleaned = False
@@ -360,7 +358,7 @@ def _render_postprocess_page(request: Request, title: str, content: str, filenam
     return HTMLResponse(html)
 
 @router.get("/view_summary/{client_id}/{filename}")
-async def view_summary(client_id: str, filename: str, req: Request):
+async def view_summary(client_id: str, filename: str, req: Request) -> Response:
     _validate_client_id(client_id)
     file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
@@ -375,7 +373,7 @@ async def view_summary(client_id: str, filename: str, req: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/download_rttm/{client_id}/{filename}")
-async def download_rttm(client_id: str, filename: str):
+async def download_rttm(client_id: str, filename: str) -> FileResponse:
     """
     Télécharge le fichier RTTM correspondant à une transcription.
     """
@@ -390,7 +388,7 @@ async def download_rttm(client_id: str, filename: str):
     return FileResponse(path=file_path, filename=rttm_filename, media_type="text/plain")
 
 @router.get("/diarization_data/{client_id}/{filename}")
-async def get_diarization_data(client_id: str, filename: str):
+async def get_diarization_data(client_id: str, filename: str) -> Any:
     """
     Retourne les données de diarisation brutes au format JSON.
     """
@@ -405,7 +403,7 @@ async def get_diarization_data(client_id: str, filename: str):
         return json.load(f)
 
 @router.get("/view_diarization/{client_id}/{filename}")
-async def view_diarization(client_id: str, filename: str, req: Request):
+async def view_diarization(client_id: str, filename: str, req: Request) -> HTMLResponse:
     """
     Affiche un tableau HTML (SSR via Jinja2) des segments de diarisation.
     """
@@ -451,7 +449,7 @@ async def view_diarization(client_id: str, filename: str, req: Request):
 
 
 @router.get("/view_actions/{client_id}/{filename}")
-async def view_actions(client_id: str, filename: str, req: Request):
+async def view_actions(client_id: str, filename: str, req: Request) -> Response:
     _validate_client_id(client_id)
     file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
@@ -467,7 +465,7 @@ async def view_actions(client_id: str, filename: str, req: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/view_cleanup/{client_id}/{filename}")
-async def view_cleanup(client_id: str, filename: str, req: Request):
+async def view_cleanup(client_id: str, filename: str, req: Request) -> Response:
     _validate_client_id(client_id)
     file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
     if not os.path.isfile(file_path):
@@ -482,12 +480,12 @@ async def view_cleanup(client_id: str, filename: str, req: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/status/{file_id}")
-async def status_route(file_id: str):
+async def status_route(file_id: str) -> Dict[str, Any]:
     return get_job(file_id, {"status": "not_found"})
 
 # ---------- Rate limiter status ----------
 @router.get("/rate_limiter_status")
-async def rate_limiter_status():
+async def rate_limiter_status() -> Dict[str, Any]:
     """
     Retourne l'état du rate limiter, notamment si le fallback CPU est actif
     et le temps restant avant la reprise du modèle Albert.
@@ -513,7 +511,7 @@ async def rate_limiter_status():
     }
 
 @router.get("/git_status")
-async def git_status():
+async def git_status() -> Dict[str, Any]:
     try:
         import subprocess
         subprocess.run(["git", "fetch", "origin", "main"], capture_output=True, check=False)
@@ -525,15 +523,14 @@ async def git_status():
         return {"commit": "unknown", "behind": -1, "error": str(e)}
 
 # ---------- Speaker profile endpoints ----------
-from typing import List, Union
 @router.get("/speaker_profiles")
-async def get_speaker_profiles() -> List[dict]:
+async def get_speaker_profiles() -> List[Dict[str, Any]]:
     import backend.core.speaker_profiles as speaker_profiles
     profiles = speaker_profiles.load_profiles()
     return [{"speaker_id": sid, "name": name} for sid, (name, _) in profiles.items()]
 
 @router.post("/speaker_profiles")
-async def upsert_speaker_profile(payload: dict) -> Union[dict, None]:
+async def upsert_speaker_profile(payload: Dict[str, Any]) -> Dict[str, str]:
     import backend.core.speaker_profiles as speaker_profiles
     speaker_id = payload.get("speaker_id")
     name = payload.get("name")
@@ -550,7 +547,7 @@ async def upsert_speaker_profile(payload: dict) -> Union[dict, None]:
     speaker_profiles.save_profile(speaker_id, name, emb_array)
     return {"status": "ok"}
 
-def _extract_and_save_profile_sync(audio_path: str, start_s: float, end_s: float, speaker_id: str):
+def _extract_and_save_profile_sync(audio_path: str, start_s: float, end_s: float, speaker_id: str) -> None:
     import os
     if not os.path.isfile(audio_path):
         print(f"[!] Audio file {audio_path} not found for profile extraction.")
@@ -575,7 +572,7 @@ def _extract_and_save_profile_sync(audio_path: str, start_s: float, end_s: float
         print(f"[!] Warning: Failed to extract speaker embedding for {speaker_id}: {e}")
 
 @router.post("/segment_update")
-async def update_segment_speaker(payload: dict, background_tasks: BackgroundTasks):
+async def update_segment_speaker(payload: Dict[str, Any], background_tasks: BackgroundTasks) -> Dict[str, str]:
     import re
     client_id = payload.get("client_id")
     filename = payload.get("filename")
@@ -621,14 +618,15 @@ async def update_segment_speaker(payload: dict, background_tasks: BackgroundTask
 # ---------- New CPU Diarization & Speaker ID Endpoints ----------
 
 @router.post("/diarize")
-async def api_diarize(file: UploadFile = File(...)):
+async def api_diarize(file: UploadFile = File(...)) -> Any:
     """
     Endpoint de diarisation batch simple.
     """
     from backend.core.diarization_cpu import LightDiarizationEngine
     import tempfile
     
-    with tempfile.NamedTemporaryFile(suffix=pathlib.Path(file.filename or "audio.wav").suffix, delete=False) as tmp:
+    suffix = pathlib.Path(file.filename).suffix if file.filename else ".wav"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         content = await file.read()
         tmp.write(content)
         tmp_path = tmp.name
@@ -646,7 +644,7 @@ async def api_diarize(file: UploadFile = File(...)):
             os.remove(tmp_path)
 
 @router.post("/benchmark")
-async def api_benchmark(file: UploadFile = File(...)):
+async def api_benchmark(file: UploadFile = File(...)) -> Dict[str, Any]:
     """
     Endpoint de benchmark performance pour la diarisation CPU.
     """
@@ -671,7 +669,7 @@ async def api_benchmark(file: UploadFile = File(...)):
             os.remove(tmp_path)
 
 @router.post("/speakers/enroll")
-async def api_enroll_speaker(name: str = Form(...), file: UploadFile = File(...)):
+async def api_enroll_speaker(name: str = Form(...), file: UploadFile = File(...)) -> Dict[str, str]:
     """
     Enrôle un nouveau locuteur (signature vocale).
     """
@@ -696,7 +694,7 @@ async def api_enroll_speaker(name: str = Form(...), file: UploadFile = File(...)
             os.remove(tmp_path)
 
 @router.post("/speakers/identify")
-async def api_identify_speakers(file: UploadFile = File(...)):
+async def api_identify_speakers(file: UploadFile = File(...)) -> Any:
     """
     Identifie les locuteurs connus dans un fichier audio segmenté par diarisation.
     """
@@ -728,7 +726,7 @@ async def api_identify_speakers(file: UploadFile = File(...)):
 
 # ---------- POST routes ----------
 @router.post("/git_update")
-async def git_update(req: Request):
+async def git_update(req: Request) -> Dict[str, str]:
     _require_admin_key(req)
     try:
         import subprocess
@@ -744,14 +742,14 @@ async def git_update(req: Request):
         return {"stdout": "", "stderr": str(e)}
 
 @router.post("/change_model")
-async def change_model_route(model: str, req: Request):
+async def change_model_route(model: str, req: Request) -> Dict[str, str]:
     _require_admin_key(req)
     set_current_model(model.lower())
     get_asr_engine(load_model=True)
     return {"status": "ok"}
 
 @router.post("/cleanup")
-async def trigger_cleanup(req: Request):
+async def trigger_cleanup(req: Request) -> Dict[str, Any]:
     _require_admin_key(req)
     from backend.cleanup import run_cleanup
     from backend.config import CLEANUP_RETENTION_DAYS
@@ -769,7 +767,7 @@ async def batch_chunk_route(
     chunk_index: int = Form(...),
     total_chunks: int = Form(...),
     file: UploadFile = File(...),
-):
+) -> Dict[str, str]:
     _validate_client_id(client_id)
     if chunk_index == 0:
         add_job(file_id, {"status": "uploading", "progress": 0})
@@ -793,7 +791,7 @@ def _assemble_chunks(assembled_path: str, total_chunks: int, upload_dir: str) ->
                 out_f.write(in_f.read())
             os.remove(part)
 
-async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
+async def _gpu_job(assembled_path: str, file_id: str, client_id: str) -> None:
     print(f"[*] Starting GPU Job for {file_id} (Client: {client_id})")
     try:
         _update_job_status(file_id, "processing:Transcription...", 10)
@@ -857,7 +855,7 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str):
         except Exception:
             pass
 
-async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp: str | None):
+async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp: Optional[str]):
     """
     Process the final live audio file as a background job using Diarization.
     """
@@ -915,8 +913,8 @@ async def live_endpoint(
     websocket: WebSocket,
     client_id: str = "anonymous",
     partial_albert: bool = False,
-    device_id: str | None = None,
-    session_id: str | None = None,
+    device_id: Optional[str] = None,
+    session_id: Optional[str] = None,
 ):
     if not client_id or client_id == "anonymous" or not client_id.startswith("user_"):
         await websocket.close(code=4003)

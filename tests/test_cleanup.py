@@ -1,16 +1,14 @@
 import os
+from typing import Any, Dict
 import pytest
 import time
-import json
-import sqlite3
-import subprocess
 
 from unittest.mock import patch, MagicMock
-from backend.state import get_db, add_job
+from backend.state import get_db
 from backend.cleanup import clean_old_jobs, clean_old_files, compress_old_wavs, run_cleanup
 
 @pytest.fixture
-def mock_dirs(tmp_path, monkeypatch):
+def mock_dirs(tmp_path: Any, monkeypatch: Any) -> Dict[str, Any]:
     trans_dir = tmp_path / "transcriptions_terminees"
     temp_dir = tmp_path / "temp_batch"
     live_audio = trans_dir / "live_audio"
@@ -23,7 +21,7 @@ def mock_dirs(tmp_path, monkeypatch):
     monkeypatch.setattr("backend.cleanup.TEMP_DIR", str(temp_dir))
     return {"trans_dir": trans_dir, "temp_dir": temp_dir}
 
-def create_mock_file(path, age_days):
+def create_mock_file(path: Any, age_days: float) -> Any:
     """Creates a mock file with an artificially mutated modification time."""
     path.write_text("dummy")
     # set timestamps backward
@@ -31,7 +29,7 @@ def create_mock_file(path, age_days):
     os.utime(str(path), (mtime, mtime))
     return path
 
-def test_clean_old_jobs():
+def test_clean_old_jobs() -> None:
     # Insert jobs with old timestamp
     with get_db() as conn:
         conn.execute("DELETE FROM jobs") # start clean
@@ -48,7 +46,7 @@ def test_clean_old_jobs():
         assert "job_old" not in jobs
         assert "job_new" in jobs
 
-def test_clean_old_files(mock_dirs):
+def test_clean_old_files(mock_dirs: Dict[str, Any]) -> None:
     trans_dir = mock_dirs['trans_dir']
     
     f1 = create_mock_file(trans_dir / "live_audio" / "old.wav", 100)
@@ -66,7 +64,7 @@ def test_clean_old_files(mock_dirs):
     assert f4.exists()
 
 @patch('subprocess.run')
-def test_compress_old_wavs(mock_subprocess, mock_dirs):
+def test_compress_old_wavs(mock_subprocess: MagicMock, mock_dirs: Dict[str, Any]) -> None:
     trans_dir = mock_dirs['trans_dir']
     live_audio = trans_dir / "live_audio"
     
@@ -95,7 +93,7 @@ def test_compress_old_wavs(mock_subprocess, mock_dirs):
     assert f2.exists() # new wav left alone
     assert mock_subprocess.called
 
-def test_run_cleanup(mock_dirs, monkeypatch):
+def test_run_cleanup(mock_dirs: Dict[str, Any], monkeypatch: Any) -> None:
     monkeypatch.setattr("backend.cleanup.clean_old_jobs", lambda d: 5)
     monkeypatch.setattr("backend.cleanup.clean_old_files", lambda d: 10)
     monkeypatch.setattr("backend.cleanup.compress_old_wavs", lambda d: 3)

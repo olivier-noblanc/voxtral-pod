@@ -4,14 +4,12 @@ Vérifie que le parsing regex fonctionne correctement sur le format
 [0.10s -> 1.20s] [SPEAKER_00] texte... sans corrompre les données.
 """
 import os
-import tempfile
 import pytest
 from fastapi.testclient import TestClient
 
 os.environ["TESTING"] = "1"
 
 from backend.main import app
-from backend.config import TRANSCRIPTIONS_DIR
 
 client = TestClient(app)
 

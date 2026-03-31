@@ -3,7 +3,6 @@ import asyncio
 import numpy as np
 import os
 import datetime
-import shutil
 from fastapi import WebSocket
 from backend.core.vad import VADManager, SAMPLE_RATE
 from backend.config import TRANSCRIPTIONS_DIR

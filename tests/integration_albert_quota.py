@@ -1,6 +1,4 @@
 import requests
-import json
-import time
 import keyring
 from backend.core.albert_rate_limiter import albert_rate_limiter
 
@@ -45,15 +43,15 @@ def test_real_albert_quota():
     
     # 4. Affichage des résultats
     info = albert_rate_limiter.get_status_info()
-    print(f"📊 Résultat détaillé du Quota :")
+    print("📊 Résultat détaillé du Quota :")
     print(f"   ASR (Whisper) : {info['quota_asr_usage']} / {info['quota_limit']}")
     print(f"   LLM (Chat)     : {info['quota_llm_usage']}")
     print(f"   Usage Global   : {info['quota_usage']}")
     
     if info['quota_limit'] > 0:
-        print(f"✅ Succès : L'API a répondu correctement.")
+        print("✅ Succès : L'API a répondu correctement.")
     else:
-        print(f"⚠️ Attention : L'API a répondu mais la limite est à 0 (vérifier le format de réponse).")
+        print("⚠️ Attention : L'API a répondu mais la limite est à 0 (vérifier le format de réponse).")
 
 if __name__ == "__main__":
     test_real_albert_quota()

@@ -11,13 +11,13 @@ pytest.importorskip("ffmpeg")
 from backend.core.audio import decode_audio, pcm_to_float32, float32_to_pcm16
 
 
-def _write_wav(file_path: str, audio_np: np.ndarray, sample_rate: int = 16000):
+def _write_wav(file_path: str, audio_np: np.ndarray, sample_rate: int = 16000) -> None:
     """
     Helper to write a mono WAV file using the standard library ``wave`` module.
     The input array is expected to be float32 in the range [-1.0, 1.0].
     """
-    # Convert to int16 PCM for WAV storage
-    pcm16 = (audio_np * 32767.0).astype(np.int16)
+    # Convert to int16 PCM for WAV storage (using 32768.0 normalization consistent with core)
+    pcm16 = np.clip(audio_np * 32768.0, -32768, 32767).astype(np.int16)
     # Open a Wave_write object to write the synthetic audio.
     # Adding a type hint helps static analysers (and silences pylint warnings).
     wf = wave.open(file_path, "wb")  # type: ignore[assignment]
@@ -28,7 +28,7 @@ def _write_wav(file_path: str, audio_np: np.ndarray, sample_rate: int = 16000):
     wf.close()
 
 
-def test_decode_audio_returns_float32():
+def test_decode_audio_returns_float32() -> None:
     """
     Generate a synthetic sine wave, write it to a temporary WAV file,
     decode it with ``decode_audio`` and verify the output dtype and shape.
@@ -52,7 +52,7 @@ def test_decode_audio_returns_float32():
         np.testing.assert_allclose(decoded, sine, atol=1e-4)
 
 
-def test_pcm_to_float32_normalization():
+def test_pcm_to_float32_normalization() -> None:
     """
     Verify that the conversion from int16 PCM to float32 normalizes correctly.
     """
@@ -62,12 +62,12 @@ def test_pcm_to_float32_normalization():
     max_float = pcm_to_float32(np.array([max_int16], dtype=np.int16))
     min_float = pcm_to_float32(np.array([min_int16], dtype=np.int16))
 
-    # Expected values are approximately 1.0 and -1.0
-    assert np.isclose(max_float[0], 1.0, atol=1e-5)
-    assert np.isclose(min_float[0], -1.0, atol=1e-5)
+    # Expected values are approximately 1.0 (actually 32767/32768) and -1.0
+    assert np.isclose(max_float[0], 32767/32768, atol=1e-7)
+    assert np.isclose(min_float[0], -1.0, atol=1e-7)
 
 
-def test_float32_roundtrip():
+def test_float32_roundtrip() -> None:
     """
     Convert a random float32 array to PCM16 and back, ensuring the
     round‑trip error stays below 1e-4.

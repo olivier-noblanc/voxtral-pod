@@ -1,6 +1,5 @@
 import os
 import requests
-import sys
 
 def ping_albert():
     api_key = os.getenv("ALBERT_API_KEY")
@@ -25,7 +24,7 @@ def ping_albert():
             print(f"[ ] Détails: {response.text}")
             
     except Exception as e:
-        print(f"[!] Erreur critique lors de la connexion :")
+        print("[!] Erreur critique lors de la connexion :")
         print(f"    Type: {type(e).__name__}")
         print(f"    Message: {e}")
 

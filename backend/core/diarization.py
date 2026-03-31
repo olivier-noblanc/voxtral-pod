@@ -1,22 +1,24 @@
 import numpy as np
+from typing import Any
 from backend.config import setup_gpu
 import backend.core.speaker_profiles as speaker_profiles
-from resemblyzer import preprocess_wav, VoiceEncoder
+from resemblyzer import preprocess_wav, VoiceEncoder  # type: ignore[import-untyped]
 
 # Ensure NNPACK is disabled for diarization operations
 import os
 os.environ.setdefault("DISABLE_NNPACK", "1")
 
 class DiarizationEngine:
-    def __init__(self, model_id="pyannote/speaker-diarization-3.1", hf_token=None, use_cpu=False):
+    def __init__(self, model_id: str = "pyannote/speaker-diarization-3.1", hf_token: str | None = None, use_cpu: bool = False) -> None:
         self.model_id = model_id
         self.hf_token = hf_token
         self.pipeline = None
         self.sample_rate = 16000
         self.use_cpu = use_cpu
-        self.encoder = None  # Resemblyzer encoder for embedding extraction
+        self._fallback_until: float = 0.0
+        self.encoder: Any = None  # Resemblyzer encoder for embedding extraction
 
-    def load(self):
+    def load(self) -> None:
         """
         Attempt to load the heavy Pyannote pipeline and Resemblyzer encoder.
         If the required third‑party libraries are unavailable, fall back to a
@@ -28,7 +30,7 @@ class DiarizationEngine:
 
         try:
             # Lazy import of pyannote.audio – may not be installed in the test env.
-            from pyannote.audio import Pipeline
+            from pyannote.audio import Pipeline  # type: ignore[import-untyped]
             import torch
 
             print(f"[*] Loading Pyannote pipeline: {self.model_id}")
@@ -57,7 +59,7 @@ class DiarizationEngine:
                 self.encoder = None
                 print("[!] Resemblyzer encoder could not be loaded; embeddings will be skipped.")
 
-    def diarize(self, audio_float32, hook=None):
+    def diarize(self, audio_float32: np.ndarray, hook: Any = None) -> list[tuple[float, float, str]]:
         if self.pipeline is None:
             # No heavy pipeline – return empty list to keep the pipeline functional.
             return []
@@ -82,7 +84,6 @@ class DiarizationEngine:
             print(f"[!] Diarisation output error: {type(annotation)}")
             return []
 
-        segments = []
         # First pass: collect raw segments
         raw_segments = []
         for turn, _, speaker in annotation.itertracks(yield_label=True):

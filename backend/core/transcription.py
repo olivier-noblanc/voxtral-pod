@@ -1,16 +1,15 @@
 """
-Moteur de transcription pour Voxtral Pod.
-Gère Whisper (local), Vosk (local) et l'API Albert (distant).
+Transcription motor for Voxtral Pod.
+Handles Whisper (local), Vosk (local) and Albert API (remote).
 """
 import os
 import io
-import sys
+import warnings
 from typing import Any
 import time
 import requests
 import numpy as np
 import soundfile as sf
-import subprocess
 from backend.core.postprocess import _ensure_ffmpeg
 from backend.core.albert_rate_limiter import albert_rate_limiter
 
@@ -26,8 +25,6 @@ MAX_PAYLOAD_MB = 19
 CHUNK_LIMIT_SEC = 2400
 
 # Additional fix for KaldiRecognizer cleanup issue
-import warnings
-import os
 warnings.filterwarnings("ignore", category=ResourceWarning, message="unclosed.*KaldiRecognizer")
 
 # Ensure NNPACK is disabled for transcription operations
@@ -35,9 +32,9 @@ os.environ.setdefault("DISABLE_NNPACK", "1")
 
 class TranscriptionEngine:
     """
-    Orchestrateur de transcription multi-moteur.
+    Multi-motor transcription orchestrator.
     """
-    def __init__(self, model_id="whisper", device=None):
+    def __init__(self, model_id: str = "whisper", device: str | None = None) -> None:
         self.model_id = model_id
 
         # Automatic device detection (lazy import de torch)
@@ -58,7 +55,7 @@ class TranscriptionEngine:
         """True si l'on doit passer par l'API Albert pour la transcription."""
         return self.model_id in _ALBERT_MODEL_IDS or bool(self.albert_api_key)
 
-    def load(self):
+    def load(self) -> None:
         """Charge les modèles en mémoire (Whisper ou Vosk)."""
         if self.use_albert or self.model_id == "mock":
             print(f"[*] Transcription engine in {self.model_id} mode (no local weights needed).")
@@ -78,7 +75,13 @@ class TranscriptionEngine:
             print(f"[*] Loading Vosk model: {self.model_id}...")
             self.model = vosk.Model(f"models/{self.model_id}")
 
-    def transcribe(self, audio_np, language="fr", progress_callback=None, is_partial: bool = False):
+    def transcribe(
+        self,
+        audio_np: np.ndarray,
+        language: str = "fr",
+        progress_callback: Any = None,
+        is_partial: bool = False
+    ) -> tuple[list[dict[str, Any]], float, bool]:
         """
         Transcribe audio and return (words, duration).
         """
@@ -97,8 +100,8 @@ class TranscriptionEngine:
         # Tâche 2 : Bascule de secours (Fallback) sur limite de requêtes
         used_fallback = False
         if self.use_albert and not use_local_model and albert_rate_limiter.should_use_cpu_fallback_mode():
-            # Tâche 2 : Bascule silencieuse sur le modèle local (CPU)
-            print(f"[*] Basculage sur modèle local (fallback CPU) en raison du rate limit")
+            # Task 2: Silent switch to local model (CPU)
+            print("[*] Switching to local model (CPU fallback) due to rate limit")
             used_fallback = True
             use_local_model = True
             # Charger le modèle local si nécessaire
@@ -146,7 +149,7 @@ class TranscriptionEngine:
                 rec = vosk.KaldiRecognizer(self.model, 16000)
                 rec.SetWords(True)
 
-                pcm16 = (audio_np * 32768).astype(np.int16).tobytes()
+                pcm16 = np.clip(audio_np * 32768.0, -32768, 32767).astype(np.int16).tobytes()
                 rec.AcceptWaveform(pcm16)
                 res = json.loads(rec.FinalResult())
 
@@ -161,7 +164,7 @@ class TranscriptionEngine:
             res_words, res_dur = self._transcribe_albert(audio_np, language, progress_callback)
             return res_words, res_dur, False
 
-    def _find_best_cut(self, audio_np, target_sec, current_t=0):
+    def _find_best_cut(self, audio_np: np.ndarray, target_sec: float, current_t: float = 0) -> float:
         """
         Trouve le meilleur point de coupe (silence) près de target_sec.
         On recherche dans une fenêtre réduite à la fin du segment (180s)
@@ -209,17 +212,23 @@ class TranscriptionEngine:
             return target_sec
         return cut_sec
 
-    def _transcribe_albert(self, audio_np, language="fr", progress_callback=None, is_partial: bool = False):
+    def _transcribe_albert(
+        self,
+        audio_np: np.ndarray,
+        language: str = "fr",
+        progress_callback: Any = None,
+        is_partial: bool = False
+    ) -> tuple[list[dict[str, Any]], float]:
         """
         Découpe l'audio en tranches et les envoie à l'API Albert.
         """
         duration_total = len(audio_np) / 16000
 
-        # Vérifier si on doit utiliser le mode mock en raison du rate limit
+        # Check if we should use mock mode due to rate limit
         if albert_rate_limiter.is_in_mock_mode():
-            print(f"[*] Utilisation du mode mock pour Albert (quota dépassé)")
-            # Retourner une transcription mock avec un message d'erreur
-            return [{"start": 0.0, "end": duration_total, "word": "[MODE MOCK] Quota API dépassé. Utilisation du mode de secours."}], duration_total
+            print("[*] Using mock mode for Albert (quota exceeded)")
+            # Return a mock transcription with an error message
+            return [{"start": 0.0, "end": duration_total, "word": "[MOCK MODE] API quota exceeded. Use fallback mode."}], duration_total
 
         tranches = []
         t = 0
@@ -280,8 +289,8 @@ class TranscriptionEngine:
                 try:
                     # Vérification du rate limit avant l'envoi
                     if not albert_rate_limiter.can_make_request():
-                        print(f"[*] Rate limit actif, attente avant requête...")
-                        # Attendre jusqu'à l'intervalle requis
+                        print("[*] Rate limit active, waiting before request...")
+                        # Wait until the required interval
                         time.sleep(albert_rate_limiter.min_interval_seconds)
                     
                     buffer.seek(0)

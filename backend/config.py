@@ -1,8 +1,8 @@
 import os
 import warnings
-import logging
+from typing import Optional
 
-def get_albert_api_key():
+def get_albert_api_key() -> Optional[str]:
     """
     Récupère la clé API Albert. Priorité à la variable d'environement,
     puis au keyring (albert_api, default).
@@ -49,7 +49,7 @@ for _k, _v in [
     os.environ[_k] = _v
 
 # === GPU PERFORMANCE OPTIMIZATION (Ampere+) ===
-def setup_gpu():
+def setup_gpu() -> None:
     """
     Initialise les paramètres GPU/CPU de torch.
     Désactive NNPACK si demandé et configure les threads CPU si aucun GPU n'est disponible.
@@ -76,7 +76,7 @@ def setup_gpu():
             torch.set_num_interop_threads(max(1, min(4, cpu_threads // 2 or 1)))
         _CPU_THREADS_CONFIGURED = True
 
-def get_vram_gb():
+def get_vram_gb() -> float:
     """Returns the total VRAM of the primary GPU in GB. 0 if no GPU."""
     import torch  # lazy
     if not torch.cuda.is_available():
@@ -88,7 +88,7 @@ def get_vram_gb():
         return 0
 
 # === WARNINGS FILTERS ===
-def setup_warnings():
+def setup_warnings() -> None:
     # Ignore specific math warnings from pyannote on very short segments
     warnings.filterwarnings("ignore", message=r"std\(\): degrees of freedom is <= 0")
     # Ignore ReproducibilityWarning since we explicitly enable TF32
