@@ -1,5 +1,6 @@
 import pathlib
 
+
 def _files_with_extension(root: pathlib.Path, extensions):
     for path in root.rglob("*"):
         if path.suffix.lower() in extensions and path.is_file():

@@ -1,8 +1,10 @@
 import numpy as np
 import pytest
-from backend.core.diarization_cpu import LightDiarizationEngine
+
 from backend.core.diarization import DiarizationEngine
+from backend.core.diarization_cpu import LightDiarizationEngine
 from backend.core.engine import SotaASR
+
 
 def test_light_diarization_engine_interface() -> None:
     """Verifies that LightDiarizationEngine has load() and its diarize accepts 'hook'."""

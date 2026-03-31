@@ -1,7 +1,10 @@
-from unittest.mock import MagicMock, patch
 import unittest
+from unittest.mock import MagicMock, patch
+
 import numpy as np
+
 from backend.core.transcription import TranscriptionEngine
+
 
 class TestAlbertSegmentation(unittest.TestCase):
     def setUp(self):

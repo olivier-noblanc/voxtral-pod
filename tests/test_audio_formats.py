@@ -1,11 +1,14 @@
 import os
 import pathlib
-import wave
-import struct
 import shutil
+import struct
+import wave
+
 import numpy as np
 import pytest
+
 from backend.core.audio import decode_audio
+
 
 def test_decode_wav_as_m4a_fallback() -> None:
     """

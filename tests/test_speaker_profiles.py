@@ -1,6 +1,8 @@
 import os
 import tempfile
+
 import numpy as np
+
 
 # Ensure the test uses a temporary SQLite DB
 def test_save_and_load_profiles() -> None:

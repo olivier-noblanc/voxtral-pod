@@ -3,6 +3,7 @@ Test pour s'assurer que tous les modules nécessaires sont correctement exposés
 Cela prévient les erreurs similaires à celles rapportées dans le problème initial.
 """
 import pytest
+
 from backend.routes import api
 
 
@@ -27,8 +28,9 @@ def test_api_exposes_necessary_functions_for_tests():
 
 def test_segment_update_route_exists():
     """Vérifie que la route /segment_update est accessible"""
-    from backend.main import app
     from fastapi.testclient import TestClient
+
+    from backend.main import app
     
     client = TestClient(app)
     

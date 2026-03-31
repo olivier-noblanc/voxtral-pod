@@ -1,6 +1,7 @@
 import pathlib
 import py_compile
 
+
 def test_syntax():
     """
     Verify that the entire project compiles without syntax errors,

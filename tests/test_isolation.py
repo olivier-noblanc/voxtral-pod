@@ -1,10 +1,11 @@
 import os
 import shutil
+import sys
 import tempfile
+
 import pytest
 from fastapi.testclient import TestClient
 
-import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from backend.main import app
 
@@ -16,8 +17,8 @@ def setup_isolation_env():
     temp_dir = tempfile.mkdtemp()
     
     # Path mocking
-    import backend.routes.api as api_mod
     import backend.config as config_mod
+    import backend.routes.api as api_mod
     orig_dir = config_mod.TRANSCRIPTIONS_DIR
     api_mod.TRANSCRIPTIONS_DIR = temp_dir
     config_mod.TRANSCRIPTIONS_DIR = temp_dir

@@ -1,5 +1,7 @@
 import os
+
 import requests
+
 
 def ping_albert():
     api_key = os.getenv("ALBERT_API_KEY")

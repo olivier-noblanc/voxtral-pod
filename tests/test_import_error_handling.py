@@ -1,6 +1,7 @@
 import pathlib
 import re
 
+
 def test_no_except_importerror_blocks():
     """
     Ensure that the codebase does not contain generic ``except ImportError`` blocks

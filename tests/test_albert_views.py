@@ -1,11 +1,12 @@
 import os
 import shutil
+import sys
 import tempfile
-import pytest
 from unittest.mock import patch
+
+import pytest
 from fastapi.testclient import TestClient
 
-import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from backend.main import app
 
@@ -21,8 +22,8 @@ def mock_postprocess():
 @pytest.fixture
 def setup_data():
     temp_dir = tempfile.mkdtemp()
-    from backend.routes import api as api_module
     from backend import config as config_module
+    from backend.routes import api as api_module
     old_dir = api_module.TRANSCRIPTIONS_DIR
     api_module.TRANSCRIPTIONS_DIR = temp_dir
     # Also update the config constant used elsewhere

@@ -1,5 +1,5 @@
-import numpy as np
 import ffmpeg
+import numpy as np
 
 audio_path = "tests/samples/french_sample.mp3"
 sample_rate = 16000

@@ -1,10 +1,13 @@
 from __future__ import annotations
+
+import json
 import os
 import pathlib
-import json
 from typing import Any
+
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
+
 from backend.config import TRANSCRIPTIONS_DIR
 from backend.routes.utils import _safe_join, _validate_client_id, templates
 
@@ -88,8 +91,9 @@ async def api_diarize(file: UploadFile = File(...)) -> Any:
     """
     Endpoint de diarisation batch simple.
     """
-    from backend.core.diarization_cpu import LightDiarizationEngine
     import tempfile
+
+    from backend.core.diarization_cpu import LightDiarizationEngine
     
     suffix = pathlib.Path(file.filename or "audio.wav").suffix
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
@@ -113,8 +117,9 @@ async def api_benchmark(file: UploadFile = File(...)) -> Any:
     """
     Endpoint de benchmark performance pour la diarisation CPU.
     """
-    from backend.core.diarization_cpu import LightDiarizationEngine
     import tempfile
+
+    from backend.core.diarization_cpu import LightDiarizationEngine
     
     suffix = pathlib.Path(file.filename or "audio.wav").suffix
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:

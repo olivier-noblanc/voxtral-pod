@@ -3,17 +3,19 @@ import shutil
 import tempfile
 
 import pytest
+
 try:
     from fastapi.testclient import TestClient
 except ImportError:
     from starlette.testclient import TestClient
 
 # Import the FastAPI app (adjust sys.path for relative import)
-import sys
 import os as _os
+import sys
+
 sys.path.append(_os.path.abspath(_os.path.join(_os.path.dirname(__file__), '..')))
-from backend.main import app
 from backend.config import TRANSCRIPTIONS_DIR
+from backend.main import app
 
 client = TestClient(app)
 

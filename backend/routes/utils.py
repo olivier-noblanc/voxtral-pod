@@ -1,12 +1,15 @@
 from __future__ import annotations
+
+import importlib.util
+import logging
 import os
 import pathlib
-import importlib.util
 import re
-import logging
 from typing import Optional
+
 from fastapi import HTTPException, Request
 from fastapi.templating import Jinja2Templates
+
 from backend.config import BASE_DIR
 from backend.state import update_job
 

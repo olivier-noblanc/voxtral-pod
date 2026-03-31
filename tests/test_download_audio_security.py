@@ -1,16 +1,17 @@
 import os
+import os as _os
 import shutil
+
+# Import the FastAPI app
+import sys
 import tempfile
 
 import pytest
 from fastapi.testclient import TestClient
 
-# Import the FastAPI app
-import sys
-import os as _os
 sys.path.append(_os.path.abspath(_os.path.join(_os.path.dirname(__file__), '..')))
-from backend.main import app
 from backend.config import TRANSCRIPTIONS_DIR
+from backend.main import app
 
 client = TestClient(app)
 

@@ -1,6 +1,8 @@
 from fastapi import HTTPException
-from backend.routes.api import _safe_join
+
 from backend.config import TRANSCRIPTIONS_DIR
+from backend.routes.api import _safe_join
+
 
 def test_safe_join_traversal():
     """Vérifie que _safe_join lève une exception en cas de path traversal."""

@@ -1,12 +1,17 @@
 from __future__ import annotations
+
 import os
-import re
-import numpy as np
-from typing import Any, Dict, List, cast
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
-from backend.config import TRANSCRIPTIONS_DIR
-from backend.routes.utils import _safe_join
 import pathlib
+import re
+from typing import Any, Dict, List, cast
+
+import numpy as np
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+
+from backend.routes.transcriptions import _get_trans_dir
+
+# from backend.config import TRANSCRIPTIONS_DIR
+from backend.routes.utils import _safe_join
 
 router = APIRouter()
 
@@ -38,7 +43,7 @@ def _extract_and_save_profile_sync(audio_path: str, start_s: float, end_s: float
         print(f"[!] Audio file {audio_path} not found for profile extraction.")
         return
     try:
-        from resemblyzer import preprocess_wav, VoiceEncoder
+        from resemblyzer import VoiceEncoder, preprocess_wav
         wav = preprocess_wav(audio_path)
         sample_rate = 16000
         start_idx = int(start_s * sample_rate)
@@ -65,7 +70,7 @@ async def update_segment_speaker(payload: Dict[str, Any], background_tasks: Back
     if client_id is None or filename is None or new_speaker is None or not isinstance(segment_index, int):
         raise HTTPException(status_code=400, detail="Invalid payload: missing or invalid fields.")
     
-    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
+    file_path = _safe_join(_get_trans_dir(), client_id, filename)
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Transcription not found.")
     with open(file_path, "r", encoding="utf-8") as f:
@@ -84,7 +89,7 @@ async def update_segment_speaker(payload: Dict[str, Any], background_tasks: Back
             ts = filename.replace("live_", "").replace(".txt", "")
             audio_name = f"live_{client_id}_{ts}.wav"
             audio_dir = "live_audio"
-        audio_path = _safe_join(TRANSCRIPTIONS_DIR, audio_dir, audio_name)
+        audio_path = _safe_join(_get_trans_dir(), audio_dir, audio_name)
         background_tasks.add_task(_extract_and_save_profile_sync, audio_path, start_s, end_s, new_speaker)
     new_line = re.sub(
         r'(\[[^\]]*s\s*->\s*[^\]]*s\]\s*)\[[^\]]*\]',
@@ -103,8 +108,9 @@ async def api_enroll_speaker(name: str = Form(...), file: UploadFile = File(...)
     """
     Enrôle un nouveau locuteur (signature vocale).
     """
-    from backend.core.speaker_manager import SpeakerManager
     import tempfile
+
+    from backend.core.speaker_manager import SpeakerManager
     
     suffix = pathlib.Path(file.filename or "audio.wav").suffix
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
@@ -117,8 +123,7 @@ async def api_enroll_speaker(name: str = Form(...), file: UploadFile = File(...)
         success = manager.enroll_speaker(name, tmp_path)
         if success:
             return {"status": "ok", "message": f"Locuteur {name} enrôlé avec succès."}
-        else:
-            raise HTTPException(status_code=500, detail="Échec de l'enrôlement.")
+        raise HTTPException(status_code=500, detail="Échec de l'enrôlement.")
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
@@ -128,9 +133,10 @@ async def api_identify_speakers(file: UploadFile = File(...)) -> Any:
     """
     Identifie les locuteurs connus dans un fichier audio segmenté par diarisation.
     """
+    import tempfile
+
     from backend.core.diarization_cpu import LightDiarizationEngine
     from backend.core.speaker_manager import SpeakerManager
-    import tempfile
     
     suffix = pathlib.Path(file.filename or "audio.wav").suffix
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:

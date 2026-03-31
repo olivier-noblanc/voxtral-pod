@@ -2,6 +2,7 @@ import os
 import warnings
 from typing import Optional
 
+
 def get_albert_api_key() -> Optional[str]:
     """
     Récupère la clé API Albert. Priorité à la variable d'environement,

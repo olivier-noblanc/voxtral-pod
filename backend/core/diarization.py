@@ -1,11 +1,13 @@
-import numpy as np
-from typing import Any
-from backend.config import setup_gpu
-import backend.core.speaker_profiles as speaker_profiles
-from resemblyzer import preprocess_wav, VoiceEncoder  # type: ignore[import-untyped]
-
 # Ensure NNPACK is disabled for diarization operations
 import os
+from typing import Any
+
+import numpy as np
+from resemblyzer import VoiceEncoder, preprocess_wav  # type: ignore[import-untyped]
+
+import backend.core.speaker_profiles as speaker_profiles
+from backend.config import setup_gpu
+
 os.environ.setdefault("DISABLE_NNPACK", "1")
 
 class DiarizationEngine:
@@ -30,8 +32,8 @@ class DiarizationEngine:
 
         try:
             # Lazy import of pyannote.audio – may not be installed in the test env.
-            from pyannote.audio import Pipeline  # type: ignore[import-untyped]
             import torch
+            from pyannote.audio import Pipeline  # type: ignore[import-untyped]
 
             print(f"[*] Loading Pyannote pipeline: {self.model_id}")
             self.pipeline = Pipeline.from_pretrained(

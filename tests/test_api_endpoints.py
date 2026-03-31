@@ -1,6 +1,7 @@
 import os
 import subprocess
 import time
+
 from fastapi.testclient import TestClient
 
 # Import the FastAPI app defined in backend/main.py
@@ -67,9 +68,11 @@ def test_live_websocket_session_id_job_registration() -> None:
     Vérifie que la déconnexion de la WebSocket Live enregistre bien un job
     BackgroundTasks sous le nom du `session_id` fourni par le client.
     """
-    from backend.state import get_job
+    from unittest.mock import AsyncMock, MagicMock, patch
+
     import numpy as np
-    from unittest.mock import patch, MagicMock, AsyncMock
+
+    from backend.state import get_job
 
     # Create 1.0s of silent 16000Hz PCM16 audio
     dummy_audio = np.zeros(16000, dtype=np.int16).tobytes()

@@ -2,15 +2,17 @@
 Tests de qualité pour la segmentation Albert.
 Vérifie que les tranches audio sont optimisées par rapport au silence.
 """
-import unittest
 import os
 import sys
+import unittest
+
 import numpy as np
 
 # Ajout du chemin racine pour l'import backend
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from backend.core.transcription import TranscriptionEngine
+
 
 class TestAlbertSegmentationQuality(unittest.TestCase):
     """Vérifie que la segmentation maximise la durée des tranches."""

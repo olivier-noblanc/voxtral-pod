@@ -4,6 +4,7 @@ Vérifie que le parsing regex fonctionne correctement sur le format
 [0.10s -> 1.20s] [SPEAKER_00] texte... sans corrompre les données.
 """
 import os
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -67,13 +68,13 @@ def test_segment_update_preserves_timestamp(_transcript_file):
 
 def test_segment_update_triggers_profile_extraction(_transcript_file, monkeypatch):
     """Vérifier que modifier un speaker déclenche bien l'extraction de l'empreinte biométrique en tâche de fond."""
-    import backend.routes.api as api_module
+    import backend.routes.speakers as speakers_module
     
     called_args = []
     def dummy_extract_and_save(*args, **kwargs):
         called_args.append((args, kwargs))
         
-    monkeypatch.setattr(api_module, "_extract_and_save_profile_sync", dummy_extract_and_save)
+    monkeypatch.setattr(speakers_module, "_extract_and_save_profile_sync", dummy_extract_and_save)
 
     resp = client.post("/segment_update", json={
         "client_id": _CLIENT_ID,

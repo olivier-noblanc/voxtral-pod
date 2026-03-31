@@ -1,7 +1,10 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from backend.core.albert_rate_limiter import AlbertRateLimiter
+
 from backend.config import get_albert_api_key
+from backend.core.albert_rate_limiter import AlbertRateLimiter
+
 
 def test_get_albert_api_key_logic():
     """Vérifie la priorité de récupération de la clé API."""

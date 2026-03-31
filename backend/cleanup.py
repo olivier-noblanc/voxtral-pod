@@ -1,11 +1,12 @@
-import os
-import time
 import asyncio
+import os
 import subprocess
+import time
 from concurrent.futures import ThreadPoolExecutor
 
-from backend.config import TRANSCRIPTIONS_DIR, TEMP_DIR, CLEANUP_RETENTION_DAYS
+from backend.config import CLEANUP_RETENTION_DAYS, TEMP_DIR, TRANSCRIPTIONS_DIR
 from backend.state import get_db
+
 
 def clean_old_jobs(days: int) -> int:
     """Removes SQLite jobs older than 'days'."""
@@ -87,9 +88,8 @@ def _compress_single_file(filepath: str) -> bool:
             if result.returncode == 0 and os.path.exists(mp3_path):
                 os.remove(filepath)
                 return True
-            else:
-                if os.path.exists(mp3_path):
-                    os.remove(mp3_path)
+            if os.path.exists(mp3_path):
+                os.remove(mp3_path)
     except Exception as e:
         print(f"Erreur lors de la compression de {filepath}: {e}")
     return False

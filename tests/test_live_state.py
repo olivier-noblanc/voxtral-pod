@@ -2,7 +2,9 @@
 Tests pour vérifier l'état et la télémétrie d'une session Live.
 """
 import asyncio
+
 from backend.core.live import LiveSession
+
 
 # Dummy VAD manager that always reports speech and never deactivates
 class DummyVADManager:
@@ -58,6 +60,7 @@ async def _run_live_session_telemetry():
     """
     # Arrange
     from typing import cast
+
     from fastapi import WebSocket
     dummy_ws = DummyWebSocket()
     dummy_engine = DummyEngine()

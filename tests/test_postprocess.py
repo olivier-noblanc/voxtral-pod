@@ -1,9 +1,9 @@
-from unittest.mock import patch
-
 import asyncio
+from unittest.mock import patch
 
 # Import the module under test
 from backend.core.postprocess import process_text, process_transcription, words_to_text
+
 
 # ----------------------------------------------------------------------
 # Mock helper for Albert API

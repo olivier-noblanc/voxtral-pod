@@ -1,9 +1,12 @@
 from __future__ import annotations
-import os
+
 import logging
+import os
 from typing import Any, Dict
+
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
+
 from backend.routes import api as api_module
 from backend.routes.utils import _safe_join, _validate_client_id, markdown, templates
 

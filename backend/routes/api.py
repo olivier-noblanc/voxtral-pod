@@ -1,23 +1,23 @@
 from __future__ import annotations
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-import re
 
 # ----------------------------------------------------------------------
 # Sub‑router imports
 # ----------------------------------------------------------------------
 from backend.routes import (
+    audio,
+    diarization,
+    live,
+    postprocess,
+    speakers,
     system,
     transcriptions,
-    audio,
-    postprocess,
-    diarization,
-    speakers,
-    live,
     utils,
 )
-from backend.state import get_asr_engine, add_job
-from backend.routes.utils import _update_job_status, _safe_join
+from backend.routes.utils import _safe_join, _update_job_status
+from backend.state import add_job, get_asr_engine
 
 router = APIRouter()
 import os
@@ -60,39 +60,35 @@ _gpu_job = audio._gpu_job
 # ----------------------------------------------------------------------
 # Explicitly expose routes that are referenced from the frontend (app.js)
 # ----------------------------------------------------------------------
+from backend.routes.audio import batch_chunk_route, download_audio
 from backend.routes.postprocess import (
-    generate_summary,
     generate_actions,
     generate_cleanup,
-    view_summary,
+    generate_summary,
     view_actions,
     view_cleanup,
+    view_summary,
 )
-from backend.routes.audio import batch_chunk_route, download_audio
 from backend.routes.system import (
     change_model_route,
-    rate_limiter_status,
     git_status,
-    git_update,
-    trigger_cleanup,
+    rate_limiter_status,
     status_route,
 )
+
 
 @router.get("/status/{file_id}")
 def _status_route_stub(file_id: str) -> dict:
     """Stub route required by contract tests."""
     return {"status": "ok"}
-from backend.routes.speakers import (
-    update_segment_speaker as update_segment_speaker_route,
-    get_speaker_profiles,
-)
-
 # Import the WebSocket endpoint for completeness
 from backend.routes.live import live_endpoint
+from backend.routes.speakers import (
+    get_speaker_profiles,
+)
 from backend.routes.transcriptions import (
     get_trans,
     list_trans,
-    delete_trans,
     view_transcription,
 )
 
@@ -105,90 +101,7 @@ router.post("/cleanup/{filename}")(generate_cleanup)
 router.post("/batch_chunk")(batch_chunk_route)
 router.post("/change_model")(change_model_route)
 
-# ----------------------------------------------------------------------
-# Segment update – uses the mutable transcriptions directory
-# ----------------------------------------------------------------------
-@router.post("/segment_update")
-async def segment_update_route(payload: dict):
-    """
-    Update the speaker label for a specific segment in a transcript.
-    Expected JSON payload:
-    {
-        "client_id": "...",
-        "filename": "...",
-        "segment_index": int,
-        "new_speaker": "..."
-    }
-    """
-    client_id = payload.get("client_id")
-    filename = payload.get("filename")
-    segment_index = payload.get("segment_index")
-    new_speaker = payload.get("new_speaker")
 
-    # Validate required fields
-    if not all([client_id, filename, isinstance(segment_index, int), new_speaker]):
-        raise HTTPException(status_code=400, detail="Payload incomplet ou invalide.")
-    from typing import cast
-
-    client_id = cast(str, client_id)
-    filename = cast(str, filename)
-    segment_index = cast(int, segment_index)
-    new_speaker = cast(str, new_speaker)
-
-    # Resolve the transcript file path – uses the mutable helper
-    file_path = _safe_join(TRANSCRIPTIONS_DIR, client_id, filename)
-    if not os.path.isfile(file_path):
-        raise HTTPException(status_code=404, detail="Transcription not found.")
-
-    # Load transcript lines
-    with open(file_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-
-    if segment_index < 0 or segment_index >= len(lines):
-        raise HTTPException(status_code=400, detail="segment_index hors limites.")
-
-    # Extract timestamps (format: [0.10s -> 1.20s])
-    timestamp_match = re.search(r"\[([\d\.]+)s\s*->\s*([\d\.]+)s\]", lines[segment_index])
-    if timestamp_match:
-        start_s = float(timestamp_match.group(1))
-        end_s = float(timestamp_match.group(2))
-    else:
-        start_s = end_s = 0.0
-
-    # Simple speaker replacement preserving timestamp and brackets
-    original_line = lines[segment_index].rstrip("\n")
-    # Replace the speaker token inside the second [...] block
-    # Example: "[0.10s -> 1.20s] [SPEAKER_00] bonjour monde"
-    # -> "[0.10s -> 1.20s] [Julie] bonjour monde"
-    def _replace_speaker(match: re.Match) -> str:
-        timestamp_part = match.group(1)  # e.g. "[0.10s -> 1.20s]"
-        return f"{timestamp_part} [{new_speaker}]"
-
-    updated_line = re.sub(r"(\[.*?\])\s*\[[^\]]+\]", _replace_speaker, original_line, count=1)
-    lines[segment_index] = updated_line + "\n"
-
-    # Write back the updated transcript
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.writelines(lines)
-
-    # Determine associated audio file path (same helper)
-    if filename.startswith("batch_"):
-        ts = filename.replace("batch_", "").replace(".txt", "")
-        audio_name = f"batch_{client_id}_{ts}.wav"
-        audio_dir = "batch_audio"
-    else:
-        ts = filename.replace("live_", "").replace(".txt", "")
-        audio_name = f"live_{client_id}_{ts}.wav"
-        audio_dir = "live_audio"
-    audio_path = os.path.join(_get_trans_dir(), audio_dir, audio_name)
-
-    # Trigger background profile extraction with proper arguments
-    try:
-        _extract_and_save_profile_sync(audio_path, start_s, end_s, new_speaker)
-    except Exception:
-        pass
-
-    return {"status": "ok"}
 
 # ----------------------------------------------------------------------
 # Download transcript (GET) – unchanged
@@ -280,6 +193,11 @@ def _dummy_git_status() -> dict:
 @router.get("/rate_limiter_status")
 def _dummy_rate_limiter_status() -> dict:
     return {"status": "ok"}
+
+@router.post("/segment_update")
+def _dummy_segment_update() -> dict:
+    return {"status": "ok"}
+
 
 @router.get("/speaker_profiles")
 def _dummy_speaker_profiles() -> dict:

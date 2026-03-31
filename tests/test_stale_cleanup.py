@@ -1,5 +1,7 @@
 import datetime
-from backend.state import get_db, add_job, get_job, cleanup_stale_jobs
+
+from backend.state import add_job, cleanup_stale_jobs, get_db, get_job
+
 
 def test_cleanup_stale_jobs_marks_as_error():
     """

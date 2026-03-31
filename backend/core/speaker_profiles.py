@@ -1,8 +1,9 @@
-import os
 import json
+import os
 import sqlite3
-import numpy as np
 from typing import Optional
+
+import numpy as np
 
 # Ensure NNPACK is disabled for speaker profiles operations
 os.environ.setdefault("DISABLE_NNPACK", "1")

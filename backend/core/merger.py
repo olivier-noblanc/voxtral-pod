@@ -5,6 +5,7 @@ os.environ.setdefault("DISABLE_NNPACK", "1")
 
 from typing import Any
 
+
 def assign_speakers_to_words(
     words: list[dict[str, Any]], diarization_segments: list[tuple[float, float, str]]
 ) -> list[dict[str, Any]]:

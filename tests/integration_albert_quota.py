@@ -1,6 +1,8 @@
-import requests
 import keyring
+import requests
+
 from backend.core.albert_rate_limiter import albert_rate_limiter
+
 
 def test_real_albert_quota():
     """

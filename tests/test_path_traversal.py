@@ -75,6 +75,7 @@ def test_view_path_traversal(payload):
 def test_safe_join_raises_on_traversal(tmp_path):
     """_safe_join doit lever HTTPException 400 sur les chemins malveillants."""
     from fastapi import HTTPException
+
     from backend.routes.api import _safe_join
 
     base = str(tmp_path)

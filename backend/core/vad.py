@@ -1,14 +1,16 @@
-import warnings
-import numpy as np
 import asyncio
 import concurrent.futures
 import os
+import warnings
+
+import numpy as np
 
 # Suppress noisy UserWarning from webrtcvad about pkg_resources
 warnings.filterwarnings("ignore", category=UserWarning, module="webrtcvad")
 
 # Attempt to configure PyTorch/NNPACK before any heavy usage
 import importlib.util
+
 _torch_spec = importlib.util.find_spec("torch")
 if _torch_spec is not None:
     import torch
@@ -188,11 +190,10 @@ class VADManager:
                 return False
             # Still run Silero to confirm speech continuity when WebRTC still sees speech.
             return await self.is_speech(chunk_pcm)
-        else:
-            # Legacy behaviour: require *all* frames to be speech before considering deactivation.
-            if not self._check_webrtc(chunk_pcm, all_frames_must_be_true=True):
-                return False
-            return await self.is_speech(chunk_pcm)
+        # Legacy behaviour: require *all* frames to be speech before considering deactivation.
+        if not self._check_webrtc(chunk_pcm, all_frames_must_be_true=True):
+            return False
+        return await self.is_speech(chunk_pcm)
 
 # Patch for the KaldiRecognizer __del__ issue
 # This addresses the AttributeError: 'KaldiRecognizer' object has no attribute '_handle'

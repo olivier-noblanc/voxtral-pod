@@ -1,5 +1,7 @@
 import argparse
+
 import keyring
+
 
 def main():
     parser = argparse.ArgumentParser(description="Voxtral CLI Tools")

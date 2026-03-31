@@ -1,4 +1,5 @@
 import os
+
 # Silence NNPACK warnings at startup
 os.environ["DISABLE_NNPACK"] = "1"
 os.environ["NNPACK_LOG_LEVEL"] = "0"
@@ -9,6 +10,7 @@ os.environ.setdefault("DISABLE_NNPACK", "1")
 os.environ.setdefault("NNPACK_LOG_LEVEL", "0")
 
 import logging
+
 from backend.config import setup_gpu, setup_warnings
 
 # Immediate silence of NNPACK and other technical noise
@@ -36,17 +38,16 @@ for noisy_logger in [
 ]:
     logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
-from fastapi import FastAPI
+import asyncio
 from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-# Import shared state
-from backend.state import get_asr_engine
-# Import API router
-from backend.routes import api as api_module
-# Expose TRANSCRIPTIONS_DIR for external monkey‑patching (tests modify backend.main.TRANSCRIPTIONS_DIR)
+from backend.cleanup import periodic_cleanup_task
 
+# Expose TRANSCRIPTIONS_DIR for external monkey‑patching (tests modify backend.main.TRANSCRIPTIONS_DIR)
 # ----------------------------------------------------------------------
 # Helper: format_transcription
 # ----------------------------------------------------------------------
@@ -63,8 +64,13 @@ from backend.routes import api as api_module
 #   * Return an empty string for empty input.
 # ----------------------------------------------------------------------
 from backend.config import CLEANUP_RETENTION_DAYS
-from backend.cleanup import periodic_cleanup_task
-import asyncio
+
+# Import API router
+from backend.routes import api as api_module
+
+# Import shared state
+from backend.state import get_asr_engine
+
 
 @asynccontextmanager
 async def lifespan(app):

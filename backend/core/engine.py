@@ -1,11 +1,17 @@
-import os
 import asyncio
-import numpy as np
-from dataclasses import dataclass, asdict
+import os
+from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, cast
-from backend.config import setup_warnings, get_vram_gb, setup_gpu
+
+import numpy as np
+
+from backend.config import get_vram_gb, setup_gpu, setup_warnings
 from backend.core.audio import decode_audio
-from backend.core.merger import assign_speakers_to_words, smooth_micro_turns, build_speaker_segments
+from backend.core.merger import (
+    assign_speakers_to_words,
+    build_speaker_segments,
+    smooth_micro_turns,
+)
 
 # Ensure NNPACK is disabled for engine operations
 os.environ.setdefault("DISABLE_NNPACK", "1")

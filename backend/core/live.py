@@ -1,11 +1,13 @@
 import asyncio
+import datetime
+import os
+
 # import struct  # Removed: manual WAV header construction; using soundfile instead
 import numpy as np
-import os
-import datetime
 from fastapi import WebSocket
-from backend.core.vad import VADManager, SAMPLE_RATE
+
 from backend.config import TRANSCRIPTIONS_DIR
+from backend.core.vad import SAMPLE_RATE, VADManager
 
 # Ensure NNPACK is disabled for live operations
 os.environ.setdefault("DISABLE_NNPACK", "1")

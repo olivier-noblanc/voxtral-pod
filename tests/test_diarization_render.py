@@ -1,7 +1,8 @@
+import os
+from unittest.mock import MagicMock
+
 import pytest
 from fastapi.templating import Jinja2Templates
-from unittest.mock import MagicMock
-import os
 
 # Configurer le chemin des templates (relatif à la racine du projet)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

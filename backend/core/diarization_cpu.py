@@ -6,11 +6,11 @@ Intègre SpeakerManager pour l'identification automatique des locuteurs.
 """
 import logging
 import os
+import re
+import subprocess
 import tempfile
 import time
 import urllib.request
-import subprocess
-import re
 from pathlib import Path
 from typing import Any, Optional
 

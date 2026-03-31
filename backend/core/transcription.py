@@ -2,16 +2,18 @@
 Transcription motor for Voxtral Pod.
 Handles Whisper (local), Vosk (local) and Albert API (remote).
 """
-import os
 import io
+import os
+import time
 import warnings
 from typing import Any
-import time
-import requests
+
 import numpy as np
+import requests
 import soundfile as sf
-from backend.core.postprocess import _ensure_ffmpeg
+
 from backend.core.albert_rate_limiter import albert_rate_limiter
+from backend.core.postprocess import _ensure_ffmpeg
 
 # Propriété utilitaire : nom des modèles qui utilisent l'API Albert
 _ALBERT_MODEL_IDS = frozenset({"albert"})
@@ -142,27 +144,26 @@ class TranscriptionEngine:
 
                 return all_words, info.duration, used_fallback
 
-            else:
-                # Vosk
-                import json
-                import vosk
-                rec = vosk.KaldiRecognizer(self.model, 16000)
-                rec.SetWords(True)
+            # Vosk
+            import json
 
-                pcm16 = np.clip(audio_np * 32768.0, -32768, 32767).astype(np.int16).tobytes()
-                rec.AcceptWaveform(pcm16)
-                res = json.loads(rec.FinalResult())
+            import vosk
+            rec = vosk.KaldiRecognizer(self.model, 16000)
+            rec.SetWords(True)
 
-                all_words = []
-                if "result" in res:
-                    for w in res["result"]:
-                        all_words.append({"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"})
+            pcm16 = np.clip(audio_np * 32768.0, -32768, 32767).astype(np.int16).tobytes()
+            rec.AcceptWaveform(pcm16)
+            res = json.loads(rec.FinalResult())
 
-                return all_words, len(audio_np) / 16000, used_fallback
-        else:
-            # Utiliser l'API Albert
-            res_words, res_dur = self._transcribe_albert(audio_np, language, progress_callback)
-            return res_words, res_dur, False
+            all_words = []
+            if "result" in res:
+                for w in res["result"]:
+                    all_words.append({"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"})
+
+            return all_words, len(audio_np) / 16000, used_fallback
+        # Utiliser l'API Albert
+        res_words, res_dur = self._transcribe_albert(audio_np, language, progress_callback)
+        return res_words, res_dur, False
 
     def _find_best_cut(self, audio_np: np.ndarray, target_sec: float, current_t: float = 0) -> float:
         """
@@ -305,7 +306,7 @@ class TranscriptionEngine:
                     
                     if response.status_code == 200:
                         break
-                    elif response.status_code == 429:
+                    if response.status_code == 429:
                         retry_after = int(response.headers.get("Retry-After", 2 ** (attempt + 1)))
                         print(f"[!] Rate limit (429). Attente {retry_after}s avant retry...")
                         time.sleep(retry_after)

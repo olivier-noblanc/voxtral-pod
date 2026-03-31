@@ -3,14 +3,15 @@ Rate limiter et circuit breaker pour l'API Albert.
 Permet de gérer les erreurs 429 et de basculer vers le mode cpu
 en cas de dépassement de quota.
 """
-import time
-import os
-from typing import Optional
-from collections import deque
-import threading
-from threading import Lock
-import requests
 import logging
+import os
+import threading
+import time
+from collections import deque
+from threading import Lock
+from typing import Optional
+
+import requests
 
 logger = logging.getLogger(__name__)
 

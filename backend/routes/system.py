@@ -1,13 +1,16 @@
 from __future__ import annotations
-import os
-import time
+
 import asyncio
 import logging
+import os
+import time
 from typing import Any, Dict
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from backend.state import get_current_model, set_current_model, get_asr_engine, get_job
+
 from backend.routes.utils import _require_admin_key, templates
+from backend.state import get_asr_engine, get_current_model, get_job, set_current_model
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

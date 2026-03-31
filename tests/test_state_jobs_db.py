@@ -1,6 +1,7 @@
 import pytest
+
 import backend.state as state
-from backend.state import add_job, get_job, JOBS_DB_MAX_SIZE
+from backend.state import JOBS_DB_MAX_SIZE, add_job, get_job
 
 
 @pytest.fixture(autouse=True)

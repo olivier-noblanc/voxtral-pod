@@ -1,6 +1,7 @@
 import re
 from html import escape as html_escape
 
+
 def format_transcription(line: str) -> str:
     """
     Convert a raw transcription line into an HTML fragment.

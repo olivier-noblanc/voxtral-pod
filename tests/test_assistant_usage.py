@@ -1,7 +1,9 @@
 import asyncio
-from unittest.mock import patch, AsyncMock
-from backend.core.postprocess import process_text, process_transcription
+from unittest.mock import AsyncMock, patch
+
 from backend.core.assistant import AlbertAssistant
+from backend.core.postprocess import process_text, process_transcription
+
 
 def test_process_text_uses_albertassistant_methods():
     async def run():

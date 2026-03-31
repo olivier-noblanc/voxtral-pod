@@ -4,12 +4,14 @@ Valide que les tranches audio sont maximisées.
 """
 import os
 import sys
+
 import numpy as np
 
 # Ajout du chemin racine pour l'import backend
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from backend.core.transcription import TranscriptionEngine
+
 
 def test_repro():
     """Simule un audio avec silences et vérifie le découpage."""

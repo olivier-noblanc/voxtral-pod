@@ -8,11 +8,12 @@ Convention live.py :
                             False = silence → silence_chunks_count ++
 """
 import asyncio
+from typing import Any, Dict, List, Optional, cast
+
 import numpy as np
+from fastapi import WebSocket
 
 from backend.core.live import LiveSession
-from typing import cast, Any, Dict, List, Optional
-from fastapi import WebSocket
 from backend.core.vad import VADManager
 
 # pylint: disable=protected-access

@@ -1,8 +1,8 @@
 
 from backend.core.merger import (
     assign_speakers_to_words,
-    smooth_micro_turns,
     build_speaker_segments,
+    smooth_micro_turns,
 )
 
 

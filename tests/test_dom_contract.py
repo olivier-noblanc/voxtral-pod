@@ -1,5 +1,5 @@
-import sys
 import pathlib
+import sys
 
 # Racine du projet = dossier parent de tests/
 _PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -9,9 +9,9 @@ for _p in (_PROJECT_ROOT, _PROJECT_ROOT / "scripts"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from check_dom_contract import ( # type: ignore
-    extract_js_ids,
+from check_dom_contract import (  # type: ignore
     extract_html_ids,
+    extract_js_ids,
     find_add_event_listener_issues,
     find_ws_send_issues,
 )

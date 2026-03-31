@@ -1,5 +1,7 @@
 import pytest
+
 from backend.core.vad import VADManager
+
 
 @pytest.mark.asyncio
 async def test_aggressive_mode_deactivation_on_silence():

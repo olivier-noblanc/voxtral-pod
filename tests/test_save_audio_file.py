@@ -4,9 +4,11 @@ Vérifie que la méthode génère correctement le fichier WAV.
 """
 import asyncio
 import os
+
 import numpy as np
 
 from backend.core.live import LiveSession
+
 
 class _WebSocketDummy:
     async def send_json(self, data): pass
@@ -20,6 +22,7 @@ class _EngineDummy:
 
 def _build_session(engine, tmp_path, client_id="user_satest") -> LiveSession:
     from typing import cast
+
     from fastapi import WebSocket
     ws = _WebSocketDummy()
     session = LiveSession(engine=engine, websocket=cast(WebSocket, ws), client_id=client_id)

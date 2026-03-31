@@ -1,6 +1,7 @@
 import os
 import tempfile
 import wave
+
 import numpy as np
 import pytest
 
@@ -8,7 +9,7 @@ import pytest
 pytest.importorskip("ffmpeg")
 
 # Functions under test are defined in backend.core.audio
-from backend.core.audio import decode_audio, pcm_to_float32, float32_to_pcm16
+from backend.core.audio import decode_audio, float32_to_pcm16, pcm_to_float32
 
 
 def _write_wav(file_path: str, audio_np: np.ndarray, sample_rate: int = 16000) -> None:

@@ -1,11 +1,11 @@
-import time
 import json
 import os
 import tempfile
-import soundfile as sf
-import pytest
-from typing import Optional, Any, Dict, List
+import time
+from typing import Any, Dict, List, Optional
 
+import pytest
+import soundfile as sf
 from diarize import diarize
 
 # === Configuration ===

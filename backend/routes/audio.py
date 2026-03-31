@@ -1,16 +1,19 @@
 from __future__ import annotations
+
+import asyncio
+import datetime
+import json
+import logging
 import os
 import shutil
-import datetime
-import logging
-import json
 from typing import Dict
+
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-from backend.config import TEMP_DIR, TRANSCRIPTIONS_DIR
+
+from backend.config import TEMP_DIR
 from backend.routes import api as api_module
 from backend.routes.utils import _safe_join, _validate_client_id
-import asyncio
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

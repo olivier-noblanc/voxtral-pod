@@ -14,7 +14,6 @@ from fastapi.testclient import TestClient
 # Pré-charger l'app pour éviter un circular import au moment du patch
 from backend.main import app
 
-
 # ── 1. Rendu Jinja2 dans la home route ──────────────────────────────────────
 # (Anciens tests sur ws_url supprimés car la logique est désormais en frontend)
 

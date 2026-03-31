@@ -1,11 +1,12 @@
-from typing import Any
-from backend.core.audio import decode_audio
-
-import os
 import json
 import logging
+import os
 import threading
+from typing import Any
+
 import numpy as np
+
+from backend.core.audio import decode_audio
 
 # Ensure NNPACK is disabled for speaker management operations
 os.environ.setdefault("DISABLE_NNPACK", "1")
@@ -34,7 +35,9 @@ def get_encoder() -> Any:
 
         _encoder_tried = True
         try:
-            from speechbrain.inference.speaker import EncoderClassifier  # type: ignore[import-untyped]
+            from speechbrain.inference.speaker import (
+                EncoderClassifier,  # type: ignore[import-untyped]
+            )
             logging.info("[*] Loading SpeechBrain ECAPA-TDNN model (CPU singleton)...")
             # Ensure it runs on CPU as requested
             _encoder = EncoderClassifier.from_hparams(

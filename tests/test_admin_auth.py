@@ -4,6 +4,7 @@ Vérifie que /git_update et /change_model nécessitent X-Admin-Key
 quand ADMIN_API_KEY est définie dans l'environnement.
 """
 import os
+
 import pytest
 from fastapi.testclient import TestClient
 

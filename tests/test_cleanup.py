@@ -1,11 +1,18 @@
 import os
-from typing import Any, Dict
-import pytest
 import time
+from typing import Any, Dict
+from unittest.mock import MagicMock, patch
 
-from unittest.mock import patch, MagicMock
+import pytest
+
+from backend.cleanup import (
+    clean_old_files,
+    clean_old_jobs,
+    compress_old_wavs,
+    run_cleanup,
+)
 from backend.state import get_db
-from backend.cleanup import clean_old_jobs, clean_old_files, compress_old_wavs, run_cleanup
+
 
 @pytest.fixture
 def mock_dirs(tmp_path: Any, monkeypatch: Any) -> Dict[str, Any]:

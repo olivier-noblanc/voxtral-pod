@@ -1,14 +1,17 @@
 from __future__ import annotations
-import os
+
+import asyncio
 import datetime
 import json
-import asyncio
 import logging
+import os
 from typing import Optional
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
 from backend.config import TRANSCRIPTIONS_DIR
-from backend.state import get_asr_engine, add_job, update_job
 from backend.routes.utils import _safe_join, _update_job_status
+from backend.state import add_job, get_asr_engine, update_job
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
