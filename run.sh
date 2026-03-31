@@ -31,6 +31,10 @@ elif ! command -v ffmpeg &> /dev/null; then
     fi
 fi
 
+USE_GPU=0
+if command -v nvidia-smi &> /dev/null && nvidia-smi -L &> /dev/null; then
+    USE_GPU=1
+fi
 
 # 1. Initialisation du dépôt git local si nécessaire
 git config --global --add safe.directory "$PWD"
@@ -82,6 +86,14 @@ echo "$CURRENT_HASH" > "$REQ_HASH_FILE"
 
 # 3. Dependencies
 echo "[*] Starting robust dependency check..."
+
+if [ "$USE_GPU" -eq 1 ]; then
+    echo "[*] Installing GPU torch..."
+    pip install torch torchvision torchaudio
+else
+    echo "[*] Installing CPU torch..."
+    pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision torchaudio
+fi
 
 "$VENV_DIR/bin/python" - <<EOF
 import subprocess
@@ -135,6 +147,7 @@ if command -v nvidia-smi &> /dev/null && nvidia-smi -L &> /dev/null; then
 else
     export DISABLE_NNPACK=1
     echo "[*] CPU mode detected -> DISABLE_NNPACK=1 (silences unsupported NNPACK warnings)"
+    pip install --force-reinstall --index-url https://download.pytorch.org/whl/cpu torch torchvision torchaudio
 fi
 
 # 5. Launch
@@ -153,6 +166,12 @@ if [ -z "$CERT_FILE" ]; then
     CERT_FILE=$(ls *.crt 2>/dev/null | head -1)
     KEY_FILE=$(ls *.key 2>/dev/null | head -1)
 fi
+
+python - <<EOF
+import torch
+assert not torch.cuda.is_available(), "Torch GPU installé en mode CPU !"
+print("[OK] Torch CPU confirmé")
+EOF
 
 if [ -n "$CERT_FILE" ] && [ -n "$KEY_FILE" ]; then
     echo "[*] Certificat détecté : $CERT_FILE"
