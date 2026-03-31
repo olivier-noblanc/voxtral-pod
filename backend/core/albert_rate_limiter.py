@@ -97,25 +97,6 @@ class AlbertRateLimiter:
                 self.current_fallback_duration = min(self.current_fallback_duration * 2, 24 * 3600)  # cap à 24 h
             return True
 
-            # Planifie le retour au modèle Albert après la durée de fallback actuelle
-            def _revert():
-                backend_state.set_current_model("albert")
-                print(f"[RATELIMITER] Retour au modèle Albert après {self.current_fallback_duration}s")
-                # Réinitialiser le compteur et la durée de fallback
-                self._consecutive_429 = 0
-                self.current_fallback_duration = self.base_fallback_duration
-
-            # Annule tout timer de revert précédent
-            if isinstance(self._fallback_task, threading.Timer):
-                self._fallback_task.cancel()
-            self._fallback_task = threading.Timer(self.current_fallback_duration, _revert)
-            self._fallback_task.start()
-
-            # Double la durée de fallback pour le prochain basculement (exponential backoff)
-            self.current_fallback_duration = min(self.current_fallback_duration * 2, 24 * 3600)  # cap à 24 h
-
-            return True
-
         return False
         
     def can_make_request(self) -> bool:

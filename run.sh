@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+
 
 REPO_URL="https://github.com/olivier-noblanc/voxtral-pod.git"
 VENV_DIR="venv_asr"

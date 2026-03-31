@@ -18,7 +18,7 @@ class LiveSession:
         self.engine = engine
         self.websocket = websocket
         self.client_id = client_id
-        self.partial_albert = False  # Désactiver les partials par défaut pour éviter les appels fréquents à l'API
+        self.partial_albert = partial_albert
 
         self.audio_queue = asyncio.Queue()
         self.pre_speech_buffer = bytearray()

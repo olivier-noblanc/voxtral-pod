@@ -49,14 +49,17 @@ async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp:
             json.dump(result.segments, f, indent=2)
 
         try:
-            from backend.core.postprocess import clean_text
-            cleaned = await clean_text(transcript)
-            if cleaned and cleaned.strip():
-                cleaned_path = txt_path.replace(".txt", ".cleaned.md")
-                with open(cleaned_path, "w", encoding="utf-8") as f:
-                    f.write(cleaned)
-            else:
-                logger.warning(f"[Live {job_id}] Albert API returned empty cleanup.")
+            # Ne pas appeler clean_text automatiquement après chaque session live
+            # Cela consomme du quota Albert inutilement et cause des 429 en cascade
+            # from backend.core.postprocess import clean_text
+            # cleaned = await clean_text(transcript)
+            # if cleaned and cleaned.strip():
+            #     cleaned_path = txt_path.replace(".txt", ".cleaned.md")
+            #     with open(cleaned_path, "w", encoding="utf-8") as f:
+            #         f.write(cleaned)
+            # else:
+            #     logger.warning(f"[Live {job_id}] Albert API returned empty cleanup.")
+            pass
         except Exception as ce:
             logger.error(f"[Live {job_id}] Erreur nettoyage Albert auto: {ce}")
 

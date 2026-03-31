@@ -7,7 +7,8 @@ from backend.routes import (
     postprocess,
     diarization,
     speakers,
-    live
+    live,
+    utils
 )
 
 router = APIRouter()
@@ -20,3 +21,6 @@ router.include_router(postprocess.router)
 router.include_router(diarization.router)
 router.include_router(speakers.router)
 router.include_router(live.router)
+
+# Expose utility functions at the router level for tests
+_safe_join = utils._safe_join
