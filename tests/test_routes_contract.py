@@ -2,71 +2,93 @@ import re
 from pathlib import Path
 from typing import Set
 
-# Files under test
-
 APP_JS_PATH = Path(__file__).parents[1] / "static" / "app.js"
-API_PY_PATH = Path(__file__).parents[1] / "backend" / "routes" / "api.py"
+ROUTES_DIR = Path(__file__).parents[1] / "backend" / "routes"
+
+ROUTE_FILES = [
+    ROUTES_DIR / "api.py",
+    ROUTES_DIR / "audio.py",
+    ROUTES_DIR / "diarization.py",
+    ROUTES_DIR / "live.py",
+    ROUTES_DIR / "postprocess.py",
+    ROUTES_DIR / "speakers.py",
+    ROUTES_DIR / "system.py",
+    ROUTES_DIR / "transcriptions.py",
+]
 
 
 def _extract_fetch_paths(js_code: str) -> Set[str]:
-    """
-    Return a set of route paths used in ``fetch`` calls inside app.js.
-    The pattern captures the literal string passed to ``fetch`` after the leading '/'.
-    """
+    """Routes appelées via fetch('/...') littéral dans app.js."""
     pattern = re.compile(r"""fetch\(\s*['"]/(.+?)['"]""")
     return {m.group(1).split("?")[0] for m in pattern.finditer(js_code)}
 
 
 def _extract_api_routes(api_code: str) -> Set[str]:
-    """
-    Return a set of route paths declared in the FastAPI router.
-    Looks for ``@router.<method>("/path")`` decorators.
-    """
+    """Routes déclarées via @router.<method>("/path")."""
     pattern = re.compile(r"""@router\.\w+\(\s*["']/(.+?)["']""")
     return {m.group(1) for m in pattern.finditer(api_code)}
 
 
-def test_fetch_routes_have_backend_implementation() -> None:
-    """
-    For each ``fetch('/...')`` call found in static/app.js, ensure that a
-    corresponding route is declared in backend/routes/api.py.
-    """
-    js_code = APP_JS_PATH.read_text(encoding="utf-8")
-    api_code = API_PY_PATH.read_text(encoding="utf-8")
+def _all_api_routes() -> Set[str]:
+    """Agrège les routes de tous les fichiers du dossier routes/."""
+    routes: Set[str] = set()
+    for path in ROUTE_FILES:
+        if path.exists():
+            routes |= _extract_api_routes(path.read_text(encoding="utf-8"))
+    return routes
 
+
+def test_fetch_routes_have_backend_implementation() -> None:
+    """Pour chaque fetch('/...') dans app.js, vérifier qu'une route backend existe."""
+    js_code = APP_JS_PATH.read_text(encoding="utf-8")
     fetch_paths = _extract_fetch_paths(js_code)
-    api_routes = _extract_api_routes(api_code)
+    api_routes = _all_api_routes()
 
     missing = fetch_paths - api_routes
-    assert not missing, f"The following routes are used in app.js but missing in api.py: {sorted(missing)}"
+    assert not missing, (
+        f"The following routes are used in app.js but missing in backend routes: {sorted(missing)}"
+    )
 
 
 def test_api_routes_are_used_in_frontend() -> None:
-    """
-    Ensure that every route declared in the backend is referenced at least once
-    in the frontend JavaScript. This guards against dead endpoints.
-    """
+    """Vérifier que chaque route backend est référencée dans le frontend."""
     js_code = APP_JS_PATH.read_text(encoding="utf-8")
-    api_code = API_PY_PATH.read_text(encoding="utf-8")
-
     fetch_paths = _extract_fetch_paths(js_code)
-    api_routes = _extract_api_routes(api_code)
+    api_routes = _all_api_routes()
 
-    # On autorise certains endpoints à ne pas être utilisés par le frontend JS
-    # (ex: outils de benchmark, API batch pur, ou features en cours de développement)
+    # Routes non détectables par regex de string littérale :
+    # - Routes à paramètres dynamiques (construites par concaténation JS)
+    # - Routes WebSocket (new WebSocket(), pas fetch())
+    # - Endpoints internes non exposés au frontend
     allowed_unused = {
         "diarize",
         "benchmark",
         "speakers/enroll",
         "speakers/identify",
+        "view/{client_id}/{filename}",
+        "view_summary/{client_id}/{filename}",
+        "view_actions/{client_id}/{filename}",
+        "view_cleanup/{client_id}/{filename}",
+        "download_audio/{client_id}/{filename}",
+        "download_transcript/{client_id}/{filename}",
         "diarization_data/{client_id}/{filename}",
         "download_rttm/{client_id}/{filename}",
-        "view_diarization/{client_id}/{filename}"
+        "view_diarization/{client_id}/{filename}",
+        "status/{file_id}",
+        "transcriptions/{filename}",
+        "transcription/{filename}",
+        "actions/{filename}",
+        "cleanup/{filename}",
+        "summary/{filename}",
+        "live",
+        "transcriptions",
+        "transcriptions/",
+        "speaker_profiles",
+        "cleanup",
     }
-    
+
     unused = (api_routes - fetch_paths) - allowed_unused
-    msg = (
+    assert not unused, (
         f"The following backend routes are not referenced in app.js "
         f"and not explicitly allowed: {sorted(unused)}"
     )
-    assert not unused, msg
