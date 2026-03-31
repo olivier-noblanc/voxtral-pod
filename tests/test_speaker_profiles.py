@@ -1,10 +1,9 @@
 import os
 import tempfile
 import numpy as np
-import pytest
 
 # Ensure the test uses a temporary SQLite DB
-def test_save_and_load_profiles():
+def test_save_and_load_profiles() -> None:
     # Use a temporary directory for the DB file
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = os.path.join(tmpdir, "test_profiles.db")
@@ -31,7 +30,7 @@ def test_save_and_load_profiles():
         assert loaded_emb is not None
         np.testing.assert_allclose(loaded_emb, emb)
 
-def test_match_embedding_threshold():
+def test_match_embedding_threshold() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = os.path.join(tmpdir, "test_profiles.db")
         os.environ["SPEAKER_PROFILES_DB"] = db_path

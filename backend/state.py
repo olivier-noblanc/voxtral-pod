@@ -1,14 +1,10 @@
-"""
-Gestion de l'état global du serveur, incluant la base de données SQLite pour les jobs.
-"""
-
+from __future__ import annotations
 import os
 import sqlite3
 import json
 import logging
-import time
 import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +148,7 @@ def set_current_model(model: str) -> None:
         )
         conn.commit()
 
-def add_job(job_id: str, data: dict) -> None:
+def add_job(job_id: str, data: Dict[str, Any]) -> None:
     """
     Ajoute un job dans la base de données SQLite.
     (Rotation FIFO si max size atteint)
@@ -183,10 +179,13 @@ def get_job(job_id: str, default: Any = _GET_JOB_SENTINEL) -> Dict[str, Any]:
         cursor = conn.execute('SELECT data FROM jobs WHERE job_id = ?', (job_id,))
         row = cursor.fetchone()
         if row:
-            return json.loads(row['data'])
-    return {} if default is _GET_JOB_SENTINEL else default
+            res: dict[str, Any] = json.loads(row['data'])
+            return res
+    if default is _GET_JOB_SENTINEL:
+        return {}
+    return default  # type: ignore[no-any-return]
 
-def update_job(job_id: str, data_update: dict) -> None:
+def update_job(job_id: str, data_update: Dict[str, Any]) -> None:
     """
     Met à jour (ou crée) le job ``job_id`` avec les champs fournis dans ``data_update``.
     """
@@ -209,10 +208,10 @@ def update_job(job_id: str, data_update: dict) -> None:
         conn.commit()
 
 # Global cache for the ASR engine
-model_name: str | None = None
-asr_engine = None
+model_name: Optional[str] = None
+asr_engine: Any = None
 
-def get_asr_engine(load_model: bool = False):
+def get_asr_engine(load_model: bool = False) -> Any:
     """
     Retourne l'instance asr_engine pour le worker actuel.
     Si le modèle a changé dans la configuration SQLite, il recrée l'instance.

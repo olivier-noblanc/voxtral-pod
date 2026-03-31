@@ -1,5 +1,3 @@
-import os
-import pathlib
 from fastapi import HTTPException
 from backend.routes.api import _safe_join
 from backend.config import TRANSCRIPTIONS_DIR

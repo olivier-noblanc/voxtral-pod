@@ -1,16 +1,17 @@
+from typing import Any
+from backend.core.audio import decode_audio
+
 import os
 import json
 import logging
-import numpy as np
 import threading
-from typing import Optional, List, Dict, Tuple
-from backend.core.audio import decode_audio
+import numpy as np
 
 # Ensure NNPACK is disabled for speaker management operations
 os.environ.setdefault("DISABLE_NNPACK", "1")
 
 # Lazy loading of speechbrain
-_encoder = None
+_encoder: Any = None
 _encoder_lock = threading.Lock()
 _encoder_tried = False
 
@@ -18,7 +19,7 @@ _encoder_tried = False
 logging.getLogger("speechbrain.utils.fetching").setLevel(logging.WARNING)
 logging.getLogger("speechbrain.utils.parameter_transfer").setLevel(logging.WARNING)
 
-def get_encoder():
+def get_encoder() -> Any:
     global _encoder, _encoder_tried
     if _encoder is not None:
         return _encoder
@@ -33,7 +34,7 @@ def get_encoder():
 
         _encoder_tried = True
         try:
-            from speechbrain.inference.speaker import EncoderClassifier
+            from speechbrain.inference.speaker import EncoderClassifier  # type: ignore[import-untyped]
             logging.info("[*] Loading SpeechBrain ECAPA-TDNN model (CPU singleton)...")
             # Ensure it runs on CPU as requested
             _encoder = EncoderClassifier.from_hparams(
@@ -52,13 +53,13 @@ class SpeakerManager:
     Manages speaker enrollment and identification using SpeechBrain embeddings.
     Strictly CPU-only, offline-ready (after initial model download).
     """
-    def __init__(self, db_path: str = "speaker_signatures.json", threshold: float = 0.75):
+    def __init__(self, db_path: str = "speaker_signatures.json", threshold: float = 0.75) -> None:
         self.db_path = db_path
         self.threshold = threshold
-        self.signatures: Dict[str, List[float]] = {}
+        self.signatures: dict[str, list[float]] = {}
         self._load_db()
 
-    def _load_db(self):
+    def _load_db(self) -> None:
         if os.path.exists(self.db_path):
             try:
                 with open(self.db_path, "r", encoding="utf-8") as f:
@@ -68,7 +69,7 @@ class SpeakerManager:
                 logging.error(f"[!] Failed to load speaker signatures: {e}")
                 self.signatures = {}
 
-    def _save_db(self):
+    def _save_db(self) -> None:
         try:
             with open(self.db_path, "w", encoding="utf-8") as f:
                 json.dump(self.signatures, f, indent=2)
@@ -80,7 +81,7 @@ class SpeakerManager:
         """Extract a 192-dim embedding from audio."""
         return self.get_embeddings_batch([audio_np])[0]
 
-    def get_embeddings_batch(self, audio_chunks: List[np.ndarray]) -> List[np.ndarray]:
+    def get_embeddings_batch(self, audio_chunks: list[np.ndarray]) -> list[np.ndarray]:
         """Extract embeddings for a list of audio chunks using true batching (one forward pass)."""
         import torch
         encoder = get_encoder()
@@ -139,7 +140,7 @@ class SpeakerManager:
             logging.error(f"[!] Enrollment failed for {name}: {e}")
             return False
 
-    def identify_speaker(self, audio_np: np.ndarray) -> Tuple[str, float]:
+    def identify_speaker(self, audio_np: np.ndarray) -> tuple[str, float]:
         """
         Identify the speaker from an audio fragment.
         Returns (name, score). Returns ("Unknown", 0.0) if no match.
@@ -167,7 +168,7 @@ class SpeakerManager:
             logging.error(f"[!] Identification failed: {e}")
             return "Unknown", 0.0
 
-    def identify_speakers_in_segments(self, audio_path: str, segments: List[Dict]) -> List[Dict]:
+    def identify_speakers_in_segments(self, audio_path: str, segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Takes a list of segments [{start, end}] and identifies the speaker for each.
         """

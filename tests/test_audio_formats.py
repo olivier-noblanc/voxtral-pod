@@ -1,17 +1,19 @@
 import os
 import pathlib
+import wave
+import struct
+import shutil
 import numpy as np
 import pytest
 from backend.core.audio import decode_audio
 
-def test_decode_wav_as_m4a_fallback():
+def test_decode_wav_as_m4a_fallback() -> None:
     """
     Test que decode_audio gère un fichier même si son extension ne correspond pas,
     en utilisant ffmpeg.
     """
     # Créer un petit fichier WAV de test
     test_wav = "test_fake.m4a"
-    import wave, struct
     obj = wave.open(test_wav, 'w')
     obj.setnchannels(1)
     obj.setsampwidth(2)
@@ -30,13 +32,12 @@ def test_decode_wav_as_m4a_fallback():
         if os.path.exists(test_wav):
             os.remove(test_wav)
 
-def test_decode_non_existent():
+def test_decode_non_existent() -> None:
     with pytest.raises(Exception):
         decode_audio("non_existent_file.mp3")
 
-import shutil
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not found")
-def test_decode_real_mp3_if_any_found():
+def test_decode_real_mp3_if_any_found() -> None:
     """
     Si un MP3 existe dans le repo, on essaie de le lire.
     Sinon on skip.

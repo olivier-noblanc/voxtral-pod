@@ -4,9 +4,7 @@ Vérifie que la méthode génère correctement le fichier WAV.
 """
 import asyncio
 import os
-import tempfile
 import numpy as np
-import pytest
 
 from backend.core.live import LiveSession
 

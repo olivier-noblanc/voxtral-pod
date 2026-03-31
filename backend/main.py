@@ -46,7 +46,6 @@ from backend.state import get_asr_engine
 # Import API router
 from backend.routes import api as api_module
 # Expose TRANSCRIPTIONS_DIR for external monkey‑patching (tests modify backend.main.TRANSCRIPTIONS_DIR)
-from backend.config import TRANSCRIPTIONS_DIR
 
 # ----------------------------------------------------------------------
 # Helper: format_transcription
@@ -64,7 +63,6 @@ from backend.config import TRANSCRIPTIONS_DIR
 #   * Return an empty string for empty input.
 # ----------------------------------------------------------------------
 from backend.config import CLEANUP_RETENTION_DAYS
-from backend.utils import format_transcription
 from backend.cleanup import periodic_cleanup_task
 import asyncio
 

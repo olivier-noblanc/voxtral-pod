@@ -2,7 +2,7 @@ import os
 import asyncio
 import numpy as np
 from dataclasses import dataclass, asdict
-from typing import Any, Optional, Dict, List
+from typing import Any, Dict, List, Optional, cast
 from backend.config import setup_warnings, get_vram_gb, setup_gpu
 from backend.core.audio import decode_audio
 from backend.core.merger import assign_speakers_to_words, smooth_micro_turns, build_speaker_segments
@@ -39,7 +39,7 @@ setup_gpu()
 
 
 class SotaASR:
-    def __init__(self, model_id="whisper", hf_token=None):
+    def __init__(self, model_id: str = "whisper", hf_token: Optional[str] = None) -> None:
         self.albert_api_key = os.getenv("ALBERT_API_KEY")
 
         # 1. Hardware detection
@@ -58,7 +58,7 @@ class SotaASR:
         # 2. Strategy selection
         # Auto-mock if TESTING is enabled OR (VRAM < 7GB and no Albert API key)
         if os.getenv("TESTING") == "1" or (not self.albert_api_key and vram < 7.0):
-            print(f"[*] Testing/Auto-Mock mode active. Using Mock mode.")
+            print("[*] Testing/Auto-Mock mode active. Using Mock mode.")
             self.model_id = "mock"
         elif self.albert_api_key and (self.low_vram or self.no_gpu or model_id == "albert"):
             print("[*] Fallback: Using Albert API for transcription (No GPU or Low VRAM).")
@@ -70,14 +70,14 @@ class SotaASR:
 
         # Diarization engine will be instantiated lazily in load()
         self._use_cpu_diarization = self.no_gpu or self.low_vram
-        self.diarization_engine = None
+        self.diarization_engine: Any = None
 
         from backend.core.transcription import TranscriptionEngine
         self.transcription_engine = TranscriptionEngine(model_id=self.model_id)
 
-        self._loaded = False
+        self._loaded: bool = False
 
-    def load(self):
+    def load(self) -> None:
         """
         Charge les sous‑composants (diarisation et transcription) uniquement
         lorsqu'ils sont réellement nécessaires. Cela évite d'importer des
@@ -91,28 +91,32 @@ class SotaASR:
         if self.diarization_engine is None:
             if self._use_cpu_diarization:
                 from backend.core.diarization_cpu import LightDiarizationEngine
-                self.diarization_engine = LightDiarizationEngine()
+                self.diarization_engine = LightDiarizationEngine()  # type: ignore[assignment]
             else:
                 from backend.core.diarization import DiarizationEngine
                 # Initialise le moteur de diarisation; il gère lui‑même les fallbacks.
-                self.diarization_engine = DiarizationEngine(hf_token=self.hf_token, use_cpu=False)
+                self.diarization_engine = DiarizationEngine(hf_token=self.hf_token, use_cpu=False)  # type: ignore[assignment]
 
         # ``load`` may raise if heavy deps are missing; we protect against that.
         try:
-            self.diarization_engine.load()
+            if self.diarization_engine is not None:
+                # Use Any-casting to call load() on a dynamic engine
+                cast(Any, self.diarization_engine).load()
         except Exception as e:
             print(f"[!] Diarization engine load failed: {e}")
             # Fallback to a no‑op engine that returns empty segments.
             class _NoOpEngine:
-                def diarize(self, audio_float32, hook=None):
+                def diarize(self, audio_float32: np.ndarray, hook: Any = None) -> list[tuple[float, float, str]]:
                     return []
-                def load(self):
+                def load(self) -> None:
                     pass
-            self.diarization_engine = _NoOpEngine()
+            self.diarization_engine = _NoOpEngine()  # type: ignore[assignment]
         self.transcription_engine.load()
         self._loaded = True
 
-    async def process_file(self, audio_path, progress_callback=None):
+    async def process_file(
+        self, audio_path: str, progress_callback: Any = None
+    ) -> TranscriptionResult:
         """
         Full pipeline: Decode -> Diarize -> Transcribe -> Merge -> Format
         """
@@ -125,15 +129,16 @@ class SotaASR:
         audio_np = await asyncio.to_thread(decode_audio, audio_path)
 
         # 2. Build diarization progress hook
-        def diar_hook(step_name, *args, **kwargs):
+        def diar_hook(step_name: str, *args: Any, **kwargs: Any) -> None:
             if not progress_callback:
                 return
             try:
-                c_raw = args[0] if len(args) > 0 else kwargs.get("completed", 0)
-                t_raw = args[1] if len(args) > 1 else kwargs.get("total")
+                c_raw: Any = args[0] if len(args) > 0 else kwargs.get("completed", 0)
+                t_raw: Any = args[1] if len(args) > 1 else kwargs.get("total")
 
                 def to_scalar(v: Any) -> float:
-                    if v is None: return 0.0
+                    if v is None:
+                        return 0.0
                     if hasattr(v, "item"): 
                         try:
                             item = v.item() # type: ignore
@@ -185,10 +190,12 @@ class SotaASR:
                 diar_task = asyncio.to_thread(self.diarization_engine.diarize, audio_np, hook=None)
                 trans_task = asyncio.to_thread(self.transcription_engine.transcribe, audio_np, progress_callback=None)
                 # ``asyncio.gather`` renvoie deux résultats ; on désérialise correctement.
-                diar_segments, (words, _, used_fallback) = await asyncio.gather(diar_task, trans_task)  # type: ignore[assignment]
+                diar_segments_raw, trans_result = await asyncio.gather(diar_task, trans_task)
+                diar_segments = cast(list[tuple[float, float, str]], diar_segments_raw)
+                words, _, used_fallback = cast(tuple[List[Dict[str, Any]], float, bool], trans_result)
             else:
                 words, _, used_fallback = await asyncio.to_thread(self.transcription_engine.transcribe, audio_np, progress_callback=None)
-                diar_segments = []
+                diar_segments = []  # type: ignore[var-annotated]
             if progress_callback:
                 progress_callback("Fusion des résultats...", 80)
         else:
@@ -210,15 +217,15 @@ class SotaASR:
         print(f"[*] Post-traitement: Alignement de {len(words)} mots avec {len(diar_segments)} segments de locuteurs...")
         words_with_speakers = assign_speakers_to_words(words, diar_segments)
         
-        print(f"[*] Post-traitement: Lissage des micro-tours de parole...")
+        print("[*] Post-traitement: Lissage des micro-tours de parole...")
         words_with_speakers = smooth_micro_turns(words_with_speakers)
         
-        print(f"[*] Post-traitement: Reconstruction des segments par locuteur...")
+        print("[*] Post-traitement: Reconstruction des segments par locuteur...")
         segments = build_speaker_segments(words_with_speakers)
         print(f"[*] Post-traitement: {len(segments)} segments finaux générés.")
 
         # 5. Format final text
-        print(f"[*] Post-traitement: Formattage du texte final...")
+        print("[*] Post-traitement: Formattage du texte final...")
         output_lines = []
         if used_fallback:
             output_lines.append("[SYSTÈME] : Transcrit via moteur local (Fallback CPU - Quota Albert atteint)")
@@ -227,5 +234,5 @@ class SotaASR:
         for s in segments:
             output_lines.append(f"[{s['start']:.2f}s -> {s['end']:.2f}s] [{s['speaker']}] {s['text']}")
 
-        print(f"[*] Post-traitement terminé. Transcript prêt.")
+        print("[*] Post-traitement terminé. Transcript prêt.")
         return TranscriptionResult(transcript="\n".join(output_lines), segments=segments)

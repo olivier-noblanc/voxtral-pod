@@ -8,10 +8,8 @@ Tests de non-régression pour les 5 avertissements 🟡 corrigés :
   4. audio_np recalculé une seule fois dans LiveSession.save_wav_only
   5. ProxyHeadersMiddleware a des trusted_hosts configurés
 """
-import os
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
 
 # Pré-charger l'app pour éviter un circular import au moment du patch
 from backend.main import app
@@ -22,7 +20,6 @@ from backend.main import app
 
 def test_home_route_renders_with_jinja(tmp_path):
     """Vérifie que la home route utilise bien Jinja2 et rend les variables de base."""
-    from backend.main import app
     client = TestClient(app)
     resp = client.get("/")
     assert resp.status_code == 200
@@ -38,7 +35,8 @@ def test_state_module_no_init_db_at_import():
     Vérifier que init_db() n'est plus appelé au niveau module dans state.py.
     On inspecte le source AST plutôt que d'exécuter — plus fiable.
     """
-    import ast, pathlib
+    import ast
+    import pathlib
 
     src = pathlib.Path("backend/state.py").read_text(encoding="utf-8")
     tree = ast.parse(src)
@@ -90,7 +88,8 @@ def test_save_wav_only_no_duplicate_audio_np():
     """
     Vérifier via AST qu'audio_np n'est pas assigné deux fois dans save_wav_only.
     """
-    import ast, pathlib
+    import ast
+    import pathlib
 
     src = pathlib.Path("backend/core/live.py").read_text(encoding="utf-8")
     tree = ast.parse(src)
@@ -120,7 +119,8 @@ def test_proxy_middleware_has_trusted_hosts():
     """
     Vérifier via AST que ProxyHeadersMiddleware est appelé avec trusted_hosts.
     """
-    import ast, pathlib
+    import ast
+    import pathlib
 
     src = pathlib.Path("backend/main.py").read_text(encoding="utf-8")
     tree = ast.parse(src)

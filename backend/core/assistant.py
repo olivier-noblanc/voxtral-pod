@@ -4,7 +4,7 @@ import os
 os.environ.setdefault("DISABLE_NNPACK", "1")
 
 class AlbertAssistant:
-    def __init__(self):
+    def __init__(self) -> None:
         self.api_key = os.getenv("ALBERT_API_KEY")
         self.base_url = "https://albert.api.etalab.gouv.fr/v1"
         self.model_id = "openweight-large" # Specified by user

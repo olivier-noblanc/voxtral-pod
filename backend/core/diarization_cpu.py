@@ -10,15 +10,12 @@ import tempfile
 import time
 import urllib.request
 import subprocess
-import sys
 import re
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
 
 import numpy as np
 import soundfile as sf
-from scipy.cluster.hierarchy import linkage, fcluster
-from scipy.spatial.distance import squareform
 
 # Ensure NNPACK is disabled for diarization CPU operations
 os.environ.setdefault("DISABLE_NNPACK", "1")
@@ -36,7 +33,7 @@ _MODEL_DIR  = Path.home() / ".wespeaker" / "en"
 _MODEL_PATH = _MODEL_DIR / "model.onnx"
 
 
-def _get_r_proxy_settings() -> Optional[dict]:
+def _get_r_proxy_settings() -> Optional[dict[str, str]]:
     """Essaye de lire les paramètres de proxy depuis le fichier .Rprofile si présent."""
     try:
         rprofile_path = Path.home() / "Documents" / ".Rprofile"
@@ -62,7 +59,7 @@ def _get_r_proxy_settings() -> Optional[dict]:
         return None
 
 
-def _download_with_r_proxy(url: str, dest_path: Path, proxy_settings: dict) -> None:
+def _download_with_r_proxy(url: str, dest_path: Path, proxy_settings: dict[str, str]) -> None:
     """Télécharge un fichier en utilisant les paramètres de proxy R avec curl."""
     try:
         # Construire la commande curl avec les paramètres R
@@ -145,14 +142,14 @@ class LightDiarizationEngine:
     Conçu pour être rapide (RTF ~0.1) et efficace.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def load(self) -> None:
         """Contract placeholder to match DiarizationEngine interface."""
         pass
 
-    def diarize_file(self, audio_path: str) -> List[Dict[str, Any]]:
+    def diarize_file(self, audio_path: str) -> list[dict[str, Any]]:
         """
         Diarisation CPU pure utilisant la bibliothèque 'diarize'.
         Retourne une liste de dictionnaires {start, end, speaker}.
@@ -162,7 +159,7 @@ class LightDiarizationEngine:
 
         logger.info("[*] Diarisation batch (WeSpeaker ONNX) : %s", audio_path)
         try:
-            from diarize import diarize as run_diarize
+            from diarize import diarize as run_diarize  # type: ignore[import-untyped]
             result = run_diarize(audio_path)
             
             segments = [
@@ -181,7 +178,7 @@ class LightDiarizationEngine:
             logger.error("[!] Échec moteur diarize : %s", e)
             return []
 
-    def benchmark(self, audio_path: str) -> Dict[str, Any]:
+    def benchmark(self, audio_path: str) -> dict[str, Any]:
         """Mesure de performance (RTF)."""
         start_wall = time.perf_counter()
         info = sf.info(audio_path)
@@ -204,7 +201,7 @@ class LightDiarizationEngine:
             "segments":              segments,
         }
 
-    def diarize(self, audio_float32: np.ndarray, hook=None) -> List[tuple]:
+    def diarize(self, audio_float32: np.ndarray, hook: Any = None) -> list[tuple[float, float, str]]:
         """
         Interface principale pour SotaASR.process_file().
         IMPORTANT : Doit renvoyer une liste de TUPLES (start, end, speaker).

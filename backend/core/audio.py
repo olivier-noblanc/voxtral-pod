@@ -53,16 +53,8 @@ def decode_audio(audio_path: str, sample_rate: int = 16000, timeout: int = 900) 
         )
         out = result.stdout
     except subprocess.CalledProcessError as e:
-        # Fallback: try to read as WAV using wave module (handles .wav files with wrong extension)
-        import wave
-        try:
-            with wave.open(audio_path, 'rb') as wf:
-                frames = wf.readframes(wf.getnframes())
-                audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
-                return audio
-        except Exception:
-            stderr_msg = e.stderr.decode(errors='ignore') if e.stderr else str(e)
-            raise RuntimeError(f"ffmpeg failed with return code {e.returncode}: {stderr_msg}") from e
+        stderr_msg = e.stderr.decode(errors='ignore') if e.stderr else str(e)
+        raise RuntimeError(f"ffmpeg failed with return code {e.returncode}: {stderr_msg}") from e
     except subprocess.TimeoutExpired as e:
         raise RuntimeError(f"ffmpeg timed out after {timeout} seconds") from e
     except Exception as e:
@@ -93,11 +85,8 @@ def pcm_to_float32(pcm: np.ndarray) -> np.ndarray:
     """
     # Ensure the input is int16
     pcm = pcm.astype(np.int16)
-    # Use 32767 for positive max, 32768 for negative min, then clip
-    float_arr = pcm.astype(np.float32) / 32767.0
-    # Correct the max value edge case
-    float_arr = np.where(pcm == 32767, 1.0, float_arr)
-    return np.clip(float_arr, -1.0, 1.0)
+    # Use 32768.0 for normalization (Standard for 16-bit PCM)
+    return pcm.astype(np.float32) / 32768.0
 
 def float32_to_pcm16(audio: np.ndarray) -> bytes:
     """
@@ -115,6 +104,6 @@ def float32_to_pcm16(audio: np.ndarray) -> bytes:
     """
     # Clip to the valid range to avoid overflow
     audio_clipped = np.clip(audio, -1.0, 1.0)
-    # Scale to int16 range and convert
-    pcm16 = (audio_clipped * 32767.0).astype(np.int16)
+    # Scale to int16 range and convert (using 32768.0 and clipping to avoid overflow at +1.0)
+    pcm16 = np.clip(audio_clipped * 32768.0, -32768, 32767).astype(np.int16)
     return pcm16.tobytes()

@@ -1,9 +1,9 @@
 import os
-import json
 import requests
 import asyncio
 import shutil
 import logging
+from typing import Any
 from backend.core.assistant import AlbertAssistant
 
 # Ensure NNPACK is disabled for postprocess operations
@@ -69,7 +69,7 @@ async def _call_albert(prompt: str) -> str:
             choices = data.get("choices")
             if not choices or not isinstance(choices, list) or len(choices) == 0:
                  logger.error(f"Albert API response missing 'choices': {data}")
-                 raise RuntimeError(f"Albert API response missing 'choices'")
+                 raise RuntimeError("Albert API response missing 'choices'")
 
             message = choices[0].get("message", {})
             content = message.get("content")
@@ -97,11 +97,11 @@ async def _call_albert(prompt: str) -> str:
 # ----------------------------------------------------------------------
 # Public helpers
 # ----------------------------------------------------------------------
-def words_to_text(words):
+def words_to_text(words: list[dict[str, Any]]) -> str:
     """Convert une liste de dictionnaires {'word': …} en texte brut."""
     return " ".join(w.get("word", "").strip() for w in words).strip()
 
-def _ensure_ffmpeg():
+def _ensure_ffmpeg() -> None:
     """
     Vérifie que ffmpeg est installé sur le système.
     Le script run.sh s'occupe déjà de l'installation via le gestionnaire de paquets
@@ -129,7 +129,7 @@ def convert_audio(src_path: str, dst_path: str, format: str = "mp3") -> str:
     return dst_path
 
 
-async def summarize_text(text):
+async def summarize_text(text: str) -> str:
     if not text.strip():
         return ""
     print(f"[*] Post-traitement: Début de la synthèse Albert ({len(text.split())} mots)...")
@@ -139,11 +139,11 @@ async def summarize_text(text):
         f"{text}"
     )
     res = await _call_albert(prompt)
-    print(f"[*] Post-traitement: Synthèse terminée.")
+    print("[*] Post-traitement: Synthèse terminée.")
     return res
 
 
-async def extract_actions_text(text):
+async def extract_actions_text(text: str) -> list[str]:
     """Extract decisions and TODO actions via Albert."""
     print(f"[*] Post-traitement: Extraction des actions Albert ({len(text.split())} mots)...")
     assistant = AlbertAssistant()
@@ -158,7 +158,7 @@ async def extract_actions_text(text):
     return actions
 
 
-async def clean_text(text):
+async def clean_text(text: str) -> str:
     if not text.strip():
         return ""
     print(f"[*] Post-traitement: Nettoyage du texte Albert ({len(text.split())} mots)...")
@@ -176,17 +176,17 @@ async def clean_text(text):
     else:
         logger.info(f"Albert API (Clean) a renvoyé {len(res)} caractères.")
     
-    print(f"[*] Post-traitement: Nettoyage terminé.")
+    print("[*] Post-traitement: Nettoyage terminé.")
     return res
 
 
-async def process_transcription(words):
+async def process_transcription(words: list[dict[str, Any]]) -> dict[str, Any]:
     """Process a list of word dicts and return the full result dict."""
     raw_text = words_to_text(words)
     return await process_text(raw_text)
 
 
-async def process_text(text):
+async def process_text(text: str) -> dict[str, Any]:
     """Orchestrate processing of raw text and return summary, actions, cleaned text."""
     assistant = AlbertAssistant()
     summary = await assistant.summarize(text)

@@ -1,4 +1,3 @@
-import pytest
 
 def test_home_route_returns_html(client):
     """

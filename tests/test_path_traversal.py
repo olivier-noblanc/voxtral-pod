@@ -37,7 +37,7 @@ def test_list_trans_path_traversal(payload):
 @pytest.mark.parametrize("payload", TRAVERSALS)
 def test_get_trans_path_traversal(payload):
     """/transcription/{filename}?client_id=<payload> doit retourner 400 ou 404."""
-    resp = client.get(f"/transcription/test.txt", params={"client_id": payload})
+    resp = client.get("/transcription/test.txt", params={"client_id": payload})
     assert resp.status_code in (400, 404), (
         f"path traversal via client_id should be blocked, got {resp.status_code}"
     )

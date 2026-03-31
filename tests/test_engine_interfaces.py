@@ -4,7 +4,7 @@ from backend.core.diarization_cpu import LightDiarizationEngine
 from backend.core.diarization import DiarizationEngine
 from backend.core.engine import SotaASR
 
-def test_light_diarization_engine_interface():
+def test_light_diarization_engine_interface() -> None:
     """Verifies that LightDiarizationEngine has load() and its diarize accepts 'hook'."""
     engine = LightDiarizationEngine()
     
@@ -24,7 +24,7 @@ def test_light_diarization_engine_interface():
         # Other exceptions are okay for this specific interface test
         pass
 
-def test_diarization_engine_interface():
+def test_diarization_engine_interface() -> None:
     """Verifies that DiarizationEngine has load() and its diarize accepts 'hook'."""
     engine = DiarizationEngine(hf_token=None)
     
@@ -41,12 +41,12 @@ def test_diarization_engine_interface():
             pytest.fail(f"DiarizationEngine.diarize doesn't accept 'hook': {e}")
         pass
 
-def test_noop_engine_interface():
+def test_noop_engine_interface() -> None:
     """Verifies that the fallback _NoOpEngine in SotaASR accepts 'hook'."""
     # We can trigger the _NoOpEngine by making load() fail or just inspecting the class if accessible.
     # SotaASR.load defines _NoOpEngine locally. Let's test it via SotaASR if possible.
-    asr = SotaASR(model_id="mock")
-    # For mock, it might not use diarization, but let's check the fallback logic
+    # Verify the pattern used in engine.py
+    SotaASR(model_id="mock")
     
     # Define a similar NoOpEngine to verify the pattern used in engine.py
     class _NoOpEngine:

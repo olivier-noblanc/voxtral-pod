@@ -1,4 +1,3 @@
-import pytest
 
 from backend.core.merger import (
     assign_speakers_to_words,
@@ -7,7 +6,7 @@ from backend.core.merger import (
 )
 
 
-def test_assign_speakers_to_words_basic_overlap():
+def test_assign_speakers_to_words_basic_overlap() -> None:
     # Words and diarization segments with clear overlap
     words = [
         {"word": "hello", "start": 0.0, "end": 0.5},
@@ -24,7 +23,7 @@ def test_assign_speakers_to_words_basic_overlap():
     assert result[1]["speaker"] == "spk2"
 
 
-def test_assign_speakers_to_words_midpoint_fallback():
+def test_assign_speakers_to_words_midpoint_fallback() -> None:
     # No overlap, but midpoint falls inside a segment
     words = [{"word": "test", "start": 1.0, "end": 1.2}]
     diar = [(0.9, 1.5, "spkA")]
@@ -34,7 +33,7 @@ def test_assign_speakers_to_words_midpoint_fallback():
     assert result[0]["speaker"] == "spkA"
 
 
-def test_assign_speakers_to_words_nearest_fallback():
+def test_assign_speakers_to_words_nearest_fallback() -> None:
     # Overlap and midpoint miss, nearest turn within 120ms
     words = [{"word": "near", "start": 2.0, "end": 2.1}]
     diar = [(2.3, 2.8, "spkB")]
@@ -45,7 +44,7 @@ def test_assign_speakers_to_words_nearest_fallback():
     assert result[0]["speaker"] == "UNKNOWN"
 
 
-def test_smooth_micro_turns_isolated_flip():
+def test_smooth_micro_turns_isolated_flip() -> None:
     words = [
         {"word": "a", "speaker": "spk1"},
         {"word": "b", "speaker": "spk2"},
@@ -56,7 +55,7 @@ def test_smooth_micro_turns_isolated_flip():
     assert [w["speaker"] for w in smoothed] == ["spk1", "spk1", "spk1"]
 
 
-def test_smooth_micro_turns_no_change_for_long_runs():
+def test_smooth_micro_turns_no_change_for_long_runs() -> None:
     words = [
         {"word": "x", "speaker": "spk1"},
         {"word": "y", "speaker": "spk1"},
@@ -68,7 +67,7 @@ def test_smooth_micro_turns_no_change_for_long_runs():
     assert [w["speaker"] for w in smoothed] == ["spk1", "spk1", "spk2", "spk2"]
 
 
-def test_build_speaker_segments_simple():
+def test_build_speaker_segments_simple() -> None:
     words = [
         {"word": "hello", "speaker": "spk1", "start": 0.0, "end": 0.5},
         {"word": "world", "speaker": "spk1", "start": 0.5, "end": 1.0},

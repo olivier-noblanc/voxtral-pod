@@ -4,13 +4,11 @@ Permet de gérer les erreurs 429 et de basculer vers le mode cpu
 en cas de dépassement de quota.
 """
 import time
-import asyncio
+import os
 from typing import Optional
 from collections import deque
-import os
-from threading import Lock
 import threading
-
+from threading import Lock
 import requests
 import logging
 
@@ -31,7 +29,7 @@ class AlbertRateLimiter:
         # Fallback configuration
         self.base_fallback_duration = 900  # 15 minutes (en secondes)
         self.current_fallback_duration = self.base_fallback_duration
-        self._fallback_task: Optional[object] = None
+        self._fallback_task: Optional[threading.Timer] = None
         
         # État du rate limiter
         self._consecutive_429 = 0
@@ -153,7 +151,7 @@ class AlbertRateLimiter:
                 if status_code != 429 and self._consecutive_429 > 0:
                     self._consecutive_429 = 0
                     self.current_fallback_duration = self.base_fallback_duration
-                    print(f"[RATELIMITER] Réinitialisation du compteur 429 et remise à zéro du fallback.")
+                    print("[RATELIMITER] Réinitialisation du compteur 429 et remise à zéro du fallback.")
                     
     def get_retry_delay(self, attempt: int) -> float:
         """Calcule le délai de retry exponentiel."""
@@ -174,9 +172,8 @@ class AlbertRateLimiter:
             "mock_mode_until": self._mock_mode_until,
             "last_429_time": self._last_429_time,
             "last_request_time": self._last_request_time,
-            "fallback_active": getattr(self, "_fallback_active", False),
-            "fallback_active": getattr(self, "_fallback_active", False),
-            "fallback_until": getattr(self, "_fallback_until", 0.0),
+            "fallback_active": self._fallback_active,
+            "fallback_until": self._fallback_until,
             "quota_limit": self._quota_limit,
             "quota_usage": self._quota_usage,
             "quota_asr_usage": self._quota_asr_usage,
@@ -236,8 +233,9 @@ class AlbertRateLimiter:
             self._last_quota_update = time.time()
             logger.info(f"[RATELIMITER] Quota Albert (ASR): {self._quota_asr_usage}/{self._quota_limit} (Total: {self._quota_usage})")
             
-        except Exception as e:
-            logger.error(f"[RATELIMITER] Erreur lors de la récupération du quota Albert : {e}")
+        except Exception:
+            # Silent fail for quota update to avoid breaking main flow
+            pass
 
 
 # Instance globale du rate limiter

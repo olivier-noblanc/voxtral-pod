@@ -1,5 +1,3 @@
-import json
-import pytest
 import datetime
 from backend.state import get_db, add_job, get_job, cleanup_stale_jobs
 

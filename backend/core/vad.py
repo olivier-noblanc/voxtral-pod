@@ -9,7 +9,6 @@ warnings.filterwarnings("ignore", category=UserWarning, module="webrtcvad")
 
 # Attempt to configure PyTorch/NNPACK before any heavy usage
 import importlib.util
-import os
 _torch_spec = importlib.util.find_spec("torch")
 if _torch_spec is not None:
     import torch

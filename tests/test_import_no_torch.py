@@ -10,8 +10,6 @@ Régresse:
 """
 import sys
 import types
-import importlib
-import pytest
 
 
 class _FakeTorch(types.ModuleType):

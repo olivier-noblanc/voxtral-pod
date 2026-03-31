@@ -1,6 +1,6 @@
-import os
 import sys
 import pathlib
+from typing import Generator
 import pytest
 from fastapi.testclient import TestClient
 
@@ -12,7 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from backend.main import app
 
 @pytest.fixture(scope="session")
-def client():
+def client() -> Generator[TestClient, None, None]:
     """Provides a TestClient instance for the FastAPI app."""
     with TestClient(app) as client:
         yield client
