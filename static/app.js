@@ -632,7 +632,8 @@ async function pollStatus(id) {
             clearInterval(interval);
             localStorage.removeItem('pending_job');
             document.getElementById('uploadBtn').disabled = false;
-            document.getElementById('batchStatus').innerText = "⚠️ Timeout : job introuvable ou serveur injoignable.";
+            const logBtn = `<button class="fr-btn fr-btn--sm fr-btn--tertiary fr-mt-1w" onclick="showLog('${id}')">Voir le log</button>`;
+            document.getElementById('batchStatus').innerHTML = "⚠️ Timeout : job introuvable ou serveur injoignable.<br>" + logBtn;
             return;
         }
         try {
@@ -655,12 +656,14 @@ async function pollStatus(id) {
                 clearInterval(interval);
                 localStorage.removeItem('pending_job');
                 document.getElementById('uploadBtn').disabled = false;
-                document.getElementById('batchStatus').innerText = "";
+                const logBtn = `<button class="fr-btn fr-btn--sm fr-btn--tertiary fr-mt-1w" onclick="showLog('${id}')">Voir le log</button>`;
+                document.getElementById('batchStatus').innerHTML = (data.status === "erreur" ? "❌ Erreur.<br>" : "❓ Pas de status.<br>") + logBtn;
             } else if (data.status.startsWith("processing:")) {
                 const pct = data.progress || 0;
                 const eta = data.eta ? " (ETA: " + data.eta + "s)" : '';
                 const statusLabel = (data.status && data.status.includes(":")) ? data.status.split(":")[1] : (data.status || "unknown");
-                document.getElementById('batchStatus').innerText = "⏳ " + statusLabel + " — " + pct + "%" + eta;
+                const logBtn = `<button class="fr-btn fr-btn--sm fr-btn--tertiary fr-ml-2w" onclick="showLog('${id}')">Log</button>`;
+                document.getElementById('batchStatus').innerHTML = "⏳ " + statusLabel + " — " + pct + "%" + eta + logBtn;
                 document.getElementById('uploadBtn').disabled = true;
                 const fill = document.getElementById('uploadProgressFill');
                 if (fill) {
@@ -709,6 +712,53 @@ async function checkGitStatus() {
         console.error('Erreur git status:', e);
     }
 }
+
+// ========================= GESTION DES LOGS =========================
+let currentLogJobId = null;
+
+async function showLog(jobId) {
+    currentLogJobId = jobId;
+    const modal = document.getElementById('fr-modal-log');
+    const content = document.getElementById('logContent');
+    
+    if (!modal || !content) return;
+    
+    content.innerText = "Chargement des logs...";
+    
+    // Ouvrir la modale via l'API DSFR si disponible
+    if (window.dsfr && window.dsfr.modal) {
+        dsfr(modal).modal.reveal();
+    } else {
+        // Fallback si DSFR n'est pas encore prêt
+        modal.setAttribute('opened', 'true');
+    }
+    
+    await refreshLogs();
+}
+
+async function refreshLogs() {
+    if (!currentLogJobId) return;
+    const content = document.getElementById('logContent');
+    try {
+        const res = await fetch(`/job_log/${currentLogJobId}`);
+        const text = await res.text();
+        content.innerText = text;
+        content.scrollTop = content.scrollHeight;
+    } catch (e) {
+        content.innerText = "Erreur lors du chargement des logs.";
+    }
+}
+
+// Global expose
+window.showLog = showLog;
+
+// Initialisation supplémentaire pour les logs
+document.addEventListener('DOMContentLoaded', () => {
+    const refreshBtn = document.getElementById('refreshLogBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', refreshLogs);
+    }
+});
 
 // ========================= INITIALISATION =========================
 window.onload = () => {

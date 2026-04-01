@@ -99,14 +99,27 @@ async def download_transcript(client_id: str, filename: str) -> Response:
     )
 
 @router.get("/view/{client_id}/{filename}")
-async def view_transcription(client_id: str, filename: str, req: Request) -> Response:
+async def view_transcription(client_id: str, filename: str, req: Request, type: str = "cleaned") -> Response:
     client_path = _safe_join(_get_trans_dir(), client_id, filename)
     base_name = filename.replace(".json", "").replace(".txt", "")
     cleaned_path = _safe_join(_get_trans_dir(), client_id, base_name + ".cleaned.md")
     json_path = _safe_join(_get_trans_dir(), client_id, base_name + ".json")
     
+    # Determine if a cleaned version exists
+    has_cleaned = os.path.isfile(cleaned_path)
+    
     # Determine which file to serve
-    if os.path.isfile(cleaned_path):
+    if type == "original":
+        # Force original view
+        if os.path.isfile(json_path):
+            file_path = json_path
+        elif os.path.isfile(client_path):
+            file_path = client_path
+        else:
+            raise HTTPException(status_code=404, detail="Fichier original introuvable.")
+        is_cleaned = False
+        is_temp = False
+    elif has_cleaned:
         file_path = cleaned_path
         is_cleaned = True
         is_temp = False
@@ -179,10 +192,20 @@ async def view_transcription(client_id: str, filename: str, req: Request) -> Res
     template = templates.get_template("view.html")
     html = template.render({
         "filename": filename,
+        "client_id": client_id,
         "audio_url": audio_url,
         "is_temp": is_temp,
+        "has_cleaned": has_cleaned,
         "segments": segments,
         "segments_html": segments_html,
         "request": req,
     })
     return HTMLResponse(html)
+
+@router.get("/job_log/{job_id}")
+async def get_job_log_route(job_id: str) -> Response:
+    from backend.state import get_job_log
+    log_content = get_job_log(job_id)
+    if not log_content:
+        return Response("Aucun log disponible pour ce job.", media_type="text/plain")
+    return Response(log_content, media_type="text/plain")

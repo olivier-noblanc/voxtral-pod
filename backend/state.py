@@ -101,9 +101,16 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS jobs (
                 job_id TEXT PRIMARY KEY,
                 data TEXT,
+                log TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        # Tenter d'ajouter la colonne log si elle n'existe pas (migration brute pour SQLite)
+        try:
+            conn.execute("ALTER TABLE jobs ADD COLUMN log TEXT")
+        except sqlite3.OperationalError:
+            pass  # La colonne existe déjà ou autre erreur
+            
         conn.execute('''
             CREATE TABLE IF NOT EXISTS config (
                 key TEXT PRIMARY KEY,
@@ -231,3 +238,24 @@ def get_asr_engine(load_model: bool = False) -> Any:
         asr_engine.load()
 
     return asr_engine
+
+def append_job_log(job_id: str, message: str) -> None:
+    """
+    Ajoute un message (avec timestamp) à la fin de la colonne log du job.
+    """
+    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+    line = f"[{timestamp}] {message}\n"
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE jobs SET log = COALESCE(log, '') || ? WHERE job_id = ?",
+            (line, job_id)
+        )
+        conn.commit()
+
+def get_job_log(job_id: str) -> str:
+    """Récupère le log brut d'un job."""
+    with get_db() as conn:
+        row = conn.execute("SELECT log FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+        if row and row['log']:
+            return row['log']
+    return ""

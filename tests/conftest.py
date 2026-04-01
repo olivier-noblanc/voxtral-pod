@@ -48,6 +48,7 @@ def setup_test_env(tmp_path_factory: pytest.TempPathFactory) -> None:
 def event_loop_policy() -> Any:
     """Force l'utilisation du ProactorEventLoopPolicy sur Windows."""
     if os.name == 'nt':
+        # On évite le selector loop car le proactor est nécessaire pour subprocesses/named pipes
         return asyncio.WindowsProactorEventLoopPolicy()
     return asyncio.DefaultEventLoopPolicy()
 
@@ -56,6 +57,7 @@ def event_loop_policy() -> Any:
 def event_loop(event_loop_policy: Any) -> Generator[asyncio.AbstractEventLoop, None, None]:
     """
     Surcharge de la fixture event_loop pour assurer l'isolement total par test.
+    Elle gère explicitement sa fermeture pour éviter les warnings.
     """
     asyncio.set_event_loop_policy(event_loop_policy)
     loop = asyncio.new_event_loop()
@@ -65,8 +67,15 @@ def event_loop(event_loop_policy: Any) -> Generator[asyncio.AbstractEventLoop, N
     nest_asyncio.apply(loop)
     
     yield loop
-    # Nettoyage
-    loop.close()
+    
+    # Nettoyage explicite (évite les ResourceWarning / DeprecationWarning de pytest-asyncio)
+    try:
+        if not loop.is_closed():
+            # Avant de fermer, on arrête les tâches en suspens (courtoisie)
+            loop.stop()
+            loop.close()
+    except Exception:
+        pass
     asyncio.set_event_loop(None)
 
 

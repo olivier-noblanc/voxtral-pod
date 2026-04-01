@@ -3,6 +3,7 @@ Transcription motor for Voxtral Pod.
 Handles Whisper (local), Vosk (local) and Albert API (remote).
 """
 import io
+import json
 import os
 import time
 import warnings
@@ -60,7 +61,7 @@ def _apply_vosk_patch() -> None:
                     import logging
                     logging.getLogger("transcription").debug(f"Error in KaldiRecognizer cleanup: {e}")
             
-            vosk.KaldiRecognizer.__del__ = patched_del # type: ignore
+            vosk.KaldiRecognizer.__del__ = patched_del
             _VOSK_PATCH_APPLIED = True
     except (ImportError, AttributeError):
         # Vosk not installed or different version
@@ -116,7 +117,8 @@ class TranscriptionEngine:
         audio_np: np.ndarray,
         language: str = "fr",
         progress_callback: Any = None,
-        is_partial: bool = False
+        is_partial: bool = False,
+        job_id: Optional[str] = None
     ) -> tuple[list[dict[str, Any]], float, bool, Optional[dict[str, Any]]]:
         """
         Transcribe audio and return (words, duration, used_fallback, raw_data).
@@ -222,7 +224,7 @@ class TranscriptionEngine:
             return all_words, len(audio_np) / 16000, used_fallback, None
         # Utiliser l'API Albert
         res_words, res_dur, res_raw = self._transcribe_albert(
-            audio_np, language, progress_callback
+            audio_np, language, progress_callback, job_id=job_id
         )
         return res_words, res_dur, False, res_raw
 
@@ -279,7 +281,8 @@ class TranscriptionEngine:
         audio_np: np.ndarray,
         language: str = "fr",
         progress_callback: Any = None,
-        is_partial: bool = False
+        is_partial: bool = False,
+        job_id: Optional[str] = None
     ) -> tuple[list[dict[str, Any]], float, Optional[dict[str, Any]]]:
         """
         Découpe l'audio en tranches et les envoie à l'API Albert.
@@ -313,6 +316,10 @@ class TranscriptionEngine:
             cut_point = self._find_best_cut(audio_np, t + CHUNK_LIMIT_SEC, current_t=int(t))
             tranches.append((t, cut_point - t))
             t = cut_point
+
+        if job_id:
+            from backend.state import append_job_log
+            append_job_log(job_id, f"Découpage terminé : {len(tranches)} tranches à traiter.")
 
         all_final_words = []
         all_final_segments = []
@@ -352,6 +359,10 @@ class TranscriptionEngine:
             print(f"[*] Taille payload: {len(raw_bytes)} octets ({size_mb:.2f} Mo)")
             print(f"[*] Format: {file_ext} | MIME: {mime_type}")
             
+            if job_id:
+                from backend.state import append_job_log
+                append_job_log(job_id, f"Tranche {idx+1}/{len(tranches)} : Envoi de {duration:.1f}s ({size_mb:.2f}Mo)")
+            
             headers = {"Authorization": f"Bearer {self.albert_api_key}"}
             files = {"file": (f"audio.{file_ext}", buffer, mime_type)}
             data = {"model": self.albert_model_id, "language": language, "response_format": "verbose_json"}
@@ -385,6 +396,9 @@ class TranscriptionEngine:
                     albert_rate_limiter.handle_response(response.status_code)
                     
                     if response.status_code == 200:
+                        if job_id:
+                            from backend.state import append_job_log
+                            append_job_log(job_id, f"Tranche {idx+1} reçue avec succès en {time.time() - start_req:.1f}s")
                         break
                     if response.status_code == 429:
                         retry_after = int(
@@ -394,7 +408,8 @@ class TranscriptionEngine:
                         time.sleep(retry_after)
                         response = None  # ← reset pour forcer la détection d'échec
                     elif response.status_code in [500, 502, 503, 504]:
-                        print(f"[!] Erreur serveur ({response.status_code}). Retry dans {2**attempt}s...")
+                        print(f"[!] Erreur serveur ({response.status_code}). "
+                              f"Retry dans {2**attempt}s...")
                         time.sleep(2 ** attempt)
                     else:
                         print(f"[!] Erreur API ({response.status_code}): {response.text}")
@@ -413,6 +428,20 @@ class TranscriptionEngine:
 
             # 4. Traitement des résultats
             result = response.json()
+            
+            # [DEBUG] Stockage du JSON brut pour diagnostic futur
+            try:
+                debug_dir = os.path.join("debug_chunks", job_id or "unknown")
+                os.makedirs(debug_dir, exist_ok=True)
+                debug_file = os.path.join(debug_dir, f"chunk_{idx+1}.json")
+                with open(debug_file, "w", encoding="utf-8") as f:
+                    json.dump(result, f, indent=2, ensure_ascii=False)
+                if job_id:
+                    from backend.state import append_job_log
+                    append_job_log(job_id, f"Tranche {idx+1} sauvegardée pour debug : {debug_file}")
+            except Exception as e:
+                print(f"[!] Erreur stockage debug JSON: {e}")
+
             chunk_words = []
             if result.get("words"):
                 chunk_words = [

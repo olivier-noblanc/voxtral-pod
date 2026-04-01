@@ -88,7 +88,7 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str) -> None:
             print(f"[*] [Batch {file_id}] {step} : {pct}%")
             api_module._update_job_status(file_id, f"processing:{step}", pct)
         
-        result = await engine.process_file(assembled_path, progress_callback=progress_callback)
+        result = await engine.process_file(assembled_path, progress_callback=progress_callback, job_id=file_id)
         transcript = result.transcript
         
         client_dir = _safe_join(api_module.TRANSCRIPTIONS_DIR, client_id)

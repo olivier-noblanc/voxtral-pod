@@ -13,6 +13,14 @@
             <a href="/" class="fr-link back-link fr-icon-arrow-left-line fr-link--icon-left">Retour à l'accueil</a>
             <h1 class="fr-h1">{{ filename }}</h1>
             
+            {% if has_cleaned %}
+                <div class="fr-mb-2w">
+                    <a href="/view/{{ client_id }}/{{ filename }}" class="fr-link fr-icon-magic-line fr-link--icon-left fr-text--sm">
+                        Voir la version nettoyée Albert
+                    </a>
+                </div>
+            {% endif %}
+            
             {% if is_temp %}
                 <p class="fr-text--sm fr-mb-2w fr-badge fr-badge--warning fr-badge--no-icon">
                     Version temporaire (en cours de nettoyage Albert)

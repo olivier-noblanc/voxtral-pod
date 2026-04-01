@@ -12,7 +12,13 @@
         <div class="postprocess-container">
             <a href="/" class="fr-link fr-icon-arrow-left-line fr-link--icon-left fr-mb-2w">Retour à l'accueil</a>
             <h1 class="fr-h1">{{ title }}</h1>
-            <p class="fr-text--sm fr-mb-4w">Fichier : {{ filename }}</p>
+            <div class="fr-grid-row fr-grid-row--middle">
+                <p class="fr-text--sm fr-mb-0 fr-mr-2w">Fichier : {{ filename }}</p>
+                <a href="/view/{{ request.path_params.client_id }}/{{ filename }}?type=original" class="fr-link fr-icon-eye-line fr-link--icon-left fr-text--sm">
+                    Voir la version originale (segments)
+                </a>
+            </div>
+            <div class="fr-mt-4w"></div>
 
             <div class="actions-bar fr-mb-4w">
                 <button id="copyBtn" class="fr-btn fr-btn--secondary fr-btn--icon-left fr-icon-clipboard-line">

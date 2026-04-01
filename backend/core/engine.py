@@ -128,7 +128,7 @@ class SotaASR:
         self._loaded = True
 
     async def process_file(
-        self, audio_path: str, progress_callback: Any = None
+        self, audio_path: str, progress_callback: Any = None, job_id: Optional[str] = None
     ) -> TranscriptionResult:
         """
         Full pipeline: Decode -> Diarize -> Transcribe -> Merge -> Format
@@ -139,7 +139,14 @@ class SotaASR:
         # 1. Decode
         if progress_callback:
             progress_callback("Décodage audio...", 2)
+        if job_id:
+            from backend.state import append_job_log
+            append_job_log(job_id, "Début du décodage audio (ffmpeg)...")
         audio_np = await asyncio.to_thread(decode_audio, audio_path)
+        if job_id:
+            from backend.state import append_job_log
+            dur = len(audio_np) / 16000
+            append_job_log(job_id, f"Décodage terminé. Durée détectée : {dur:.1f}s")
 
         # 2. Build diarization progress hook
         def diar_hook(step_name: str, *args: Any, **kwargs: Any) -> None:
@@ -203,8 +210,14 @@ class SotaASR:
             if progress_callback:
                 progress_callback("Diarisation et transcription en parallèle...", 10)
             if self.diarization_engine is not None:
+                if job_id:
+                    from backend.state import append_job_log
+                    append_job_log(job_id, f"Lancement transcription ({self.model_id}) et diarisation en parallèle...")
                 diar_task = asyncio.to_thread(self.diarization_engine.diarize, audio_np, hook=None)
-                trans_task = asyncio.to_thread(self.transcription_engine.transcribe, audio_np, progress_callback=None)
+                trans_task = asyncio.to_thread(
+                    self.transcription_engine.transcribe, 
+                    audio_np, progress_callback=None, job_id=job_id
+                )
                 # ``asyncio.gather`` renvoie deux résultats ; on désérialise correctement.
                 diar_segments_raw, trans_result = await asyncio.gather(diar_task, trans_task)
                 diar_segments = cast(list[tuple[float, float, str]], diar_segments_raw)
@@ -230,8 +243,11 @@ class SotaASR:
                 diar_segments = []
             if progress_callback:
                 progress_callback("Transcription...", 45)
+            if job_id:
+                from backend.state import append_job_log
+                append_job_log(job_id, f"Lancement transcription ({self.model_id})...")
             words, _, used_fallback, raw_data = await asyncio.to_thread(
-                self.transcription_engine.transcribe, audio_np, progress_callback=progress_callback
+                self.transcription_engine.transcribe, audio_np, progress_callback=progress_callback, job_id=job_id
             )
 
         # 4. Merge
