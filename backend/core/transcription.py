@@ -200,7 +200,6 @@ class TranscriptionEngine:
                 return all_words, info.duration, used_fallback, None
 
             # Vosk
-            import json
             import vosk
             _apply_vosk_patch()
             
@@ -394,11 +393,11 @@ class TranscriptionEngine:
                     albert_rate_limiter.record_request()
                     # Traiter la réponse du rate limiter
                     albert_rate_limiter.handle_response(response.status_code)
-                    
                     if response.status_code == 200:
                         if job_id:
                             from backend.state import append_job_log
-                            append_job_log(job_id, f"Tranche {idx+1} reçue avec succès en {time.time() - start_req:.1f}s")
+                            msg = f"Tranche {idx+1} reçue avec succès en {time.time() - start_req:.1f}s"
+                            append_job_log(job_id, msg)
                         break
                     if response.status_code == 429:
                         retry_after = int(
@@ -427,6 +426,8 @@ class TranscriptionEngine:
                 raise Exception(f"Échec Tranche {idx+1} (Statut {status}): {detail}")
 
             # 4. Traitement des résultats
+            if response is None:
+                raise Exception(f"Bug interne : response est None après vérification tranche {idx+1}")
             result = response.json()
             
             # [DEBUG] Stockage du JSON brut pour diagnostic futur
@@ -438,7 +439,8 @@ class TranscriptionEngine:
                     json.dump(result, f, indent=2, ensure_ascii=False)
                 if job_id:
                     from backend.state import append_job_log
-                    append_job_log(job_id, f"Tranche {idx+1} sauvegardée pour debug : {debug_file}")
+                    msg_log = f"Tranche {idx+1} sauvegardée pour debug : {debug_file}"
+                    append_job_log(job_id, msg_log)
             except Exception as e:
                 print(f"[!] Erreur stockage debug JSON: {e}")
 
