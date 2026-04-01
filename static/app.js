@@ -159,7 +159,7 @@ async function startRecording() {
         let wsUrl = wsProtocol + '//' + location.host + '/live';
         wsUrl += '?client_id=' + getClientId();
         const partialCheckbox = document.getElementById('albertPartial');
-        const usePartial = partialCheckbox ? partialCheckbox.checked : true;
+        const usePartial = partialCheckbox ? partialCheckbox.checked : false;
         wsUrl += '&partial_albert=' + usePartial;
         // Add audio device information to WebSocket URL
         if (selectedAudioDeviceId && selectedAudioDeviceId !== "default") {
@@ -524,18 +524,24 @@ window.generateActions = generateActions;
 function changeModel(e) {
     const model = e.target.value;
     if (!model) return;
+
+    // Afficher/cacher les options Albert selon le modèle sélectionné
+    const albertOptions = document.getElementById('albertOptions');
+    if (albertOptions) {
+        albertOptions.style.display = (model === 'albert') ? 'block' : 'none';
+    }
+
     // Appelle l'API sans authentification forte
     fetch('/change_model?model=' + encodeURIComponent(model), { method: 'POST' })
         .then(res => {
             if (!res.ok) alert("Erreur ou accès refusé lors du changement de modèle");
             else {
                 console.log("Modèle changé avec succès.");
-                checkRateLimitStatus(); // Mise à jour immédiate de l'UI (quota, bandeau)
+                checkRateLimitStatus();
             }
         })
         .catch(err => console.error(err));
 }
-
 
 
 // ========================= GESTIONNAIRE SPEAKER =========================
@@ -801,6 +807,12 @@ window.onload = () => {
                     modelSelect.value = 'albert';
                 }
             }
+        }
+
+        // Initial visibility for Albert options
+        const albertOptions = document.getElementById('albertOptions');
+        if (albertOptions) {
+            albertOptions.style.display = (modelSelect.value === 'albert') ? 'block' : 'none';
         }
     }
 

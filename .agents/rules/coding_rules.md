@@ -65,3 +65,10 @@ Ces règles s'appliquent à chaque modification touchant les routes HTTP.
 ### Tests de routes
 - Toujours utiliser les URLs sans prefix : `client.post("/change_model")` pas `client.post("/api/change_model")`.
 - Le test `tests/test_routes_contract.py` scanne tous les sub-routers — le faire tourner avant tout commit touchant les routes.
+
+## Règles UI — IMPÉRATIVES
+
+- Chaque `getElementById('foo')` dans app.js DOIT avoir un `id="foo"` dans le HTML
+- Ne jamais supprimer un élément HTML sans vérifier ses références dans app.js
+- Le fallback de toute checkbox optionnelle DOIT être `false`, jamais `true`
+- `pytest` teste TOUT — HTTP + navigateur — sans flag ni séparation
