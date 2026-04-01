@@ -2,14 +2,10 @@ import os
 import subprocess
 import time
 
+import pytest
 from fastapi.testclient import TestClient
 
-# Import the FastAPI app defined in backend/main.py
-from backend.main import app
-
-client = TestClient(app)
-
-def test_get_speaker_profiles() -> None:
+def test_get_speaker_profiles(client: TestClient) -> None:
     """La route /speaker_profiles doit renvoyer un code 200 et une liste (vide ou non)."""
     response = client.get("/speaker_profiles")
     assert response.status_code == 200, "Le code de statut doit être 200"
@@ -20,7 +16,7 @@ def test_get_speaker_profiles() -> None:
         assert isinstance(item, dict), "Chaque élément de la liste doit être un dict"
         assert "speaker_id" in item and "name" in item, "Chaque dict doit contenir speaker_id et name"
 
-def test_status_route_returns_git_info() -> None:
+def test_status_route_returns_git_info(client: TestClient) -> None:
     """La route /status/{file_id} doit retourner les informations système et la version Git si disponible."""
     # Utiliser un identifiant de fichier factice
     response = client.get("/status/dummy_id")
@@ -41,7 +37,7 @@ def test_status_route_returns_git_info() -> None:
         # Si git n'est pas disponible, on accepte simplement que la clé 'commit' soit absente ou égale à 'unknown'
         assert data.get("commit") in (None, "unknown")
 
-def test_configuration_flags_are_respected() -> None:
+def test_configuration_flags_are_respected(client: TestClient) -> None:
     """Vérifier que les paramètres de configuration comme allow_tf32 sont bien pris en compte."""
     # Avant d'appeler un endpoint qui initialise le moteur, on s'assure que le flag est désactivé (par défaut)
     import torch
@@ -63,7 +59,7 @@ def test_configuration_flags_are_respected() -> None:
         assert torch.backends.cuda.matmul.allow_tf32 is False
         assert torch.backends.cudnn.allow_tf32 is False
 
-def test_live_websocket_session_id_job_registration() -> None:
+def test_live_websocket_session_id_job_registration(client: TestClient) -> None:
     """
     Vérifie que la déconnexion de la WebSocket Live enregistre bien un job
     BackgroundTasks sous le nom du `session_id` fourni par le client.

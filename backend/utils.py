@@ -38,9 +38,10 @@ def format_transcription(line: str) -> str:
     if has_header:
         html += '<div class="segment-header">'
         if start and end:
-            html += f'<span class="segment-time">[{start}s → {end}s]</span> '
+            html += f'<span class="timestamp">[{start}s → {end}s]</span> '
         if speaker:
-            html += f'<span class="segment-speaker" data-speaker="{html_escape(speaker)}">{html_escape(speaker)}</span>'
+            speaker_esc = html_escape(speaker)
+            html += f'<span class="speaker-label segment-speaker" data-speaker="{speaker_esc}">[{speaker_esc}]</span>'
         html += '</div>'
     
     html += f'<div class="segment-text">{html_escape(text)}</div>'

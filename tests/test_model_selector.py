@@ -1,18 +1,16 @@
-import re
+from __future__ import annotations
 
+import re
 import pytest
 from fastapi.testclient import TestClient
 
 pytest.importorskip("ffmpeg")
 
-def test_model_selector_has_selected_option() -> None:
+def test_model_selector_has_selected_option(client: TestClient) -> None:
     """
     Vérifie que la page d'accueil rend le sélecteur de modèle avec
     au moins une option marquée `selected`.
     """
-    from backend.main import app
-
-    client = TestClient(app)
     response = client.get("/")
     assert response.status_code == 200, "La requête GET / a échoué"
 

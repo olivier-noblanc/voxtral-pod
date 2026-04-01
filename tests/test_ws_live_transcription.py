@@ -1,16 +1,14 @@
 """
 Tests du pipeline WebSocket live complet.
 Vérifie que process_audio_queue() envoie les bons messages JSON au WebSocket.
-
-Convention live.py :
-  - is_speech()          → True  = parole active (activation)
-  - check_deactivation() → True  = encore de la parole (pas de fin)
-                            False = silence → silence_chunks_count ++
 """
+from __future__ import annotations
+
 import asyncio
 from typing import Any, Dict, List, Optional, cast
 
 import numpy as np
+import pytest
 from fastapi import WebSocket
 
 from backend.core.live import LiveSession
@@ -32,9 +30,9 @@ class DummyWebSocket:
 
 class DummyTranscriptionEngine:
     """Mock pour le moteur de transcription Whisper/Albert."""
-    def transcribe(self, _audio_np: np.ndarray) -> tuple[list[dict[str, Any]], Optional[float]]:
+    def transcribe(self, _audio_np: np.ndarray) -> tuple[list[dict[str, Any]], float, bool, Optional[dict[str, Any]]]:
         """Renvoie toujours 'bonjour monde'."""
-        return ([{"word": "bonjour"}, {"word": "monde"}], None)
+        return ([{"word": "bonjour"}, {"word": "monde"}], 1.0, False, None)
 
 
 class DummyEngine:
@@ -48,7 +46,7 @@ class DummyEmptyEngine:
     """Mock pour le wrapper de modèle Engine renvoyant du vide."""
     def __init__(self, model_id: str = "empty") -> None:
         self.model_id: str = model_id
-        self.transcription_engine = type('Dummy', (), {'transcribe': lambda _self, _x: ([], None)})()
+        self.transcription_engine = type('Dummy', (), {'transcribe': lambda _self, _x: ([], 0.0, False, None)})()
 
 
 # ---- VADs de test ----
@@ -57,42 +55,31 @@ class SpeechThenSilenceVAD:
     """
     Retourne True (parole) pour les N premiers is_speech(),
     puis False pour tous les check_deactivation() suivants (= silence).
-
-    Le cycle est :
-      1. live.py appelle is_speech() → True (activation de la parole)
-      2. live.py appelle check_deactivation() sur les chunks suivants
-         → dès que speech_chunks épuisés, retourne False = silence
     """
     def __init__(self, speech_chunks: int = 3) -> None:
         self._n = speech_chunks          # nb de chunks de « parole »
         self._speech_calls = 0           # compteur is_speech()
 
     def reset_states(self):
-        """Réinitialise les compteurs."""
         self._speech_calls = 0
 
-    async def is_speech(self, _audio_bytes) -> bool:
-        """Simule le début de parole."""
+    async def is_speech(self, _audio_bytes: bytes) -> bool:
         self._speech_calls += 1
         return self._speech_calls <= self._n
 
-    async def check_deactivation(self, _audio_bytes) -> bool:
-        """Simule la fin de parole immédiate une fois le quota atteint."""
-        # Retourne False immédiatement = silence dès que le quota est dépassé
+    async def check_deactivation(self, _audio_bytes: bytes) -> bool:
         return False
 
 
 class AlwaysSpeechVAD:
     """Jamais de silence — pour déclencher des partials."""
     def reset_states(self):
-        """Dummy reset."""
+        pass
 
-    async def is_speech(self, _b) -> bool:
-        """Toujours parole."""
+    async def is_speech(self, _b: bytes) -> bool:
         return True
 
-    async def check_deactivation(self, _b) -> bool:
-        """Jamais silence."""
+    async def check_deactivation(self, _b: bytes) -> bool:
         return True
 
 
@@ -107,7 +94,8 @@ def make_pcm_chunk(duration_ms: int = 100, amplitude: float = 0.5) -> bytes:
 
 # ---- Tests ----
 
-async def _test_ws_receives_final_sentence() -> None:
+@pytest.mark.asyncio
+async def test_ws_receives_final_sentence() -> None:
     """
     3 chunks où is_speech=True (activation),
     puis 6 chunks où check_deactivation=False (silence).
@@ -148,7 +136,8 @@ async def _test_ws_receives_final_sentence() -> None:
     assert "total_bytes_received" in msg
 
 
-async def _test_ws_receives_partial_sentence() -> None:
+@pytest.mark.asyncio
+async def test_ws_receives_partial_sentence() -> None:
     """
     5 chunks de 500ms = 80 000 bytes > seuil partial 64 000.
     VAD toujours actif → pas de fin → seuls des partials.
@@ -173,17 +162,8 @@ async def _test_ws_receives_partial_sentence() -> None:
     assert partials[0]["type"] == "sentence"
 
 
-def test_ws_receives_final_sentence() -> None:
-    """Le WebSocket doit recevoir au moins une phrase finale (final=True)."""
-    asyncio.run(_test_ws_receives_final_sentence())
-
-
-def test_ws_receives_partial_sentence() -> None:
-    """Le WebSocket doit recevoir au moins un partial (final=False)."""
-    asyncio.run(_test_ws_receives_partial_sentence())
-
-
-async def _test_ws_receives_empty_final_sentence() -> None:
+@pytest.mark.asyncio
+async def test_ws_receives_empty_final_sentence() -> None:
     """
     Vérifie qu'un segment qui ne contient QUE du silence (ou que l'IA ignore) 
     envoie quand même un message final=True pour clore la ligne côté frontend.
@@ -203,8 +183,3 @@ async def _test_ws_receives_empty_final_sentence() -> None:
     final_msgs = [m for m in ws.messages if m.get("final") is True]
     assert final_msgs, "Un message final avec texte vide DOIT être envoyé pour clore le segment"
     assert final_msgs[0]["text"] == ""
-
-
-def test_ws_receives_empty_final_sentence() -> None:
-    """Pytest entry for empty final sentence test."""
-    asyncio.run(_test_ws_receives_empty_final_sentence())

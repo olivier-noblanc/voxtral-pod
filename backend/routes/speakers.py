@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import pathlib
 import re
@@ -70,38 +71,87 @@ async def update_segment_speaker(payload: Dict[str, Any], background_tasks: Back
     if client_id is None or filename is None or new_speaker is None or not isinstance(segment_index, int):
         raise HTTPException(status_code=400, detail="Invalid payload: missing or invalid fields.")
     
-    file_path = _safe_join(_get_trans_dir(), client_id, filename)
-    if not os.path.isfile(file_path):
-        raise HTTPException(status_code=404, detail="Transcription not found.")
-    with open(file_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-    if segment_index < 0 or segment_index >= len(lines):
-        raise HTTPException(status_code=400, detail="segment_index out of range.")
-    match = re.search(r'\[([\d.]+)s\s*->\s*([\d.]+)s\]', lines[segment_index])
-    if match:
-        start_s = float(match.group(1))
-        end_s = float(match.group(2))
-        if filename.startswith("batch_"):
-            ts = filename.replace("batch_", "").replace(".txt", "")
+    base_name = filename.replace(".json", "").replace(".txt", "")
+    json_path = _safe_join(_get_trans_dir(), client_id, base_name + ".json")
+    txt_path = _safe_join(_get_trans_dir(), client_id, base_name + ".txt")
+    
+    # 1. Priorité au JSON
+    if os.path.isfile(json_path):
+        with open(json_path, "r", encoding="utf-8") as f:
+            segments = json.load(f)
+        
+        if segment_index < 0 or segment_index >= len(segments):
+            raise HTTPException(status_code=400, detail="segment_index out of range.")
+        
+        # Mise à jour du locuteur dans le JSON
+        seg = segments[segment_index]
+        seg["speaker"] = new_speaker
+        
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(segments, f, indent=2)
+            
+        # On tente de mettre à jour le RTTM aussi si présent
+        rttm_path = _safe_join(_get_trans_dir(), client_id, base_name + ".rttm")
+        if os.path.isfile(rttm_path):
+            from backend.core.export import export_rttm
+            export_rttm(segments, base_name, rttm_path)
+            
+        # On tente de mettre à jour le .diar.json aussi
+        diar_path = _safe_join(_get_trans_dir(), client_id, base_name + ".diar.json")
+        if os.path.isfile(diar_path):
+            with open(diar_path, "w", encoding="utf-8") as f:
+                json.dump(segments, f, indent=2)
+
+        # On déclenche l'enrôlement en arrière-plan
+        start_s = float(seg.get("start", 0))
+        end_s = float(seg.get("end", start_s + 1))
+        if base_name.startswith("batch_"):
+            ts = base_name.replace("batch_", "")
             audio_name = f"batch_{client_id}_{ts}.wav"
             audio_dir = "batch_audio"
         else:
-            ts = filename.replace("live_", "").replace(".txt", "")
+            ts = base_name.replace("live_", "")
             audio_name = f"live_{client_id}_{ts}.wav"
             audio_dir = "live_audio"
         audio_path = _safe_join(_get_trans_dir(), audio_dir, audio_name)
         background_tasks.add_task(_extract_and_save_profile_sync, audio_path, start_s, end_s, new_speaker)
-    new_line = re.sub(
-        r'(\[[^\]]*s\s*->\s*[^\]]*s\]\s*)\[[^\]]*\]',
-        rf'\1[{new_speaker}]',
-        lines[segment_index]
-    )
-    if new_line == lines[segment_index]:
-        raise HTTPException(status_code=400, detail="Format de ligne non reconnu (timestamp+speaker attendus).")
-    lines[segment_index] = new_line
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.writelines(lines)
-    return {"status": "ok"}
+        
+        return {"status": "ok"}
+
+    # 2. Fallback legacy .txt (Regex)
+    if os.path.isfile(txt_path):
+        with open(txt_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        if segment_index < 0 or segment_index >= len(lines):
+            raise HTTPException(status_code=400, detail="segment_index out of range.")
+        
+        match = re.search(r'\[([\d.]+)s\s*->\s*([\d.]+)s\]', lines[segment_index])
+        if match:
+            start_s = float(match.group(1))
+            end_s = float(match.group(2))
+            if base_name.startswith("batch_"):
+                ts = base_name.replace("batch_", "")
+                audio_name = f"batch_{client_id}_{ts}.wav"
+                audio_dir = "batch_audio"
+            else:
+                ts = base_name.replace("live_", "")
+                audio_name = f"live_{client_id}_{ts}.wav"
+                audio_dir = "live_audio"
+            audio_path = _safe_join(_get_trans_dir(), audio_dir, audio_name)
+            background_tasks.add_task(_extract_and_save_profile_sync, audio_path, start_s, end_s, new_speaker)
+        
+        new_line = re.sub(
+            r'(\[[^\]]*s\s*->\s*[^\]]*s\]\s*)\[[^\]]*\]',
+            rf'\1[{new_speaker}]',
+            lines[segment_index]
+        )
+        if new_line != lines[segment_index]:
+            lines[segment_index] = new_line
+            with open(txt_path, "w", encoding="utf-8") as f:
+                f.writelines(lines)
+            return {"status": "ok"}
+    
+    raise HTTPException(status_code=404, detail="Transcription (JSON or TXT) not found.")
 
 @router.post("/speakers/enroll")
 async def api_enroll_speaker(name: str = Form(...), file: UploadFile = File(...)) -> Dict[str, str]:
@@ -152,8 +202,7 @@ async def api_identify_speakers(file: UploadFile = File(...)) -> Any:
         
         # 2. Identification des locuteurs sur chaque segment
         manager = SpeakerManager()
-        results = manager.identify_speakers_in_segments(tmp_path, segments)
-        return results
+        return manager.identify_speakers_in_segments(tmp_path, segments)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:

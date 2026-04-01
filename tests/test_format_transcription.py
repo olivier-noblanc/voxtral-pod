@@ -16,10 +16,11 @@ def test_format_timestamp_speaker_text() -> None:
     html = format_transcription(raw)
 
     assert '<div class="segment">' in html
-    assert 'class="segment-time">' in html
+    assert 'timestamp' in html
     assert '[0.50s → 1.20s]' in html
-    assert 'class="segment-speaker"' in html
-    assert 'data-speaker="SPEAKER_00"' in html
+    assert 'segment-speaker' in html
+    assert 'speaker-label' in html
+    assert '[SPEAKER_00]' in html
     assert "Bonjour" in html
 
 
@@ -31,8 +32,8 @@ def test_format_timestamp_no_speaker() -> None:
     raw = "[0.50s -> 1.20s] Bonjour"
     html = format_transcription(raw)
 
-    assert 'class="segment-time"' in html
-    assert 'class="segment-speaker"' not in html
+    assert 'timestamp' in html
+    assert 'segment-speaker' not in html
     assert "Bonjour" in html
 
 
@@ -44,8 +45,8 @@ def test_format_speaker_no_timestamp() -> None:
     raw = "[SPEAKER_01] Hello"
     html = format_transcription(raw)
 
-    assert 'class="segment-time"' not in html
-    assert 'class="segment-speaker"' in html
+    assert 'timestamp' not in html
+    assert 'segment-speaker' in html
     assert 'data-speaker="SPEAKER_01"' in html
     assert "Hello" in html
 
@@ -58,8 +59,8 @@ def test_format_plain_text_fallback() -> None:
     html = format_transcription(raw)
 
     assert "Just a plain line without any brackets" in html
-    assert 'class="segment-time"' not in html
-    assert 'class="segment-speaker"' not in html
+    assert 'timestamp' not in html
+    assert 'segment-speaker' not in html
     assert 'class="segment-text"' in html
 
 
@@ -82,9 +83,9 @@ def test_format_timestamp_text_speaker() -> None:
     raw = "[5.10s -> 8.00s] Et voici un speaker à la fin. [SPEAKER_02]"
     html = format_transcription(raw)
 
-    assert 'class="segment-time"' in html
+    assert 'timestamp' in html
     assert '[5.10s → 8.00s]' in html
-    assert 'class="segment-speaker"' in html
+    assert 'segment-speaker' in html
     assert 'data-speaker="SPEAKER_02"' in html
     assert "Et voici un speaker à la fin." in html
 

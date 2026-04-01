@@ -8,6 +8,23 @@ import pytest
 import soundfile as sf
 from diarize import diarize
 
+# Monkeypatch torchaudio.load to use soundfile (bypassing broken libtorchcodec)
+try:
+    import torch
+    import torchaudio
+    def _mock_torchaudio_load(path, **kwargs):
+        data, sr = sf.read(path, dtype='float32')
+        # Return (waveform, sample_rate) as expected by torchaudio.load
+        # Waveform must be [channels, frames]
+        if data.ndim == 1:
+            data = data[None, :]
+        else:
+            data = data.T
+        return torch.from_numpy(data), sr
+    torchaudio.load = _mock_torchaudio_load
+except ImportError:
+    pass
+
 # === Configuration ===
 AUDIO_FILE = "test_3h.wav"
 OUTPUT_JSON = "diarize_results.json"

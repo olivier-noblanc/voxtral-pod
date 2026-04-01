@@ -50,7 +50,19 @@
             </div>
 
             <div id="transcript" class="fr-py-2w">
-                {{ segments_html | safe }}
+                {% if segments %}
+                    {% for s in segments %}
+                        <div class="segment">
+                            <div class="segment-header">
+                                <span class="timestamp">[{{ "%.2f"|format(s.start) }}s → {{ "%.2f"|format(s.end) }}s]</span>
+                                <span class="speaker-label segment-speaker" data-speaker="{{ s.speaker }}">[{{ s.speaker }}]</span>
+                            </div>
+                            <div class="segment-text">{{ s.text }}</div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    {{ segments_html | safe }}
+                {% endif %}
             </div>
         </div>
     </div>

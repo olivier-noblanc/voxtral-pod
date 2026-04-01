@@ -11,8 +11,8 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from backend.config import TRANSCRIPTIONS_DIR
 from backend.core.live import LiveSession
-from backend.routes.utils import _safe_join, _update_job_status
 from backend.core.postprocess import clean_text
+from backend.routes.utils import _safe_join, _update_job_status
 from backend.state import add_job, get_asr_engine, update_job
 
 logger = logging.getLogger(__name__)
@@ -38,43 +38,36 @@ async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp:
         client_dir = _safe_join(TRANSCRIPTIONS_DIR, client_id)
         os.makedirs(client_dir, exist_ok=True)
         ts = timestamp if timestamp is not None else datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        txt_name = f"live_{ts}.txt"
-        txt_path = os.path.join(client_dir, txt_name)
+        base_name = f"live_{ts}"
+        json_path = os.path.join(client_dir, f"{base_name}.json")
 
         # ------------------------------------------------------------------
-        # 1️⃣  JSON source of truth (segments)
+        # 1️⃣  Validation & Export (JSON + RTTM)
         # ------------------------------------------------------------------
-        json_path = txt_path.replace(".txt", ".json")
+        from backend.core.export import validate_segments, export_rttm
+
+        # Validate the segment schema (start / end mandatory) before writing any file
+        validate_segments(result.segments)
+
+        # JSON source of truth (now it's safe to write)
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(result.segments, f, indent=2)
 
-        # ------------------------------------------------------------------
-        # 2️⃣  Validation & Export (TXT + RTTM)
-        # ------------------------------------------------------------------
-        from backend.core.export import validate_segments, export_txt, export_rttm
-
-        # Validate the segment schema (start / end mandatory)
-        validate_segments(result.segments)
-
-        # Export plain‑text (one line per segment, no flattening)
-        export_txt(result.segments, txt_path)
-
         # Export RTTM (based on timestamps)
-        file_id_rttm = txt_name.replace(".txt", "")
-        rttm_path = txt_path.replace(".txt", ".rttm")
-        export_rttm(result.segments, file_id_rttm, rttm_path)
+        rttm_path = os.path.join(client_dir, f"{base_name}.rttm")
+        export_rttm(result.segments, base_name, rttm_path)
 
         # ------------------------------------------------------------------
         # 3️⃣  Diarisation JSON (kept for front‑end SSR viewer)
         # ------------------------------------------------------------------
-        diar_json_path = txt_path.replace(".txt", ".diar.json")
+        diar_json_path = os.path.join(client_dir, f"{base_name}.diar.json")
         with open(diar_json_path, "w", encoding="utf-8") as f:
             json.dump(result.segments, f, indent=2)
 
         try:
             cleaned = await clean_text(transcript)
             if cleaned and cleaned.strip():
-                cleaned_path = txt_path.replace(".txt", ".cleaned.md")
+                cleaned_path = os.path.join(client_dir, f"{base_name}.cleaned.md")
                 with open(cleaned_path, "w", encoding="utf-8") as f:
                     f.write(cleaned)
             else:
@@ -82,7 +75,7 @@ async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp:
         except Exception as ce:
             logger.error(f"[Live {job_id}] Erreur nettoyage Albert auto: {ce}")
 
-        add_job(job_id, {"status": "terminé", "progress": 100, "result_file": txt_name})
+        add_job(job_id, {"status": "terminé", "progress": 100, "result_file": f"{base_name}.json"})
     except Exception as e:
         print(f"[!] Error in Live Final Job {job_id}: {e}")
         update_job(job_id, {"status": "erreur", "progress": 0, "error_details": str(e)})
@@ -103,7 +96,9 @@ async def live_endpoint(
         add_job(session_id, {"status": "en_attente", "progress": 0})
     await websocket.accept()
     engine = get_asr_engine(load_model=True)
-    session = LiveSession(engine, websocket, client_id, partial_albert=partial_albert, selected_audio_device_id=device_id)
+    session = LiveSession(
+        engine, websocket, client_id, partial_albert=partial_albert, selected_audio_device_id=device_id
+    )
     processor = asyncio.create_task(session.process_audio_queue())
     try:
         while True:

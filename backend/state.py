@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger(__name__)
 
 # Chemin vers la base de données SQLite (par défaut dans le répertoire du projet)
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "jobs.db")
+DB_PATH = os.getenv("DATABASE_URL", os.path.join(os.path.dirname(__file__), "..", "jobs.db"))
 
 # Taille maximale de la table jobs (rotation FIFO)
 JOBS_DB_MAX_SIZE = 500

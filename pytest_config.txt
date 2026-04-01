@@ -1,0 +1,316 @@
+PLUGIN registered: <_pytest.config.PytestPluginManager object at 0x00000294EF7B56D0>
+PLUGIN registered: <_pytest.config.Config object at 0x00000294F0C7AD90>
+PLUGIN registered: <module '_pytest.mark' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\mark\\__init__.py'>
+PLUGIN registered: <module '_pytest.main' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\main.py'>
+PLUGIN registered: <module '_pytest.runner' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\runner.py'>
+PLUGIN registered: <module '_pytest.fixtures' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\fixtures.py'>
+PLUGIN registered: <module '_pytest.helpconfig' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\helpconfig.py'>
+PLUGIN registered: <module '_pytest.python' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\python.py'>
+PLUGIN registered: <module '_pytest.terminal' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\terminal.py'>
+PLUGIN registered: <module '_pytest.debugging' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\debugging.py'>
+PLUGIN registered: <module '_pytest.unittest' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\unittest.py'>
+PLUGIN registered: <module '_pytest.capture' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\capture.py'>
+PLUGIN registered: <module '_pytest.skipping' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\skipping.py'>
+PLUGIN registered: <module '_pytest.legacypath' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\legacypath.py'>
+PLUGIN registered: <module '_pytest.tmpdir' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\tmpdir.py'>
+PLUGIN registered: <module '_pytest.monkeypatch' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\monkeypatch.py'>
+PLUGIN registered: <module '_pytest.recwarn' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\recwarn.py'>
+PLUGIN registered: <module '_pytest.pastebin' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\pastebin.py'>
+PLUGIN registered: <module '_pytest.assertion' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\assertion\\__init__.py'>
+PLUGIN registered: <module '_pytest.junitxml' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\junitxml.py'>
+PLUGIN registered: <module '_pytest.doctest' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\doctest.py'>
+PLUGIN registered: <module '_pytest.cacheprovider' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\cacheprovider.py'>
+PLUGIN registered: <module '_pytest.setuponly' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\setuponly.py'>
+PLUGIN registered: <module '_pytest.setupplan' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\setupplan.py'>
+PLUGIN registered: <module '_pytest.stepwise' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\stepwise.py'>
+PLUGIN registered: <module '_pytest.unraisableexception' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\unraisableexception.py'>
+PLUGIN registered: <module '_pytest.threadexception' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\threadexception.py'>
+PLUGIN registered: <module '_pytest.warnings' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\warnings.py'>
+PLUGIN registered: <module '_pytest.logging' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\logging.py'>
+PLUGIN registered: <module '_pytest.reports' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\reports.py'>
+PLUGIN registered: <module '_pytest.faulthandler' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\faulthandler.py'>
+PLUGIN registered: <module '_pytest.subtests' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\subtests.py'>
+PLUGIN registered: <module '_hypothesis_pytestplugin' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_hypothesis_pytestplugin.py'>
+PLUGIN registered: <module 'pytest_asyncio.plugin' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\pytest_asyncio\\plugin.py'>
+PLUGIN registered: <module 'pytest_base_url.plugin' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\pytest_base_url\\plugin.py'>
+PLUGIN registered: <module 'pytest_cov.plugin' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\pytest_cov\\plugin.py'>
+PLUGIN registered: <module 'pytest_playwright.pytest_playwright' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\pytest_playwright\\pytest_playwright.py'>
+PLUGIN registered: <module 'pytest_snapshot.plugin' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\pytest_snapshot\\plugin.py'>
+PLUGIN registered: <CaptureManager _method='fd' _global_capturing=<MultiCapture out=<FDCapture 1 oldfd=5 _state='suspended' tmpfile=<_io.TextIOWrapper name='<tempfile._TemporaryFileWrapper object at 0x00000294F0E2CF50>' mode='r+' encoding='utf-8'>> err=<FDCapture 2 oldfd=7 _state='suspended' tmpfile=<_io.TextIOWrapper name='<tempfile._TemporaryFileWrapper object at 0x00000294F3723DD0>' mode='r+' encoding='utf-8'>> in_=<FDCapture 0 oldfd=3 _state='started' tmpfile=<_io.TextIOWrapper name='nul' mode='r' encoding='utf-8'>> _state='suspended' _in_suspended=False> _capture_fixture=None>
+PLUGIN registered: <pytest_cov.plugin.CovPlugin object at 0x00000294F0D22590>
+PLUGIN registered: <module 'conftest' from 'C:\\Users\\raver\\source\\repos\\voxtral-pod\\tests\\conftest.py'>
+PLUGIN registered: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+PLUGIN registered: <_pytest.cacheprovider.LFPlugin object at 0x000002948EE8AED0>
+PLUGIN registered: <_pytest.cacheprovider.NFPlugin object at 0x000002948EF5F450>
+PLUGIN registered: <class '_pytest.legacypath.LegacyTmpdirPlugin'>
+PLUGIN registered: <_pytest.terminal.TerminalReporter object at 0x000002948EE60A10>
+PLUGIN registered: <module '_pytest.terminalprogress' from 'C:\\Users\\raver\\scoop\\apps\\python311\\current\\Lib\\site-packages\\_pytest\\terminalprogress.py'>
+PLUGIN registered: <_pytest.logging.LoggingPlugin object at 0x00000294F58C05D0>
+PLUGIN registered: <_pytest.fixtures.FixtureManager object at 0x000002948ECADBD0>
+
+----------------------------- live log collection -----------------------------
+INFO     numexpr.utils:utils.py:164 NumExpr defaulting to 8 threads.
+
+tests/test_admin_auth.py::TestChangeModelAuth::test_change_model_no_env_key_is_accessible 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/change_model?model=mock "HTTP/1.1 200 OK"
+PASSED                                                                   [  0%]
+tests/test_admin_auth.py::TestChangeModelAuth::test_change_model_wrong_key_returns_403 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/change_model?model=mock "HTTP/1.1 403 Forbidden"
+PASSED                                                                   [  0%]
+tests/test_admin_auth.py::TestChangeModelAuth::test_change_model_no_key_header_returns_403 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/change_model?model=mock "HTTP/1.1 403 Forbidden"
+PASSED                                                                   [  0%]
+tests/test_admin_auth.py::TestChangeModelAuth::test_change_model_valid_key_returns_200 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/change_model?model=mock "HTTP/1.1 200 OK"
+PASSED                                                                   [  0%]
+tests/test_admin_auth.py::TestGitUpdateAuth::test_git_update_no_env_key_does_not_raise_403 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/git_update "HTTP/1.1 200 OK"
+PASSED                                                                   [  0%]
+tests/test_admin_auth.py::TestGitUpdateAuth::test_git_update_wrong_key_returns_403 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/git_update "HTTP/1.1 403 Forbidden"
+PASSED                                                                   [  0%]
+tests/test_admin_auth.py::TestGitUpdateAuth::test_git_update_missing_header_returns_403 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/git_update "HTTP/1.1 403 Forbidden"
+PASSED                                                                   [  0%]
+tests/test_albert_frontend_contract.py::test_albert_buttons_use_window_open PASSED [  0%]
+tests/test_albert_frontend_contract.py::test_no_formatTextForOS_leftover PASSED [  0%]
+tests/test_albert_quota.py::test_get_albert_api_key_logic PASSED         [  0%]
+tests/test_albert_quota.py::test_update_quota_info_success 
+-------------------------------- live log call --------------------------------
+INFO     backend.core.albert_rate_limiter:albert_rate_limiter.py:218 [RATELIMITER] Quota Albert (ASR): 0/2000 (Total: 75)
+PASSED                                                                   [  1%]
+tests/test_albert_quota.py::test_update_quota_info_throttle 
+-------------------------------- live log call --------------------------------
+INFO     backend.core.albert_rate_limiter:albert_rate_limiter.py:218 [RATELIMITER] Quota Albert (ASR): 0/1000 (Total: 0)
+PASSED                                                                   [  1%]
+tests/test_albert_quota.py::test_update_quota_info_error_handling 
+-------------------------------- live log call --------------------------------
+INFO     backend.core.albert_rate_limiter:albert_rate_limiter.py:218 [RATELIMITER] Quota Albert (ASR): 0/1000 (Total: 0)
+PASSED                                                                   [  1%]
+tests/test_albert_segmentation.py::TestAlbertSegmentation::test_find_best_cut_isolated PASSED [  1%]
+tests/test_albert_segmentation.py::TestAlbertSegmentation::test_segmentation_logic PASSED [  1%]
+tests/test_albert_segmentation_quality.py::TestAlbertSegmentationQuality::test_find_best_cut_fallback_to_target PASSED [  1%]
+tests/test_albert_segmentation_quality.py::TestAlbertSegmentationQuality::test_find_best_cut_prefers_late_silence PASSED [  1%]
+tests/test_albert_views.py::test_view_summary_route 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/view_summary/user_test123/test.txt "HTTP/1.1 200 OK"
+PASSED                                                                   [  1%]
+tests/test_albert_views.py::test_view_actions_route 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/view_actions/user_test123/test.txt "HTTP/1.1 200 OK"
+PASSED                                                                   [  1%]
+tests/test_albert_views.py::test_view_cleanup_route 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/view_cleanup/user_test123/test.txt "HTTP/1.1 200 OK"
+PASSED                                                                   [  1%]
+tests/test_albert_views.py::test_view_summary_isolation 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/view_summary/user_other456/test.txt "HTTP/1.1 404 Not Found"
+PASSED                                                                   [  2%]
+tests/test_api_endpoints.py::test_get_speaker_profiles 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/speaker_profiles "HTTP/1.1 200 OK"
+PASSED                                                                   [  2%]
+tests/test_api_endpoints.py::test_status_route_returns_git_info 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/status/dummy_id "HTTP/1.1 200 OK"
+PASSED                                                                   [  2%]
+tests/test_api_endpoints.py::test_configuration_flags_are_respected 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/status/dummy_id "HTTP/1.1 200 OK"
+PASSED                                                                   [  2%]
+tests/test_api_endpoints.py::test_live_websocket_session_id_job_registration PASSED [  2%]
+tests/test_api_exposure.py::test_api_exposes_necessary_functions_for_tests PASSED [  2%]
+tests/test_api_exposure.py::test_segment_update_route_exists 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/segment_update "HTTP/1.1 404 Not Found"
+PASSED                                                                   [  2%]
+tests/test_api_exposure.py::test_all_required_imports_work PASSED        [  2%]
+tests/test_app_js_integrity.py::test_app_js_not_shrunk PASSED            [  2%]
+tests/test_app_js_integrity.py::test_essential_functions_present PASSED  [  2%]
+tests/test_app_js_integrity.py::test_live_partial_row_tracking PASSED    [  2%]
+tests/test_app_js_integrity.py::test_live_partial_uses_sindex_attribute PASSED [  3%]
+tests/test_app_js_integrity.py::test_live_final_looks_up_by_sindex_before_fallback PASSED [  3%]
+tests/test_app_js_integrity.py::test_pending_job_server_validated_before_ui PASSED [  3%]
+tests/test_app_js_integrity.py::test_pending_job_cleared_on_not_found PASSED [  3%]
+tests/test_app_js_integrity.py::test_pending_job_cleared_on_network_error PASSED [  3%]
+tests/test_app_js_integrity.py::test_live_polling_initialization PASSED  [  3%]
+tests/test_app_js_integrity.py::test_pending_job_cleared_on_uploading PASSED [  3%]
+tests/test_app_js_integrity.py::test_upload_progress_updates_dsfr_var PASSED [  3%]
+tests/test_assistant_usage.py::test_process_text_uses_albertassistant_methods PASSED [  3%]
+tests/test_assistant_usage.py::test_process_transcription_uses_albertassistant_methods PASSED [  3%]
+tests/test_audio.py::test_decode_audio_returns_float32 PASSED            [  4%]
+tests/test_audio.py::test_pcm_to_float32_normalization PASSED            [  4%]
+tests/test_audio.py::test_float32_roundtrip PASSED                       [  4%]
+tests/test_audio_formats.py::test_decode_wav_as_m4a_fallback PASSED      [  4%]
+tests/test_audio_formats.py::test_decode_non_existent PASSED             [  4%]
+tests/test_audio_formats.py::test_decode_real_mp3_if_any_found PASSED    [  4%]
+tests/test_batch_audio_persistence.py::test_batch_audio_persistence PASSED [  4%]
+tests/test_cleanup.py::test_clean_old_jobs PASSED                        [  4%]
+tests/test_cleanup.py::test_clean_old_files PASSED                       [  4%]
+tests/test_cleanup.py::test_compress_old_wavs PASSED                     [  4%]
+tests/test_cleanup.py::test_run_cleanup PASSED                           [  4%]
+tests/test_delete_history.py::test_delete_transcription_endpoint 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: DELETE http://testserver/transcriptions/live_test.txt?client_id=user_test "HTTP/1.1 200 OK"
+PASSED                                                                   [  5%]
+tests/test_diarization_render.py::test_diarization_view_rendering PASSED [  5%]
+tests/test_diarization_render.py::test_diarization_view_rendering_empty PASSED [  5%]
+tests/test_diarization_render.py::test_diarization_view_robustness[invalid_segments0] PASSED [  5%]
+tests/test_diarize.py::test_diarize_benchmark 
+-------------------------------- live log call --------------------------------
+INFO     diarize:__init__.py:175 Diarizing: tmp3kq7boup.wav (120.0 seconds)
+INFO     diarize.vad:vad.py:52 Running Voice Activity Detection (Silero VAD)...
+INFO     diarize.vad:vad.py:71 VAD complete: 33 speech segments, 67.8 seconds of speech
+INFO     diarize.embeddings:embeddings.py:75 Extracting speaker embeddings (WeSpeaker ResNet34-LM, 256-dim)...
+INFO     diarize.embeddings:embeddings.py:141 Extracted 95 embeddings (dim=256)
+INFO     diarize.clustering:clustering.py:169 GMM BIC (PCA=8) -> k=19
+INFO     diarize:__init__.py:207 Diarization complete: 19 speakers, 75 segments
+PASSED                                                                   [  5%]
+tests/test_dom_contract.py::test_html_sources_are_consistent PASSED      [  5%]
+tests/test_dom_contract.py::test_all_js_ids_exist_in_html PASSED         [  5%]
+tests/test_dom_contract.py::test_no_silent_fail_addeventlistener PASSED  [  5%]
+tests/test_dom_contract.py::test_websocket_send_has_readystate_check PASSED [  5%]
+tests/test_dom_structure.py::test_homepage_structure 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/ "HTTP/1.1 200 OK"
+PASSED                                                                   [  5%]
+tests/test_dom_structure.py::test_diarization_view_structure 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/ "HTTP/1.1 200 OK"
+PASSED                                                                   [  6%]
+tests/test_download_audio_security.py::test_download_audio_unauthorized 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/download_audio/otherclient/live_testclient_20230101_120000.wav "HTTP/1.1 403 Forbidden"
+PASSED                                                                   [  6%]
+tests/test_download_routes.py::test_download_live_audio 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/download_audio/testclient/live_testclient_20230101_120000.wav "HTTP/1.1 200 OK"
+PASSED                                                                   [  6%]
+tests/test_download_routes.py::test_download_batch_audio 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/download_audio/testclient/batch_testclient_20230101_130000.wav "HTTP/1.1 200 OK"
+PASSED                                                                   [  6%]
+tests/test_download_routes.py::test_download_transcript 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/download_transcript/testclient/live_20230101_120000.txt "HTTP/1.1 200 OK"
+PASSED                                                                   [  6%]
+tests/test_dsfr_scheme_attribute.py::test_all_templates_have_dsfr_scheme PASSED [  6%]
+tests/test_dsfr_scheme_attribute.py::test_index_template_has_complete_dsfr_structure PASSED [  6%]
+tests/test_e2e_dom.py::test_all_js_ids_exist_in_rendered_html[chromium] 
+-------------------------------- live log call --------------------------------
+INFO     backend.core.albert_rate_limiter:albert_rate_limiter.py:218 [RATELIMITER] Quota Albert (ASR): 0/1000 (Total: 100)
+PASSED                                                                   [  6%]
+tests/test_e2e_dom.py::test_albertoptions_visible_when_albert_selected[chromium] PASSED [  6%]
+tests/test_e2e_dom.py::test_albertpartial_unchecked_when_albert_selected[chromium] PASSED [  6%]
+tests/test_e2e_dom.py::test_websocket_partial_false_by_default[chromium] PASSED [  7%]
+tests/test_engine_interfaces.py::test_light_diarization_engine_interface 
+-------------------------------- live log call --------------------------------
+INFO     diarization_cpu:diarization_cpu.py:165 [*] Diarisation batch (WeSpeaker ONNX) : C:\Users\raver\AppData\Local\Temp\tmplvqaucj5.wav
+INFO     diarize:__init__.py:175 Diarizing: tmplvqaucj5.wav (1.0 seconds)
+INFO     diarize.vad:vad.py:52 Running Voice Activity Detection (Silero VAD)...
+INFO     diarize.vad:vad.py:71 VAD complete: 0 speech segments, 0.0 seconds of speech
+WARNING  diarize:__init__.py:180 No speech detected in C:\Users\raver\AppData\Local\Temp\tmplvqaucj5.wav
+INFO     diarization_cpu:diarization_cpu.py:179 [*] 0 segments trouv�s.
+INFO     root:speaker_manager.py:68 [*] Loaded 1 speaker signatures from speaker_signatures.json
+PASSED                                                                   [  7%]
+tests/test_engine_interfaces.py::test_diarization_engine_interface PASSED [  7%]
+tests/test_engine_interfaces.py::test_noop_engine_interface PASSED       [  7%]
+tests/test_format_transcription.py::test_format_timestamp_speaker_text PASSED [  7%]
+tests/test_format_transcription.py::test_format_timestamp_no_speaker PASSED [  7%]
+tests/test_format_transcription.py::test_format_speaker_no_timestamp PASSED [  7%]
+tests/test_format_transcription.py::test_format_plain_text_fallback PASSED [  7%]
+tests/test_format_transcription.py::test_format_escapes_html_injection PASSED [  7%]
+tests/test_format_transcription.py::test_format_timestamp_text_speaker PASSED [  7%]
+tests/test_format_transcription.py::test_format_empty_input PASSED       [  7%]
+tests/test_home_route.py::test_home_route_returns_html 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/ "HTTP/1.1 200 OK"
+PASSED                                                                   [  8%]
+tests/test_import_error_handling.py::test_no_except_importerror_blocks PASSED [  8%]
+tests/test_import_no_torch.py::test_config_importable_without_torch PASSED [  8%]
+tests/test_import_no_torch.py::test_transcription_engine_init_without_torch PASSED [  8%]
+tests/test_import_no_torch.py::test_transcription_engine_device_param PASSED [  8%]
+tests/test_index_template.py::test_index_includes_assets 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/ "HTTP/1.1 200 OK"
+PASSED                                                                   [  8%]
+tests/test_isolation.py::test_isolation_list 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/transcriptions?client_id=user_bbbb "HTTP/1.1 200 OK"
+PASSED                                                                   [  8%]
+tests/test_isolation.py::test_isolation_download_transcript 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/download_transcript/user_bbbb/file_a.txt "HTTP/1.1 404 Not Found"
+PASSED                                                                   [  8%]
+tests/test_isolation.py::test_isolation_download_audio 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/download_audio/user_bbbb/batch_user_aaaa_123.wav "HTTP/1.1 403 Forbidden"
+PASSED                                                                   [  8%]
+tests/test_isolation.py::test_isolation_view_live_temp 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/view/user_bbbb/live_user_aaaa_456.txt "HTTP/1.1 403 Forbidden"
+PASSED                                                                   [  8%]
+tests/test_isolation.py::test_websocket_forbidden PASSED                 [  9%]
+tests/test_isolation.py::test_batch_chunk_forbidden 
+-------------------------------- live log call --------------------------------
+WARNING  python_multipart.multipart:multipart.py:1401 Skipping data after last boundary
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/batch_chunk "HTTP/1.1 400 Bad Request"
+PASSED                                                                   [  9%]
+tests/test_live_cleanup.py::test_live_cleanup_creates_cleaned_file FAILED [  9%]
+tests/test_live_cleanup.py::test_live_cleanup_creates_cleaned_file ERROR [  9%]
+
+=================================== ERRORS ====================================
+_________ ERROR at teardown of test_live_cleanup_creates_cleaned_file _________
+..\..\..\scoop\apps\python311\current\Lib\site-packages\pytest_asyncio\plugin.py:817: in _scoped_runner
+    runner.__exit__(None, None, None)
+..\..\..\scoop\apps\python311\current\Lib\asyncio\runners.py:63: in __exit__
+    self.close()
+..\..\..\scoop\apps\python311\current\Lib\asyncio\runners.py:72: in close
+    loop.run_until_complete(loop.shutdown_asyncgens())
+..\..\..\scoop\apps\python311\current\Lib\asyncio\base_events.py:630: in run_until_complete
+    self._check_running()
+..\..\..\scoop\apps\python311\current\Lib\asyncio\base_events.py:591: in _check_running
+    raise RuntimeError(
+E   RuntimeError: Cannot run the event loop while another loop is running
+
+During handling of the above exception, another exception occurred:
+..\..\..\scoop\apps\python311\current\Lib\site-packages\pytest_asyncio\plugin.py:819: in _scoped_runner
+    warnings.warn(
+E   RuntimeWarning: An exception occurred during teardown of an asyncio.Runner. The reason is likely that you closed the underlying event loop in a test, which prevents the cleanup of asynchronous generators by the runner.
+E   This warning will become an error in future versions of pytest-asyncio. Please ensure that your tests don't close the event loop. Here is the traceback of the exception triggered during teardown:
+E   Traceback (most recent call last):
+E     File "C:\Users\raver\scoop\apps\python311\current\Lib\site-packages\pytest_asyncio\plugin.py", line 817, in _scoped_runner
+E       runner.__exit__(None, None, None)
+E     File "C:\Users\raver\scoop\apps\python311\current\Lib\asyncio\runners.py", line 63, in __exit__
+E       self.close()
+E     File "C:\Users\raver\scoop\apps\python311\current\Lib\asyncio\runners.py", line 72, in close
+E       loop.run_until_complete(loop.shutdown_asyncgens())
+E     File "C:\Users\raver\scoop\apps\python311\current\Lib\asyncio\base_events.py", line 630, in run_until_complete
+E       self._check_running()
+E     File "C:\Users\raver\scoop\apps\python311\current\Lib\asyncio\base_events.py", line 591, in _check_running
+E       raise RuntimeError(
+E   RuntimeError: Cannot run the event loop while another loop is running
+================================== FAILURES ===================================
+___________________ test_live_cleanup_creates_cleaned_file ____________________
+..\..\..\scoop\apps\python311\current\Lib\site-packages\pytest_asyncio\plugin.py:469: in runtest
+    super().runtest()
+..\..\..\scoop\apps\python311\current\Lib\site-packages\pytest_asyncio\plugin.py:716: in inner
+    runner.run(coro, context=context)
+..\..\..\scoop\apps\python311\current\Lib\asyncio\runners.py:93: in run
+    raise RuntimeError(
+E   RuntimeError: Runner.run() cannot be called from a running event loop
+=========================== short test summary info ===========================
+FAILED tests/test_live_cleanup.py::test_live_cleanup_creates_cleaned_file - R...
+ERROR tests/test_live_cleanup.py::test_live_cleanup_creates_cleaned_file - Ru...
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 2 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+=================== 1 failed, 95 passed, 1 error in 30.89s ====================
+Exception ignored in: <coroutine object test_live_cleanup_creates_cleaned_file at 0x00000294A41D7880>
+RuntimeWarning: coroutine 'test_live_cleanup_creates_cleaned_file' was never awaited

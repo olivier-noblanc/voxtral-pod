@@ -39,7 +39,7 @@ class TestAlbertSegmentation(unittest.TestCase):
         # On force la limite a 40s pour le test
         with patch("backend.core.transcription.CHUNK_LIMIT_SEC", 40):
             # pylint: disable=protected-access
-            words, duration = self.engine._transcribe_albert(audio_np)
+            words, duration, _ = self.engine._transcribe_albert(audio_np)
             
         # On attend 3 appels API
         self.assertEqual(mock_post.call_count, 3)

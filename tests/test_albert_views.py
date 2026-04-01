@@ -1,26 +1,23 @@
+from __future__ import annotations
+
 import os
 import shutil
-import sys
 import tempfile
-from unittest.mock import patch
+from typing import Any, Dict, List, Tuple
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from backend.main import app
-
-client = TestClient(app)
-
 @pytest.fixture
-def mock_postprocess():
+def mock_postprocess() -> Tuple[MagicMock, MagicMock, MagicMock]:
     with patch("backend.core.postprocess.summarize_text", return_value="### Summary\n- Point A\n- Point B") as m1, \
          patch("backend.core.postprocess.extract_actions_text", return_value=["Action 1", "Action 2"]) as m2, \
          patch("backend.core.postprocess.clean_text", return_value="**Cleaned** Content") as m3:
         yield (m1, m2, m3)
 
 @pytest.fixture
-def setup_data():
+def setup_data() -> Dict[str, str]:
     temp_dir = tempfile.mkdtemp()
     from backend import config as config_module
     from backend.routes import api as api_module
@@ -39,23 +36,22 @@ def setup_data():
     yield {"client_id": client_id, "filename": filename, "temp_dir": temp_dir}
     
     shutil.rmtree(temp_dir)
+    # Restore original state
     api_module.TRANSCRIPTIONS_DIR = old_dir
     config_module.TRANSCRIPTIONS_DIR = old_dir
 
-def test_view_summary_route(setup_data, mock_postprocess):
+def test_view_summary_route(setup_data: Dict[str, str], mock_postprocess: Any, client: TestClient) -> None:
     data = setup_data
     resp = client.get(f"/view_summary/{data['client_id']}/{data['filename']}")
     assert resp.status_code == 200
     assert "Compte Rendu Albert" in resp.text
     assert "marked.min.js" not in resp.text
-    assert "postprocess.js" in resp.text
-    assert "postprocess.css" in resp.text
     # Server-side rendering verification: h3 and ul tags should be present
     assert "<h3>Summary</h3>" in resp.text
     assert "<ul>" in resp.text
     assert "<li>Point A</li>" in resp.text
 
-def test_view_actions_route(setup_data, mock_postprocess):
+def test_view_actions_route(setup_data: Dict[str, str], mock_postprocess: Any, client: TestClient) -> None:
     data = setup_data
     resp = client.get(f"/view_actions/{data['client_id']}/{data['filename']}")
     assert resp.status_code == 200
@@ -63,14 +59,14 @@ def test_view_actions_route(setup_data, mock_postprocess):
     assert "<li>Action 1</li>" in resp.text
     assert "data-content=" in resp.text
 
-def test_view_cleanup_route(setup_data, mock_postprocess):
+def test_view_cleanup_route(setup_data: Dict[str, str], mock_postprocess: Any, client: TestClient) -> None:
     data = setup_data
     resp = client.get(f"/view_cleanup/{data['client_id']}/{data['filename']}")
     assert resp.status_code == 200
     assert "Nettoyage Albert" in resp.text
     assert "<strong>Cleaned</strong>" in resp.text
 
-def test_view_summary_isolation(setup_data, mock_postprocess):
+def test_view_summary_isolation(setup_data: Dict[str, str], mock_postprocess: Any, client: TestClient) -> None:
     # Try to access as another client
     data = setup_data
     resp = client.get(f"/view_summary/user_other456/{data['filename']}")

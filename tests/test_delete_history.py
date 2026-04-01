@@ -1,19 +1,16 @@
 """
 Tests pour la suppression de l'historique des transcriptions et des fichiers audio associés.
 """
+from __future__ import annotations
+
 import os
+from typing import Any, Dict
 
 import pytest
 from fastapi.testclient import TestClient
 
-# Import the FastAPI app instance
-from backend.main import app
-
-client = TestClient(app)
-
-
 @pytest.fixture
-def setup_transcription():
+def setup_transcription() -> Dict[str, str]:
     """
     Crée un fichier de transcription et son fichier audio associé
     dans le répertoire de test, puis le nettoie après le test.
@@ -49,8 +46,7 @@ def setup_transcription():
         if os.path.isfile(path):
             os.remove(path)
 
-
-def test_delete_transcription_endpoint(setup_transcription):
+def test_delete_transcription_endpoint(setup_transcription: Dict[str, str], client: TestClient) -> None:
     """
     Vérifie que l'endpoint DELETE supprime correctement le fichier de transcription
     ainsi que le fichier audio associé et renvoie le bon statut.

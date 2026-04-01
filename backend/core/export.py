@@ -20,11 +20,7 @@ The pipeline is now strictly three‑layered:
 All exporters raise ``ValueError`` if the required schema is not respected.
 """
 
-from __future__ import annotations
-
-import json
-from pathlib import Path
-from typing import List, Mapping, Any
+from typing import Any, List, Mapping
 
 # ----------------------------------------------------------------------
 # Validation
@@ -52,12 +48,15 @@ def validate_segments(segments: List[Mapping[str, Any]]) -> None:
 # ----------------------------------------------------------------------
 def export_txt(segments: List[Mapping[str, Any]], txt_path: str) -> None:
     """
-    Export the transcription as a plain‑text file.
+    Export the transcription as a plain‑text file with timestamps and speakers.
     Each segment is written on its own line, preserving the original order.
     """
     with open(txt_path, "w", encoding="utf-8") as f:
         for seg in segments:
-            line = seg["text"].strip()
+            speaker = seg.get("speaker", "unknown")
+            start = seg.get("start", 0.0)
+            end = seg.get("end", 0.0)
+            line = f"[{start:.2f}s -> {end:.2f}s] [{speaker}] {seg['text'].strip()}"
             f.write(line + "\n")
 
 

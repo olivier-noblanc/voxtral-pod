@@ -31,6 +31,7 @@ hello.txt
 pytest_output.txt
 .vscode/settings.json
 jobs.db
+jobs.*
 speaker_profiles.db
 backend/core/audio.py
 test_skips.txt
@@ -50,3 +51,6 @@ debug_home_page.py
 mypy_full.txt
 .hypothesis/
 ruff_final.txt
+test_output.txt
+jobs.db-wal
+debug_live.txt

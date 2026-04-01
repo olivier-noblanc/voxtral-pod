@@ -20,6 +20,7 @@ os.environ.setdefault("DISABLE_NNPACK", "1")
 class TranscriptionResult:
     transcript: str
     segments: List[Dict[str, Any]]
+    raw_data: Optional[Dict[str, Any]] = None
 
     def to_rttm(self, file_id: str) -> str:
         """
@@ -185,8 +186,8 @@ class SotaASR:
 
         # 3. Diarize + Transcribe (parallel pour Albert, séquentiel sinon)
         if self.model_id == "mock":
-            # TranscriptionEngine.transcribe returns (words, duration, used_fallback)
-            words, _, _ = await asyncio.to_thread(self.transcription_engine.transcribe, audio_np)
+            # TranscriptionEngine.transcribe returns (words, duration, used_fallback, raw_data)
+            words, _, _, _ = await asyncio.to_thread(self.transcription_engine.transcribe, audio_np)
             mock_segments = [
                 {"start": 0.0, "end": 1.0, "speaker": "SPEAKER_00", "text": " ".join([w['word'] for w in words])}
             ]
@@ -207,9 +208,12 @@ class SotaASR:
                 # ``asyncio.gather`` renvoie deux résultats ; on désérialise correctement.
                 diar_segments_raw, trans_result = await asyncio.gather(diar_task, trans_task)
                 diar_segments = cast(list[tuple[float, float, str]], diar_segments_raw)
-                words, _, used_fallback = cast(tuple[List[Dict[str, Any]], float, bool], trans_result)
+                words, _, used_fallback, raw_data = cast(
+                    tuple[List[Dict[str, Any]], float, bool, Optional[Dict[str, Any]]], 
+                    trans_result
+                )
             else:
-                words, _, used_fallback = await asyncio.to_thread(
+                words, _, used_fallback, raw_data = await asyncio.to_thread(
                     self.transcription_engine.transcribe, audio_np, progress_callback=None
                 )
                 diar_segments = []  # type: ignore[var-annotated]
@@ -226,7 +230,7 @@ class SotaASR:
                 diar_segments = []
             if progress_callback:
                 progress_callback("Transcription...", 45)
-            words, _, used_fallback = await asyncio.to_thread(
+            words, _, used_fallback, raw_data = await asyncio.to_thread(
                 self.transcription_engine.transcribe, audio_np, progress_callback=progress_callback
             )
 
@@ -240,8 +244,33 @@ class SotaASR:
         print("[*] Post-traitement: Lissage des micro-tours de parole...")
         words_with_speakers = smooth_micro_turns(words_with_speakers)
         
-        print("[*] Post-traitement: Reconstruction des segments par locuteur...")
-        segments = build_speaker_segments(words_with_speakers)
+        print("[*] Post-traitement: Reconstruction des segments...")
+        if raw_data and raw_data.get("type") == "albert_batch" and raw_data.get("segments"):
+            print("[*] Utilisation des segments originaux d'Albert pour préserver le formatage.")
+            from collections import Counter
+            # On utilise les segments d'Albert et on leur assigne le speaker prédominant des mots qu'ils contiennent
+            segments = []
+            albert_segments = raw_data["segments"]
+            for a_seg in albert_segments:
+                s_start, s_end = a_seg["start"], a_seg["end"]
+                # Trouver les mots dans cet intervalle (avec une petite tolérance de 10ms)
+                seg_words = [w for w in words_with_speakers if s_start - 0.01 <= w["start"] <= s_end + 0.01]
+                if seg_words:
+                    # Speaker majoritaire
+                    speakers = [w["speaker"] for w in seg_words]
+                    top_speaker = Counter(speakers).most_common(1)[0][0]
+                else:
+                    top_speaker = "UNKNOWN"
+                
+                segments.append({
+                    "speaker": top_speaker,
+                    "start": s_start,
+                    "end": s_end,
+                    "text": a_seg["text"]
+                })
+        else:
+            segments = build_speaker_segments(words_with_speakers)
+        
         print(f"[*] Post-traitement: {len(segments)} segments finaux générés.")
 
         # 5. Format final text
@@ -255,4 +284,4 @@ class SotaASR:
             output_lines.append(f"[{s['start']:.2f}s -> {s['end']:.2f}s] [{s['speaker']}] {s['text']}")
 
         print("[*] Post-traitement terminé. Transcript prêt.")
-        return TranscriptionResult(transcript="\n".join(output_lines), segments=segments)
+        return TranscriptionResult(transcript="\n".join(output_lines), segments=segments, raw_data=raw_data)

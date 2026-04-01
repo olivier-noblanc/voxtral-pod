@@ -6,7 +6,7 @@ import io
 import os
 import time
 import warnings
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import requests
@@ -117,7 +117,11 @@ class TranscriptionEngine:
         language: str = "fr",
         progress_callback: Any = None,
         is_partial: bool = False
-    ) -> tuple[list[dict[str, Any]], float, bool]:
+    ) -> tuple[list[dict[str, Any]], float, bool, Optional[dict[str, Any]]]:
+        """
+        Transcribe audio and return (words, duration, used_fallback, raw_data).
+        """
+
         """
         Transcribe audio and return (words, duration).
         """
@@ -153,7 +157,7 @@ class TranscriptionEngine:
             if self.model_id == "mock":
                 duration = len(audio_np) / 16000
                 msg = "[MOCK] Transcription de test mélangée (Micro + Système)"
-                return [{"start": 0.0, "end": duration, "word": msg}], duration, False
+                return [{"start": 0.0, "end": duration, "word": msg}], duration, False, None
 
             if self.model is None:
                 self.load()
@@ -191,7 +195,7 @@ class TranscriptionEngine:
                             "speaker": "UNKNOWN"
                         })
 
-                return all_words, info.duration, used_fallback
+                return all_words, info.duration, used_fallback, None
 
             # Vosk
             import json
@@ -215,12 +219,12 @@ class TranscriptionEngine:
                         "speaker": "UNKNOWN"
                     })
 
-            return all_words, len(audio_np) / 16000, used_fallback
+            return all_words, len(audio_np) / 16000, used_fallback, None
         # Utiliser l'API Albert
-        res_words, res_dur = self._transcribe_albert(
+        res_words, res_dur, res_raw = self._transcribe_albert(
             audio_np, language, progress_callback
         )
-        return res_words, res_dur, False
+        return res_words, res_dur, False, res_raw
 
     def _find_best_cut(self, audio_np: np.ndarray, target_sec: float, current_t: float = 0) -> float:
         """
@@ -276,7 +280,11 @@ class TranscriptionEngine:
         language: str = "fr",
         progress_callback: Any = None,
         is_partial: bool = False
-    ) -> tuple[list[dict[str, Any]], float]:
+    ) -> tuple[list[dict[str, Any]], float, Optional[dict[str, Any]]]:
+        """
+        Découpe l'audio en tranches et les envoie à l'API Albert.
+        """
+
         """
         Découpe l'audio en tranches et les envoie à l'API Albert.
         """
@@ -292,7 +300,7 @@ class TranscriptionEngine:
                     "end": duration_total,
                     "word": "[MOCK MODE] API quota exceeded. Use fallback mode."
                 }
-            ], duration_total
+            ], duration_total, None
 
         tranches = []
         t: float = 0.0
@@ -307,6 +315,7 @@ class TranscriptionEngine:
             t = cut_point
 
         all_final_words = []
+        all_final_segments = []
 
         for idx, (start_time, duration) in enumerate(tranches):
             if progress_callback:
@@ -438,17 +447,22 @@ class TranscriptionEngine:
                     f"[*] Tranche {idx+1}: {len(segments)} segments "
                     f"({len(chunk_words)} mots) récupérés (format: segments)."
                 )
-            elif result.get("text"):
-                chunk_words.append({
-                    "start": 0.0,
-                    "end": duration,
-                    "word": result["text"].strip(),
-                    "speaker": "UNKNOWN"
+            
+            # Nouveau : Conserver les segments originaux (pour le formatage natif)
+            if result.get("segments"):
+                for s in result["segments"]:
+                    all_final_segments.append({
+                        "start": s.get("start", 0.0) + start_time,
+                        "end": s.get("end", duration) + start_time,
+                        "text": s.get("text", "").strip()
+                    })
+            elif result.get("text") and not result.get("segments"):
+                # Si pas de segments, on en crée un gros pour la tranche
+                all_final_segments.append({
+                    "start": start_time,
+                    "end": start_time + duration,
+                    "text": result["text"].strip()
                 })
-                print(
-                    f"[*] Tranche {idx+1}: Texte brut récupéré "
-                    f"({len(result['text'])} caractères)."
-                )
 
             # 5. Décalage des timestamps
             if chunk_words:
@@ -466,4 +480,10 @@ class TranscriptionEngine:
             
             buffer.close()
 
-        return all_final_words, duration_total
+        # Construction d'un objet "raw" consolidé
+        raw_payload = {
+            "type": "albert_batch",
+            "segments": all_final_segments,
+            "words": all_final_words
+        }
+        return all_final_words, duration_total, raw_payload

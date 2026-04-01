@@ -2,8 +2,10 @@
 Test pour s'assurer que tous les modules nécessaires sont correctement exposés dans l'API.
 Cela prévient les erreurs similaires à celles rapportées dans le problème initial.
 """
-import pytest
+from __future__ import annotations
 
+import pytest
+from fastapi.testclient import TestClient
 from backend.routes import api
 
 
@@ -26,19 +28,14 @@ def test_api_exposes_necessary_functions_for_tests() -> None:
         assert hasattr(api, func_name), f"La fonction {func_name} doit être exposée dans backend.routes.api"
 
 
-def test_segment_update_route_exists() -> None:
+def test_segment_update_route_exists(client: TestClient) -> None:
     """Vérifie que la route /segment_update est accessible"""
-    from fastapi.testclient import TestClient
-
-    from backend.main import app
-    
-    client = TestClient(app)
     
     # La route doit exister (même si elle retourne 404 pour fichier introuvable)
     response = client.post("/segment_update", json={
         "client_id": "test",
         "filename": "nonexistent.txt", 
-        "segment_index": 0,  # type: ignore
+        "segment_index": 0,
         "new_speaker": "Test"
     })
     
@@ -77,6 +74,8 @@ def test_all_required_imports_work() -> None:
 
 if __name__ == "__main__":
     test_api_exposes_necessary_functions_for_tests()
-    test_segment_update_route_exists()
+    # Note: Requires a real client fixture or manual TestClient for running standalone
+    from backend.main import app
+    test_segment_update_route_exists(TestClient(app))
     test_all_required_imports_work()
     print("✅ Tous les tests d'exposition API passent!")

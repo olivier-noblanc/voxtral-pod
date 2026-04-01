@@ -1,0 +1,154 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.0.2, pluggy-1.6.0
+rootdir: C:\Users\raver\source\repos\voxtral-pod
+configfile: pytest.ini
+testpaths: tests
+plugins: hypothesis-6.151.10, asyncio-1.3.0, base-url-2.1.0, cov-7.1.0, playwright-0.7.2, snapshot-0.9.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+
+----------------------------- live log collection -----------------------------
+INFO     numexpr.utils:utils.py:164 NumExpr defaulting to 8 threads.
+collected 1021 items
+
+tests/test_admin_auth.py::TestChangeModelAuth::test_change_model_no_env_key_is_accessible 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/change_model?model=mock "HTTP/1.1 200 OK"
+PASSED                                                                   [  0%]
+tests/test_admin_auth.py::TestChangeModelAuth::test_change_model_wrong_key_returns_403 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/change_model?model=mock "HTTP/1.1 403 Forbidden"
+PASSED                                                                   [  0%]
+tests/test_admin_auth.py::TestChangeModelAuth::test_change_model_no_key_header_returns_403 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/change_model?model=mock "HTTP/1.1 403 Forbidden"
+PASSED                                                                   [  0%]
+tests/test_admin_auth.py::TestChangeModelAuth::test_change_model_valid_key_returns_200 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/change_model?model=mock "HTTP/1.1 200 OK"
+PASSED                                                                   [  0%]
+tests/test_admin_auth.py::TestGitUpdateAuth::test_git_update_no_env_key_does_not_raise_403 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/git_update "HTTP/1.1 200 OK"
+PASSED                                                                   [  0%]
+tests/test_admin_auth.py::TestGitUpdateAuth::test_git_update_wrong_key_returns_403 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/git_update "HTTP/1.1 403 Forbidden"
+PASSED                                                                   [  0%]
+tests/test_admin_auth.py::TestGitUpdateAuth::test_git_update_missing_header_returns_403 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/git_update "HTTP/1.1 403 Forbidden"
+PASSED                                                                   [  0%]
+tests/test_albert_frontend_contract.py::test_albert_buttons_use_window_open PASSED [  0%]
+tests/test_albert_frontend_contract.py::test_no_formatTextForOS_leftover PASSED [  0%]
+tests/test_albert_quota.py::test_get_albert_api_key_logic PASSED         [  0%]
+tests/test_albert_quota.py::test_update_quota_info_success 
+-------------------------------- live log call --------------------------------
+INFO     backend.core.albert_rate_limiter:albert_rate_limiter.py:218 [RATELIMITER] Quota Albert (ASR): 0/2000 (Total: 75)
+PASSED                                                                   [  1%]
+tests/test_albert_quota.py::test_update_quota_info_throttle 
+-------------------------------- live log call --------------------------------
+INFO     backend.core.albert_rate_limiter:albert_rate_limiter.py:218 [RATELIMITER] Quota Albert (ASR): 0/1000 (Total: 0)
+PASSED                                                                   [  1%]
+tests/test_albert_quota.py::test_update_quota_info_error_handling 
+-------------------------------- live log call --------------------------------
+INFO     backend.core.albert_rate_limiter:albert_rate_limiter.py:218 [RATELIMITER] Quota Albert (ASR): 0/1000 (Total: 0)
+PASSED                                                                   [  1%]
+tests/test_albert_segmentation.py::TestAlbertSegmentation::test_find_best_cut_isolated PASSED [  1%]
+tests/test_albert_segmentation.py::TestAlbertSegmentation::test_segmentation_logic PASSED [  1%]
+tests/test_albert_segmentation_quality.py::TestAlbertSegmentationQuality::test_find_best_cut_fallback_to_target PASSED [  1%]
+tests/test_albert_segmentation_quality.py::TestAlbertSegmentationQuality::test_find_best_cut_prefers_late_silence PASSED [  1%]
+tests/test_albert_views.py::test_view_summary_route 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/view_summary/user_test123/test.txt "HTTP/1.1 200 OK"
+PASSED                                                                   [  1%]
+tests/test_albert_views.py::test_view_actions_route 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/view_actions/user_test123/test.txt "HTTP/1.1 200 OK"
+PASSED                                                                   [  1%]
+tests/test_albert_views.py::test_view_cleanup_route 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/view_cleanup/user_test123/test.txt "HTTP/1.1 200 OK"
+PASSED                                                                   [  1%]
+tests/test_albert_views.py::test_view_summary_isolation 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/view_summary/user_other456/test.txt "HTTP/1.1 404 Not Found"
+PASSED                                                                   [  2%]
+tests/test_api_endpoints.py::test_get_speaker_profiles 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/speaker_profiles "HTTP/1.1 200 OK"
+PASSED                                                                   [  2%]
+tests/test_api_endpoints.py::test_status_route_returns_git_info 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/status/dummy_id "HTTP/1.1 200 OK"
+PASSED                                                                   [  2%]
+tests/test_api_endpoints.py::test_configuration_flags_are_respected 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/status/dummy_id "HTTP/1.1 200 OK"
+PASSED                                                                   [  2%]
+tests/test_api_endpoints.py::test_live_websocket_session_id_job_registration PASSED [  2%]
+tests/test_api_exposure.py::test_api_exposes_necessary_functions_for_tests PASSED [  2%]
+tests/test_api_exposure.py::test_segment_update_route_exists 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/segment_update "HTTP/1.1 404 Not Found"
+PASSED                                                                   [  2%]
+tests/test_api_exposure.py::test_all_required_imports_work PASSED        [  2%]
+tests/test_app_js_integrity.py::test_app_js_not_shrunk PASSED            [  2%]
+tests/test_app_js_integrity.py::test_essential_functions_present PASSED  [  2%]
+tests/test_app_js_integrity.py::test_live_partial_row_tracking PASSED    [  3%]
+tests/test_app_js_integrity.py::test_live_partial_uses_sindex_attribute PASSED [  3%]
+tests/test_app_js_integrity.py::test_live_final_looks_up_by_sindex_before_fallback PASSED [  3%]
+tests/test_app_js_integrity.py::test_pending_job_server_validated_before_ui PASSED [  3%]
+tests/test_app_js_integrity.py::test_pending_job_cleared_on_not_found PASSED [  3%]
+tests/test_app_js_integrity.py::test_pending_job_cleared_on_network_error PASSED [  3%]
+tests/test_app_js_integrity.py::test_live_polling_initialization PASSED  [  3%]
+tests/test_app_js_integrity.py::test_pending_job_cleared_on_uploading PASSED [  3%]
+tests/test_app_js_integrity.py::test_upload_progress_updates_dsfr_var PASSED [  3%]
+tests/test_assistant_usage.py::test_process_text_uses_albertassistant_methods PASSED [  3%]
+tests/test_assistant_usage.py::test_process_transcription_uses_albertassistant_methods PASSED [  4%]
+tests/test_audio.py::test_decode_audio_returns_float32 PASSED            [  4%]
+tests/test_audio.py::test_pcm_to_float32_normalization PASSED            [  4%]
+tests/test_audio.py::test_float32_roundtrip PASSED                       [  4%]
+tests/test_audio_formats.py::test_decode_wav_as_m4a_fallback PASSED      [  4%]
+tests/test_audio_formats.py::test_decode_non_existent PASSED             [  4%]
+tests/test_audio_formats.py::test_decode_real_mp3_if_any_found PASSED    [  4%]
+tests/test_batch_audio_persistence.py::test_batch_audio_persistence PASSED [  4%]
+tests/test_cleanup.py::test_clean_old_jobs PASSED                        [  4%]
+tests/test_cleanup.py::test_clean_old_files PASSED                       [  4%]
+tests/test_cleanup.py::test_compress_old_wavs PASSED                     [  4%]
+tests/test_cleanup.py::test_run_cleanup PASSED                           [  5%]
+tests/test_delete_history.py::test_delete_transcription_endpoint 
+-------------------------------- live log call --------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: DELETE http://testserver/transcriptions/live_test.txt?client_id=user_test "HTTP/1.1 200 OK"
+PASSED                                                                   [  5%]
+tests/test_diarization_render.py::test_diarization_view_rendering PASSED [  5%]
+tests/test_diarization_render.py::test_diarization_view_rendering_empty PASSED [  5%]
+tests/test_diarization_render.py::test_diarization_view_robustness[invalid_segments0] PASSED [  5%]
+tests/test_diarize.py::test_diarize_benchmark 
+-------------------------------- live log call --------------------------------
+INFO     diarize:__init__.py:175 Diarizing: tmpfu1jbrxd.wav (120.0 seconds)
+INFO     diarize.vad:vad.py:52 Running Voice Activity Detection (Silero VAD)...
+INFO     diarize.vad:vad.py:71 VAD complete: 33 speech segments, 67.8 seconds of speech
+INFO     diarize.embeddings:embeddings.py:75 Extracting speaker embeddings (WeSpeaker ResNet34-LM, 256-dim)...
+INFO     diarize.embeddings:embeddings.py:141 Extracted 95 embeddings (dim=256)
+INFO     diarize.clustering:clustering.py:169 GMM BIC (PCA=8) -> k=19
+INFO     diarize:__init__.py:207 Diarization complete: 19 speakers, 75 segments
+PASSED                                                                   [  5%]
+tests/test_dom_contract.py::test_html_sources_are_consistent PASSED      [  5%]
+tests/test_dom_contract.py::test_all_js_ids_exist_in_html PASSED         [  5%]
+tests/test_dom_contract.py::test_no_silent_fail_addeventlistener PASSED  [  5%]
+tests/test_dom_contract.py::test_websocket_send_has_readystate_check PASSED [  5%]
+tests/test_dom_structure.py::test_homepage_structure ERROR               [  6%]
+
+=================================== ERRORS ====================================
+__________________ ERROR at setup of test_homepage_structure __________________
+file C:\Users\raver\source\repos\voxtral-pod\tests\test_dom_structure.py, line 6
+  def test_homepage_structure(client: TestClient, dom_audit: Any) -> None:
+E       fixture 'dom_audit' not found
+>       available fixtures: _artifacts_recorder, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _pw_artifacts_folder, _session_scoped_runner, _verify_url, base_url, browser, browser_channel, browser_context, browser_context_args, browser_name, browser_type, browser_type_launch_args, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, connect_options, context, cov, delete_output_dir, device, doctest_namespace, event_loop_policy, is_chromium, is_firefox, is_webkit, launch_browser, live_server_url, monkeypatch, new_context, no_cover, output_path, page, playwright, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, setup_test_env, snapshot, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\raver\source\repos\voxtral-pod\tests\test_dom_structure.py:6
+=========================== short test summary info ===========================
+ERROR tests/test_dom_structure.py::test_homepage_structure
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+======================== 61 passed, 1 error in 23.91s =========================

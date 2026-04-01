@@ -1,28 +1,24 @@
-import os
-import os as _os
-import shutil
+from __future__ import annotations
 
-# Import the FastAPI app
-import sys
+import os
+import shutil
 import tempfile
+from typing import Any, Dict
 
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.append(_os.path.abspath(_os.path.join(_os.path.dirname(__file__), '..')))
+# Import the FastAPI app
 from backend.config import TRANSCRIPTIONS_DIR
-from backend.main import app
-
-client = TestClient(app)
 
 @pytest.fixture(scope="function")
 def setup_test_files():
     # Create a temporary directory structure mimicking the real one
     temp_dir = tempfile.mkdtemp()
-    original_dir = TRANSCRIPTIONS_DIR
-
+    
     # Override the TRANSCRIPTIONS_DIR for the duration of the test
     from backend.routes import api as api_module
+    old_dir = api_module.TRANSCRIPTIONS_DIR
     api_module.TRANSCRIPTIONS_DIR = temp_dir
 
     client_id = "testclient"
@@ -51,9 +47,9 @@ def setup_test_files():
     # Cleanup
     shutil.rmtree(temp_dir)
     # Restore original constant
-    api_module.TRANSCRIPTIONS_DIR = original_dir
+    api_module.TRANSCRIPTIONS_DIR = old_dir
 
-def test_download_audio_unauthorized(setup_test_files):
+def test_download_audio_unauthorized(setup_test_files: Dict[str, Any], client: TestClient) -> None:
     data = setup_test_files
     # Use a different client_id to simulate unauthorized access
     wrong_client_id = "otherclient"

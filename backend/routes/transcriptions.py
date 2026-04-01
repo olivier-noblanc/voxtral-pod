@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import importlib
+import json
 import os
-import pathlib
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException, Request, Response
@@ -30,10 +30,12 @@ async def list_trans(client_id: str) -> List[Dict[str, Any]]:
     p = _safe_join(_get_trans_dir(), client_id)
     if not os.path.isdir(p):
         return []
-    files = sorted([f for f in os.listdir(p) if f.endswith(".txt")], reverse=True)
+    # Filter for .json files (excluding .diar.json which are satellites)
+    files = sorted([f for f in os.listdir(p) if f.endswith(".json") and not f.endswith(".diar.json")], reverse=True)
     result = []
     for f in files:
-        has_cleanup = os.path.isfile(os.path.join(p, f.replace(".txt", ".cleaned.md")))
+        base_name = f.replace(".json", "")
+        has_cleanup = os.path.isfile(os.path.join(p, base_name + ".cleaned.md"))
         result.append({"name": f, "has_cleanup": has_cleanup})
     return result
 
@@ -46,11 +48,11 @@ async def delete_trans(filename: str, client_id: str) -> Dict[str, str]:
     trans_path = _safe_join(_get_trans_dir(), client_id, filename)
     if not os.path.isfile(trans_path):
         raise HTTPException(status_code=404, detail="Fichier transcription introuvable.")
-    # Supprimer le fichier de transcription principal
+    # Supprimer le fichier de transcription principal (.json)
     os.remove(trans_path)
 
     # Supprimer les versions nettoyées, RTTM et JSON de diarisation
-    base_name = pathlib.Path(filename).stem
+    base_name = filename.replace(".json", "").replace(".txt", "")
     for ext in (".cleaned.md", ".rttm", ".diar.json"):
         extra_path = _safe_join(_get_trans_dir(), client_id, base_name + ext)
         if os.path.isfile(extra_path):
@@ -58,11 +60,11 @@ async def delete_trans(filename: str, client_id: str) -> Dict[str, str]:
 
     # Supprimer l'audio associé (WAV et MP3)
     if filename.startswith("batch_"):
-        ts = filename.replace("batch_", "").replace(".txt", "")
+        ts = base_name.replace("batch_", "")
         audio_name_base = f"batch_{client_id}_{ts}"
         audio_dir = "batch_audio"
     else:
-        ts = filename.replace("live_", "").replace(".txt", "")
+        ts = base_name.replace("live_", "")
         audio_name_base = f"live_{client_id}_{ts}"
         audio_dir = "live_audio"
 
@@ -99,12 +101,18 @@ async def download_transcript(client_id: str, filename: str) -> Response:
 @router.get("/view/{client_id}/{filename}")
 async def view_transcription(client_id: str, filename: str, req: Request) -> Response:
     client_path = _safe_join(_get_trans_dir(), client_id, filename)
-    cleaned_path = client_path.replace(".txt", ".cleaned.md")
+    base_name = filename.replace(".json", "").replace(".txt", "")
+    cleaned_path = _safe_join(_get_trans_dir(), client_id, base_name + ".cleaned.md")
+    json_path = _safe_join(_get_trans_dir(), client_id, base_name + ".json")
     
     # Determine which file to serve
     if os.path.isfile(cleaned_path):
         file_path = cleaned_path
         is_cleaned = True
+        is_temp = False
+    elif os.path.isfile(json_path):
+        file_path = json_path
+        is_cleaned = False
         is_temp = False
     elif os.path.isfile(client_path):
         file_path = client_path
@@ -121,8 +129,10 @@ async def view_transcription(client_id: str, filename: str, req: Request) -> Res
         else:
             raise HTTPException(status_code=404, detail="Fichier introuvable.")
     
-    with open(file_path, "r", encoding="utf-8") as f:
-        content = f.read()
+    content = ""
+    if not file_path.endswith(".json"):
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
     
     if is_cleaned:
         # Render cleaned markdown
@@ -137,13 +147,32 @@ async def view_transcription(client_id: str, filename: str, req: Request) -> Res
         })
         return HTMLResponse(html)
     
+    # Check for enriched JSON source of truth
+    segments = None
+    if file_path.endswith(".json"):
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                segments = json.load(f)
+        except Exception as e:
+            print(f"[!] Error loading JSON transcript {file_path}: {e}")
+    elif os.path.isfile(json_path):
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                segments = json.load(f)
+        except Exception as e:
+            print(f"[!] Error loading JSON transcript {json_path}: {e}")
+
     # Regular transcription view
-    segments_html = "\n".join(format_transcription(line) for line in content.splitlines() if line.strip())
+    segments_html = ""
+    if segments is None:
+        # Fallback to parsing legacy .txt file
+        segments_html = "\n".join(format_transcription(line) for line in content.splitlines() if line.strip())
+    
     if filename.startswith("batch_"):
-        ts = filename.replace("batch_", "").replace(".txt", "")
+        ts = base_name.replace("batch_", "")
         audio_filename = f"batch_{client_id}_{ts}.wav"
     else:
-        ts = filename.replace("live_", "").replace(".txt", "")
+        ts = base_name.replace("live_", "")
         audio_filename = f"live_{client_id}_{ts}.wav"
     audio_url = f"/download_audio/{client_id}/{audio_filename}"
     
@@ -152,6 +181,7 @@ async def view_transcription(client_id: str, filename: str, req: Request) -> Res
         "filename": filename,
         "audio_url": audio_url,
         "is_temp": is_temp,
+        "segments": segments,
         "segments_html": segments_html,
         "request": req,
     })

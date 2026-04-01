@@ -3,9 +3,13 @@ Test pour garantir que tous les templates HTML incluent l'attribut data-fr-schem
 et contiennent la structure DSFR complète
 Cela prévient la régression du problème de style DSFR
 """
+from __future__ import annotations
 
+import pathlib
 import pytest
 
+# Define the root path relative to this file
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 def test_all_templates_have_dsfr_scheme() -> None:
     """Test que tous les templates incluent l'attribut data-fr-scheme"""
@@ -16,17 +20,19 @@ def test_all_templates_have_dsfr_scheme() -> None:
         'backend/templates/diarization_view.html'
     ]
     
-    for template_path in templates_to_check:
+    for template_rel_path in templates_to_check:
+        template_path = PROJECT_ROOT / template_rel_path
         with open(template_path, 'r', encoding='utf-8') as f:
             content = f.read()
             
         # Vérifier que l'attribut data-fr-scheme est présent dans le template
-        assert 'data-fr-scheme="dark"' in content, f"Le template {template_path} doit inclure data-fr-scheme='dark'"
+        assert 'data-fr-scheme="dark"' in content, f"Le template {template_rel_path} doit inclure data-fr-scheme='dark'"
 
 
 def test_index_template_has_complete_dsfr_structure() -> None:
     """Test que le template index.html contient la structure DSFR complète"""
-    with open('backend/templates/index.html', 'r', encoding='utf-8') as f:
+    index_path = PROJECT_ROOT / 'backend/templates/index.html'
+    with open(index_path, 'r', encoding='utf-8') as f:
         content = f.read()
     
     # Vérifier les classes DSFR essentielles

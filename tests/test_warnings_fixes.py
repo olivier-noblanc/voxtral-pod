@@ -1,26 +1,13 @@
+from __future__ import annotations
+
 from typing import Any
-"""
-test_warnings_fixes.py
-----------------------
-Tests de non-régression pour les 5 avertissements 🟡 corrigés :
-  1. f-string no_gpu correctement interpolée dans la home route
-  2. init_db() appelé uniquement via startup event (pas au module-level)
-  3. _assemble_chunks() fonctionne correctement (I/O sync extraite)
-  4. audio_np recalculé une seule fois dans LiveSession.save_wav_only
-  5. ProxyHeadersMiddleware a des trusted_hosts configurés
-"""
 import pytest
 from fastapi.testclient import TestClient
 
-# Pré-charger l'app pour éviter un circular import au moment du patch
-from backend.main import app
-
 # ── 1. Rendu Jinja2 dans la home route ──────────────────────────────────────
-# (Anciens tests sur ws_url supprimés car la logique est désormais en frontend)
 
-def test_home_route_renders_with_jinja(tmp_path: Any) -> None:
+def test_home_route_renders_with_jinja(client: TestClient) -> None:
     """Vérifie que la home route utilise bien Jinja2 et rend les variables de base."""
-    client = TestClient(app)
     resp = client.get("/")
     assert resp.status_code == 200
     # Vérifier la présence de tokens rendus par Jinja2

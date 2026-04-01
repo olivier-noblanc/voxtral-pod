@@ -1,37 +1,38 @@
 import asyncio
-import os
-import re
-import pytest
 from pathlib import Path
+from typing import Any, Dict, List
 
-# Import the function to test
-from backend.routes.live import _live_final_job
+import numpy as np
+import pytest
+import soundfile as sf
+
 
 # Helper classes to mock engine behavior
 class MockResult:
-    def __init__(self):
+    def __init__(self) -> None:
         self.transcript = "raw transcript"
-        self.segments = []
-
-    def to_rttm(self, file_id: str) -> str:
-        return f"RTTM content for {file_id}"
+        self.segments: List[Dict[str, Any]] = []
 
 class MockEngine:
     model_id = "mock"
 
-    async def process_file(self, *args, **kwargs) -> MockResult:
+    async def process_file(self, *args: Any, **kwargs: Any) -> MockResult:
         return MockResult()
 
-@pytest.mark.asyncio
-async def test_live_cleanup_creates_cleaned_file(tmp_path: Path, monkeypatch):
+def test_live_cleanup_creates_cleaned_file(
+    tmp_path: Path, 
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
     """
     Vérifie que le nettoyage (clean_text) est bien exécuté pour les sessions live
-    et qu'un fichier *.cleaned.md est créé à côté du .txt.
+    et qu'un fichier *.cleaned.md est créé à côté du .json.
+    
+    Note: Puisque asyncio_mode=strict dans pytest.ini, ce test n'est pas géré par le 
+    Runner de pytest-asyncio. On peut donc utiliser asyncio.run() en isolation totale.
     """
-    # ----------------------------------------------------------------------
-    # Préparer l'environnement de test
-    # ----------------------------------------------------------------------
-    # Répertoire de transcription factice
+    # Import locally
+    from backend.routes.live import _live_final_job
+
     client_id = "user_test"
     trans_dir = tmp_path / client_id
     trans_dir.mkdir(parents=True, exist_ok=True)
@@ -39,27 +40,32 @@ async def test_live_cleanup_creates_cleaned_file(tmp_path: Path, monkeypatch):
     # Patch le répertoire global utilisé par le routeur
     monkeypatch.setattr("backend.routes.live.TRANSCRIPTIONS_DIR", str(tmp_path))
 
-    # Mock de l'engine ASR
-    monkeypatch.setattr("backend.state.get_asr_engine", lambda load_model=True: MockEngine())
-
-    # Mock des fonctions d'état de job (pas d'effet)
-    monkeypatch.setattr("backend.state.add_job", lambda *args, **kwargs: None)
-    monkeypatch.setattr("backend.state.update_job", lambda *args, **kwargs: None)
-
     # Mock du clean_text pour retourner un texte nettoyé connu
     async def mock_clean_text(text: str) -> str:
         return "texte nettoyé"
+    
+    # Mock de l'export RTTM
+    def mock_export_rttm(segments: Any, file_id: str, rttm_path: str | Path) -> None:
+        with open(rttm_path, "w", encoding="utf-8") as f:
+            f.write(f"RTTM content for {file_id}")
 
-    monkeypatch.setattr("backend.core.postprocess.clean_text", mock_clean_text)
+    # Mock de l'engine ASR et des functions d'état directement dans le namespace de live.py
+    monkeypatch.setattr("backend.routes.live.get_asr_engine", lambda load_model=True: MockEngine())
+    monkeypatch.setattr("backend.routes.live.add_job", lambda *args, **kwargs: None)
+    monkeypatch.setattr("backend.routes.live.update_job", lambda *args, **kwargs: None)
+    monkeypatch.setattr("backend.routes.live.clean_text", mock_clean_text)
+    
+    monkeypatch.setattr("backend.core.export.export_rttm", mock_export_rttm)
+    monkeypatch.setattr("backend.core.export.validate_segments", lambda x: None)
 
-    # Crée un fichier wav factice (le contenu n'est pas lu)
+    # Crée un fichier wav valid (silence)
     wav_path = tmp_path / "dummy.wav"
-    wav_path.write_bytes(b"")
+    sf.write(str(wav_path), np.zeros(16000, dtype='float32'), 16000)
 
     # ----------------------------------------------------------------------
-    # Exécuter la fonction de finalisation live
+    # Exécuter la function de finalisation live à l'intérieur d'asyncio.run
     # ----------------------------------------------------------------------
-    await _live_final_job(str(wav_path), "job_test", client_id, None)
+    asyncio.run(_live_final_job(str(wav_path), "job_test", client_id, None))
 
     # ----------------------------------------------------------------------
     # Vérifier la présence du fichier *.cleaned.md
@@ -77,5 +83,4 @@ async def test_live_cleanup_creates_cleaned_file(tmp_path: Path, monkeypatch):
     assert len(rttm_files) == 1, "Le fichier RTTM n'a pas été créé."
 
     rttm_content = rttm_files[0].read_text(encoding="utf-8")
-    # Le mock renvoie une chaîne contenant l'identifiant du fichier
     assert "RTTM content for" in rttm_content, "Le contenu du RTTM semble incorrect."

@@ -40,7 +40,7 @@ class LiveSession:
 
         # Sentence tracking
         self._sentence_index = 0
-        self._sentences: list[str] = []
+        self._sentences: list[dict[str, Any]] = []
         self._total_bytes_received = 0
 
         # VAD constants from engine or hardcoded
@@ -173,16 +173,16 @@ class LiveSession:
             # Certains moteurs acceptent un paramètre `is_partial` pour indiquer une transcription partielle.
             # Les implémentations de test (DummyEngine) n'acceptent pas ce paramètre.
             # On appelle donc la méthode sans cet argument pour garantir la compatibilité.
-            result = await asyncio.to_thread(
+            # words, duration, used_fallback, raw_data
+            words, _, _, raw_data = await asyncio.to_thread(
                 self.engine.transcription_engine.transcribe, audio_np
             )
-            if isinstance(result, tuple):
-                # Le premier élément est toujours la liste des mots.
-                words = result[0]
+            
+            # Use Albert native text if available, otherwise join words
+            if raw_data and raw_data.get("segments"):
+                text = " ".join(s["text"] for s in raw_data["segments"]).strip()
             else:
-                # Cas improbable où le moteur ne renvoie pas de tuple.
-                words = result
-            text = " ".join(w["word"] for w in words).strip()
+                text = " ".join(w["word"] for w in words).strip()
 
             if text or final:
                 async with self._lock:
@@ -202,7 +202,14 @@ class LiveSession:
 
                     # Stocker la phrase finalisée et incrémenter l'index SEULEMENT APRÈS l'envoi
                     if final:
-                        self._sentences.append(text)
+                        # On stocke plus de contexte pour la reconstruction finale si besoin
+                        self._sentences.append({
+                            "index": self._sentence_index,
+                            "text": display_text,
+                            "speaker": "Speaker",
+                            "words": words,
+                            "raw_data": raw_data
+                        })
                         self._sentence_index += 1
                 # Debug print to console
                 tag = "[FINAL]" if final else "[PARTIAL]"

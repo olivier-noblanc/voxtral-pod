@@ -12,6 +12,7 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Uploa
 from fastapi.responses import FileResponse
 
 from backend.config import TEMP_DIR
+from backend.core.export import export_rttm, validate_segments
 from backend.routes import api as api_module
 from backend.routes.utils import _safe_join, _validate_client_id
 
@@ -86,49 +87,38 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str) -> None:
             pct = max(0, min(100, pct))
             print(f"[*] [Batch {file_id}] {step} : {pct}%")
             api_module._update_job_status(file_id, f"processing:{step}", pct)
+        
         result = await engine.process_file(assembled_path, progress_callback=progress_callback)
         transcript = result.transcript
+        
         client_dir = _safe_join(api_module.TRANSCRIPTIONS_DIR, client_id)
         os.makedirs(client_dir, exist_ok=True)
+        
+        # Consistent timestamp and base_name
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        txt_name = f"batch_{ts}.txt"
-        txt_path = os.path.join(client_dir, txt_name)
+        base_name = f"batch_{ts}"
+        json_path = os.path.join(client_dir, f"{base_name}.json")
 
-        # ------------------------------------------------------------------
         # 1️⃣  JSON source of truth (segments)
-        # ------------------------------------------------------------------
-        json_path = txt_path.replace(".txt", ".json")
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(result.segments, f, indent=2)
 
-        # ------------------------------------------------------------------
-        # 2️⃣  Validation & Export (TXT + RTTM)
-        # ------------------------------------------------------------------
-        from backend.core.export import validate_segments, export_txt, export_rttm
-
-        # Validate segment schema
+        # 2️⃣  Validation & Export (RTTM)
         validate_segments(result.segments)
+        rttm_path = os.path.join(client_dir, f"{base_name}.rttm")
+        export_rttm(result.segments, base_name, rttm_path)
 
-        # Export plain‑text (one line per segment)
-        export_txt(result.segments, txt_path)
-
-        # Export RTTM
-        file_id_rttm = txt_name.replace(".txt", "")
-        rttm_path = txt_path.replace(".txt", ".rttm")
-        export_rttm(result.segments, file_id_rttm, rttm_path)
-
-        # ------------------------------------------------------------------
-        # 3️⃣  Diarisation JSON (kept for front‑end SSR viewer)
-        # ------------------------------------------------------------------
-        diar_json_path = txt_path.replace(".txt", ".diar.json")
+        # 3️⃣  Diarisation JSON (kept for front-end SSR viewer)
+        diar_json_path = os.path.join(client_dir, f"{base_name}.diar.json")
         with open(diar_json_path, "w", encoding="utf-8") as f:
             json.dump(result.segments, f, indent=2)
 
+        # Auto-Cleanup/Formatting via Albert LLM
         try:
             from backend.core.postprocess import clean_text
             cleaned = await clean_text(transcript)
             if cleaned and cleaned.strip():
-                cleaned_path = txt_path.replace(".txt", ".cleaned.md")
+                cleaned_path = os.path.join(client_dir, f"{base_name}.cleaned.md")
                 with open(cleaned_path, "w", encoding="utf-8") as f:
                     f.write(cleaned)
             else:
@@ -136,15 +126,19 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str) -> None:
         except Exception as ce:
             logger.error(f"[Batch {file_id}] Erreur nettoyage Albert auto: {ce}")
 
-        api_module.add_job(file_id, {"status": "terminé", "progress": 100, "result_file": txt_name})
+        # Final Job update
+        api_module.add_job(file_id, {"status": "terminé", "progress": 100, "result_file": f"{base_name}.json"})
+        
+        # Archiving audio
         try:
             batch_audio_dir = _safe_join(api_module.TRANSCRIPTIONS_DIR, "batch_audio")
             os.makedirs(batch_audio_dir, exist_ok=True)
             archived_audio_name = f"batch_{client_id}_{ts}.wav"
             archived_audio_path = _safe_join(batch_audio_dir, archived_audio_name)
             shutil.copy2(assembled_path, archived_audio_path)
-        except Exception:
-            pass
+        except Exception as ae:
+            logger.error(f"[Batch {file_id}] Erreur archivage audio: {ae}")
+            
     except Exception as e:
         print(f"[!] Error in Transcription Job {file_id}: {e}")
         from backend.state import update_job
@@ -156,5 +150,5 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str) -> None:
             upload_dir = os.path.dirname(assembled_path)
             if os.path.exists(upload_dir) and not os.listdir(upload_dir):
                 os.rmdir(upload_dir)
-        except Exception:
-            pass
+        except Exception as fe:
+            logger.error(f"[Batch {file_id}] Erreur cleanup final: {fe}")
