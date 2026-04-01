@@ -54,3 +54,9 @@ ruff_final.txt
 test_output.txt
 jobs.db-wal
 debug_live.txt
+test_dump.txt
+test_jobs.db
+test_debug.db
+failure_error.png
+transcriptions_terminees/user_testws/live_20260401_162441.json
+transcriptions_terminees/user_testws/live_20260401_162927.json

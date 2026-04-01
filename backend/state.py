@@ -9,15 +9,16 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-# Chemin vers la base de données SQLite (par défaut dans le répertoire du projet)
-DB_PATH = os.getenv("DATABASE_URL", os.path.join(os.path.dirname(__file__), "..", "jobs.db"))
-
 # Taille maximale de la table jobs (rotation FIFO)
 JOBS_DB_MAX_SIZE = 500
 
+def get_db_path() -> str:
+    """Evaluate database path from environment or default."""
+    return os.getenv("DATABASE_URL", os.path.join(os.path.dirname(__file__), "..", "jobs.db"))
+
 def get_db() -> sqlite3.Connection:
     """Retourne une connexion SQLite avec les options recommandées."""
-    conn = sqlite3.connect(DB_PATH, timeout=10.0, check_same_thread=False)
+    conn = sqlite3.connect(get_db_path(), timeout=10.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     try:
         conn.execute("PRAGMA journal_mode=WAL;")

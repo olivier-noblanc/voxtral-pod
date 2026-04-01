@@ -4,20 +4,33 @@ import threading
 import time
 import asyncio
 import tempfile
+import nest_asyncio
 from pathlib import Path
 from typing import Generator, List, Optional, Any, Dict
 
-import pytest
-import uvicorn
-import nest_asyncio
-from fastapi.testclient import TestClient
-from bs4 import BeautifulSoup
+# 1. Force the database path for tests IMMEDIATELY
+os.environ["TESTING"] = "1"
+# Ensure we use a clean temp directory for the database path
+import tempfile
+_test_db_dir = tempfile.mkdtemp(prefix="voxtral_test_")
+_test_db_path = os.path.join(_test_db_dir, "test_jobs.db")
+os.environ["DATABASE_URL"] = _test_db_path
 
-# Applique nest_asyncio le plus tôt possible
+# 2. Apply nest_asyncio
+import nest_asyncio
 nest_asyncio.apply()
 
+# 3. NOW import the backend components
 from backend.main import app
 from backend.state import init_db
+
+# 4. Initialize the DB immediately
+init_db()
+
+import pytest
+import uvicorn
+from fastapi.testclient import TestClient
+from bs4 import BeautifulSoup
 
 
 def pytest_configure(config: Any) -> None:
@@ -31,17 +44,10 @@ def pytest_configure(config: Any) -> None:
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session", autouse=True)
-def setup_test_env(tmp_path_factory: pytest.TempPathFactory) -> None:
-    """Initialize the test environment (isolated DB, env vars)."""
-    # Chemin vers une DB de test isolée
-    test_db_dir = tmp_path_factory.mktemp("test_db")
-    test_db_path = test_db_dir / "test_jobs.db"
-    
-    os.environ["TESTING"] = "1"
-    os.environ["DATABASE_URL"] = str(test_db_path)
-    
-    # S'assure que la DB de test est initialisée
-    init_db()
+def setup_test_env() -> None:
+    """Initialize the test environment."""
+    # Les variables d'env sont déjà gérées au niveau module pour la stabilité uvicorn/threads
+    pass
 
 
 @pytest.fixture(scope="session")
