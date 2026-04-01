@@ -4,7 +4,7 @@
 
 ## Vue d'ensemble
 
-Voxtral Pod est un service souverain de transcription automatique de la parole (ASR).  
+Voxtral Pod est un service souverain de transcription automatique de la parole (ASR).
 Il expose une API REST + WebSocket (FastAPI) consommée par un frontend HTML/JS.
 
 ```
@@ -36,12 +36,43 @@ Il expose une API REST + WebSocket (FastAPI) consommée par un frontend HTML/JS.
 
 ---
 
+## Routage — Règles impératives
+
+### Structure des routes
+Les routes sont définies dans les **sub-routers**, jamais dans `api.py` :
+
+| Domaine         | Fichier                          |
+|-----------------|----------------------------------|
+| Système         | `backend/routes/system.py`       |
+| Transcriptions  | `backend/routes/transcriptions.py` |
+| Audio batch     | `backend/routes/audio.py`        |
+| Post-traitement | `backend/routes/postprocess.py`  |
+| Diarisation     | `backend/routes/diarization.py`  |
+| Locuteurs       | `backend/routes/speakers.py`     |
+| Live WebSocket  | `backend/routes/live.py`         |
+
+`api.py` est un **agrégateur pur** : il fait uniquement des `router.include_router(x.router)`.
+Il ne déclare aucune route (`@router.get/post`) sauf `/download_transcript` qui est une route composite.
+
+**Ne jamais ajouter de stub `_dummy_*` ou de route fantôme dans `api.py`.**
+Si un test échoue faute de route → corriger le test, pas ajouter un stub.
+
+### Mount dans main.py
+```python
+# Un seul mount, sans prefix — le frontend appelle /live, /transcriptions, etc. directement
+app.include_router(api_module.router)
+```
+**Ne jamais doubler le mount avec un prefix `/api`.**
+Les tests doivent appeler les mêmes routes que le frontend.
+
+---
+
 ## Composants détaillés
 
 ### 1. `backend/main.py` — Point d'entrée
 - Crée l'app FastAPI avec `lifespan` (init DB + tâche cleanup au démarrage)
 - Monte le dossier `/static`
-- Inclut le router de `backend/routes/api.py`
+- Inclut le router de `backend/routes/api.py` **sans prefix**
 - Middleware `ProxyHeadersMiddleware` pour nginx/caddy
 
 ### 2. `backend/state.py` — État global
@@ -75,7 +106,7 @@ Sinon                                         →  model_id = <paramètre>
 | `mock`     | Stub de test     | Aucune              |
 | `vosk`     | Vosk local       | Modèle dans models/ |
 
-**Albert chunking :** segments de max 2400s, coupure sur silences, MP3 64k < 20 Mo.  
+**Albert chunking :** segments de max 2400s, coupure sur silences, MP3 64k < 20 Mo.
 **Retour toujours :** `(list[dict], float)` = `(words, duration_seconds)`
 
 ### 5. `backend/core/vad.py` — VADManager (dual-gate)
@@ -199,9 +230,10 @@ Fichier .txt dans transcriptions_terminees/batch_audio/
 
 ## Points d'attention pour modifications
 
-1. **Ajouter un endpoint** → `backend/routes/api.py` uniquement  
-2. **Changer le format words** → impacte `merger.py`, `live.py`, `engine.py`, `transcription.py`  
-3. **Changer la DB** → migrations manuelles (pas d'ORM), tester `init_db()` + `cleanup_stuck_jobs()`  
-4. **Nouveau modèle ASR** → ajouter dans `TranscriptionEngine.load()` + `TranscriptionEngine.transcribe()` + logique de sélection dans `SotaASR.__init__()`  
-5. **Modifier le HTML** → vérifier le DOM contract avec `python scripts/check_dom_contract.py`  
+1. **Ajouter un endpoint** → dans le sub-router métier concerné (`system.py`, `audio.py`, etc.), jamais dans `api.py`
+2. **Changer le format words** → impacte `merger.py`, `live.py`, `engine.py`, `transcription.py`
+3. **Changer la DB** → migrations manuelles (pas d'ORM), tester `init_db()` + `cleanup_stuck_jobs()`
+4. **Nouveau modèle ASR** → ajouter dans `TranscriptionEngine.load()` + `TranscriptionEngine.transcribe()` + logique de sélection dans `SotaASR.__init__()`
+5. **Modifier le HTML** → vérifier le DOM contract avec `python scripts/check_dom_contract.py`
 6. **Tests** → `TESTING=1 pytest` active le mode mock, évite le chargement GPU
+7. **Tests de routes** → les tests appellent les mêmes URLs que le frontend (sans prefix `/api/`)

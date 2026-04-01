@@ -33,6 +33,39 @@ warnings.filterwarnings("ignore", category=ResourceWarning, message="unclosed.*K
 # Ensure NNPACK is disabled for transcription operations
 os.environ.setdefault("DISABLE_NNPACK", "1")
 
+# Global flag to ensure the patch is only applied once
+_VOSK_PATCH_APPLIED = False
+
+def _apply_vosk_patch() -> None:
+    """
+    Patches KaldiRecognizer.__del__ to prevent AttributeError: 'KaldiRecognizer' object has no attribute '_handle'.
+    """
+    global _VOSK_PATCH_APPLIED
+    if _VOSK_PATCH_APPLIED:
+        return
+    
+    try:
+        import vosk
+        # Ensure we have the class and the original __del__
+        if hasattr(vosk, "KaldiRecognizer"):
+            original_del = getattr(vosk.KaldiRecognizer, "__del__", None)
+            
+            def patched_del(self: Any) -> None:
+                try:
+                    if hasattr(self, "_handle") and self._handle is not None:
+                        if original_del:
+                            original_del(self)
+                except Exception as e:
+                    # Log cleanup error sparingly
+                    import logging
+                    logging.getLogger("transcription").debug(f"Error in KaldiRecognizer cleanup: {e}")
+            
+            vosk.KaldiRecognizer.__del__ = patched_del # type: ignore
+            _VOSK_PATCH_APPLIED = True
+    except (ImportError, AttributeError):
+        # Vosk not installed or different version
+        _VOSK_PATCH_APPLIED = True # Don't try again
+
 class TranscriptionEngine:
     """
     Multi-motor transcription orchestrator.
@@ -162,8 +195,9 @@ class TranscriptionEngine:
 
             # Vosk
             import json
-
             import vosk
+            _apply_vosk_patch()
+            
             rec = vosk.KaldiRecognizer(self.model, 16000)
             rec.SetWords(True)
 

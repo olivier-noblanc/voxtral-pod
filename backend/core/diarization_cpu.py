@@ -138,7 +138,7 @@ def _ensure_model() -> None:
 
 
 # Initialisation au chargement
-_ensure_model()
+# Initialisation différée au besoin
 
 
 class LightDiarizationEngine:
@@ -218,6 +218,9 @@ class LightDiarizationEngine:
             tmp_path = tmp.name
         
         try:
+            # 0. S'assurer que le modèle est présent
+            _ensure_model()
+            
             # Écrire le buffer audio
             sf.write(tmp_path, audio_float32, 16000)
             

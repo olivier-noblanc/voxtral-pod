@@ -38,3 +38,30 @@ pytest -q tests/unit
 eslint src/js
 stylelint src/css
 html-validator-cli src/templates
+```
+
+---
+
+## Règles de routage FastAPI — IMPÉRATIVES
+
+Ces règles s'appliquent à chaque modification touchant les routes HTTP.
+
+### Où déclarer les routes
+- Les routes sont déclarées dans les **sub-routers métier** : `system.py`, `audio.py`, `transcriptions.py`, etc.
+- `backend/routes/api.py` est un **agrégateur pur** : uniquement des `router.include_router(x.router)`.
+- **Ne jamais ajouter** de `@router.get/post` dans `api.py`, sauf pour `/download_transcript` qui est une route composite documentée.
+
+### Stubs et routes fantômes — INTERDITS
+- Ne jamais créer de fonction `_dummy_*` ou stub `return {"status": "ok"}` pour faire passer un test.
+- Si un test échoue faute de route → **corriger le test**, pas créer un stub.
+- Un stub qui écrase une vraie implémentation est un bug silencieux.
+
+### Mount dans main.py
+- **Un seul** `app.include_router(api_module.router)` **sans prefix**.
+- Ne jamais doubler avec un `prefix="/api"`.
+- Le frontend (app.js) appelle `/change_model`, `/transcriptions`, etc. — jamais `/api/...`.
+- Les tests doivent appeler les mêmes URLs que le frontend.
+
+### Tests de routes
+- Toujours utiliser les URLs sans prefix : `client.post("/change_model")` pas `client.post("/api/change_model")`.
+- Le test `tests/test_routes_contract.py` scanne tous les sub-routers — le faire tourner avant tout commit touchant les routes.

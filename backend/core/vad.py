@@ -19,6 +19,8 @@ if _torch_spec is not None:
     os.environ.setdefault("DISABLE_NNPACK", "1")
     if hasattr(torch, "backends") and hasattr(torch.backends, "nnpack"):
         torch.backends.nnpack.enabled = False # type: ignore
+    if hasattr(torch, "set_num_threads"):
+        torch.set_num_threads(1)
 
 # Lazy import helper for webrtcvad
 def _lazy_get_webrtcvad() -> Any:
@@ -196,24 +198,4 @@ class VADManager:
             return False
         return await self.is_speech(chunk_pcm)
 
-# Patch for the KaldiRecognizer __del__ issue
-# This addresses the AttributeError: 'KaldiRecognizer' object has no attribute '_handle'
-import vosk
-
-# Store the original __del__ method
-_original_del = getattr(vosk.KaldiRecognizer, '__del__', None)
-
-def patched_kaldi_recognizer_del(self: Any) -> None:
-    """Patched __del__ method to prevent AttributeError when _handle doesn't exist."""
-    try:
-        if hasattr(self, '_handle') and self._handle is not None:
-            # Call the original cleanup if _handle exists
-            if _original_del:
-                _original_del(self)
-    except Exception:
-        # Silently ignore any errors during cleanup
-        pass
-
-# Apply the patch
-if _original_del:
-    vosk.KaldiRecognizer.__del__ = patched_kaldi_recognizer_del
+# Vosk patch moved to transcription.py

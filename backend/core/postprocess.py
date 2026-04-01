@@ -143,7 +143,7 @@ async def summarize_text(text: str) -> str:
     print(f"[*] Post-traitement: Début de la synthèse Albert ({len(text.split())} mots)...")
     prompt = (
         "Résume de façon structurée le texte suivant, en français, "
-        "en conservant les informations essentielles :\\n\\n"
+        "en conservant les informations essentielles :\n\n"
         f"{text}"
     )
     res = await _call_albert(prompt)
@@ -157,7 +157,7 @@ async def extract_actions_text(text: str) -> list[str]:
     assistant = AlbertAssistant()
     prompt = (
         "Liste les décisions, actions et points à faire (TODO) mentionnés dans le texte "
-        "ci‑dessous, sous forme de puces, en français :\\n\\n"
+        "ci‑dessous, sous forme de puces, en français :\n\n"
         f"{text}"
     )
     raw = await assistant.get_completion(prompt)

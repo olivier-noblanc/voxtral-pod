@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import os
-
-
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter
 
 from backend import config as _config
 from backend.routes import (
@@ -17,7 +13,6 @@ from backend.routes import (
     transcriptions,
 )
 from backend.core.live import LiveSession
-from backend.routes.transcriptions import _get_trans_dir
 from backend.routes.utils import _safe_join as _safe_join_util
 from backend.routes.utils import _update_job_status as _update_job_status_util
 from backend.state import add_job as add_job_state
@@ -87,24 +82,3 @@ from backend.routes.system import (
     status_route,
 )
 from backend.routes.transcriptions import get_trans, list_trans, view_transcription
-
-# ----------------------------------------------------------------------
-# Download transcript — route custom non couverte par les sub-routers
-# ----------------------------------------------------------------------
-@router.get("/download_transcript/{client_id}/{filename}")
-async def download_transcript_route(client_id: str, filename: str) -> FileResponse:
-    """Serve a transcript file for the given client."""
-    if f"_{client_id}_" not in filename and not filename.startswith(f"{client_id}_"):
-        raise HTTPException(
-            status_code=403,
-            detail="Accès refusé : ce fichier n'appartient pas à votre session.",
-        )
-    file_path = _safe_join(_get_trans_dir(), client_id, filename)
-    if not os.path.isfile(file_path):
-        raise HTTPException(status_code=404, detail="Transcription introuvable.")
-    return FileResponse(
-        file_path,
-        media_type="text/plain",
-        filename=filename,
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
