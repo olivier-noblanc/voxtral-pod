@@ -93,19 +93,37 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str) -> None:
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         txt_name = f"batch_{ts}.txt"
         txt_path = os.path.join(client_dir, txt_name)
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write(transcript)
-        
-        # Save RTTM and Diarization JSON for SSR viewer
+
+        # ------------------------------------------------------------------
+        # 1️⃣  JSON source of truth (segments)
+        # ------------------------------------------------------------------
+        json_path = txt_path.replace(".txt", ".json")
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(result.segments, f, indent=2)
+
+        # ------------------------------------------------------------------
+        # 2️⃣  Validation & Export (TXT + RTTM)
+        # ------------------------------------------------------------------
+        from backend.core.export import validate_segments, export_txt, export_rttm
+
+        # Validate segment schema
+        validate_segments(result.segments)
+
+        # Export plain‑text (one line per segment)
+        export_txt(result.segments, txt_path)
+
+        # Export RTTM
         file_id_rttm = txt_name.replace(".txt", "")
         rttm_path = txt_path.replace(".txt", ".rttm")
-        with open(rttm_path, "w", encoding="utf-8") as f:
-            f.write(result.to_rttm(file_id_rttm))
-        
+        export_rttm(result.segments, file_id_rttm, rttm_path)
+
+        # ------------------------------------------------------------------
+        # 3️⃣  Diarisation JSON (kept for front‑end SSR viewer)
+        # ------------------------------------------------------------------
         diar_json_path = txt_path.replace(".txt", ".diar.json")
         with open(diar_json_path, "w", encoding="utf-8") as f:
             json.dump(result.segments, f, indent=2)
-        
+
         try:
             from backend.core.postprocess import clean_text
             cleaned = await clean_text(transcript)

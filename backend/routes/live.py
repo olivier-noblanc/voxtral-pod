@@ -12,6 +12,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from backend.config import TRANSCRIPTIONS_DIR
 from backend.core.live import LiveSession
 from backend.routes.utils import _safe_join, _update_job_status
+from backend.core.postprocess import clean_text
 from backend.state import add_job, get_asr_engine, update_job
 
 logger = logging.getLogger(__name__)
@@ -39,31 +40,45 @@ async def _live_final_job(wav_path: str, job_id: str, client_id: str, timestamp:
         ts = timestamp if timestamp is not None else datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         txt_name = f"live_{ts}.txt"
         txt_path = os.path.join(client_dir, txt_name)
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write(transcript)
 
-        # Save RTTM and Diarization JSON for SSR viewer
+        # ------------------------------------------------------------------
+        # 1️⃣  JSON source of truth (segments)
+        # ------------------------------------------------------------------
+        json_path = txt_path.replace(".txt", ".json")
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(result.segments, f, indent=2)
+
+        # ------------------------------------------------------------------
+        # 2️⃣  Validation & Export (TXT + RTTM)
+        # ------------------------------------------------------------------
+        from backend.core.export import validate_segments, export_txt, export_rttm
+
+        # Validate the segment schema (start / end mandatory)
+        validate_segments(result.segments)
+
+        # Export plain‑text (one line per segment, no flattening)
+        export_txt(result.segments, txt_path)
+
+        # Export RTTM (based on timestamps)
         file_id_rttm = txt_name.replace(".txt", "")
         rttm_path = txt_path.replace(".txt", ".rttm")
-        with open(rttm_path, "w", encoding="utf-8") as f:
-            f.write(result.to_rttm(file_id_rttm))
+        export_rttm(result.segments, file_id_rttm, rttm_path)
 
+        # ------------------------------------------------------------------
+        # 3️⃣  Diarisation JSON (kept for front‑end SSR viewer)
+        # ------------------------------------------------------------------
         diar_json_path = txt_path.replace(".txt", ".diar.json")
         with open(diar_json_path, "w", encoding="utf-8") as f:
             json.dump(result.segments, f, indent=2)
 
         try:
-            # Ne pas appeler clean_text automatiquement après chaque session live
-            # Cela consomme du quota Albert inutilement et cause des 429 en cascade
-            # from backend.core.postprocess import clean_text
-            # cleaned = await clean_text(transcript)
-            # if cleaned and cleaned.strip():
-            #     cleaned_path = txt_path.replace(".txt", ".cleaned.md")
-            #     with open(cleaned_path, "w", encoding="utf-8") as f:
-            #         f.write(cleaned)
-            # else:
-            #     logger.warning(f"[Live {job_id}] Albert API returned empty cleanup.")
-            pass
+            cleaned = await clean_text(transcript)
+            if cleaned and cleaned.strip():
+                cleaned_path = txt_path.replace(".txt", ".cleaned.md")
+                with open(cleaned_path, "w", encoding="utf-8") as f:
+                    f.write(cleaned)
+            else:
+                logger.warning(f"[Live {job_id}] Albert API returned empty cleanup.")
         except Exception as ce:
             logger.error(f"[Live {job_id}] Erreur nettoyage Albert auto: {ce}")
 
