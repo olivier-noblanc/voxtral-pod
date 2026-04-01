@@ -21,7 +21,7 @@ from backend.state import init_db
 
 
 def pytest_configure(config: Any) -> None:
-    """Configuration initiale de pytest."""
+    """Initial pytest configuration."""
     # S'assure que nest_asyncio est appliqué même si importé plus tard
     nest_asyncio.apply()
 
@@ -32,7 +32,7 @@ def pytest_configure(config: Any) -> None:
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_env(tmp_path_factory: pytest.TempPathFactory) -> None:
-    """Initialise l'environnement de test (DB isolée, variables d'env)."""
+    """Initialize the test environment (isolated DB, env vars)."""
     # Chemin vers une DB de test isolée
     test_db_dir = tmp_path_factory.mktemp("test_db")
     test_db_path = test_db_dir / "test_jobs.db"
@@ -46,7 +46,7 @@ def setup_test_env(tmp_path_factory: pytest.TempPathFactory) -> None:
 
 @pytest.fixture(scope="session")
 def event_loop_policy() -> Any:
-    """Force l'utilisation du ProactorEventLoopPolicy sur Windows."""
+    """Force use of ProactorEventLoopPolicy on Windows."""
     if os.name == 'nt':
         # On évite le selector loop car le proactor est nécessaire pour subprocesses/named pipes
         return asyncio.WindowsProactorEventLoopPolicy()
@@ -63,12 +63,12 @@ def event_loop(event_loop_policy: Any) -> Generator[asyncio.AbstractEventLoop, N
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
-    # Ré-applique nest_asyncio sur chaque loop créé
+    # Re-apply nest_asyncio on each created loop
     nest_asyncio.apply(loop)
     
     yield loop
     
-    # Nettoyage explicite (évite les ResourceWarning / DeprecationWarning de pytest-asyncio)
+    # Explicit cleanup (avoids ResourceWarning / DeprecationWarning from pytest-asyncio)
     try:
         if not loop.is_closed():
             # Avant de fermer, on arrête les tâches en suspens (courtoisie)
@@ -85,7 +85,7 @@ def event_loop(event_loop_policy: Any) -> Generator[asyncio.AbstractEventLoop, N
 
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
-    """TestClient FastAPI — pour tous les tests HTTP unitaires (isolé par fonction)."""
+    """FastAPI TestClient — for all unit HTTP tests (isolated by function)."""
     with TestClient(app) as c:
         yield c
 
