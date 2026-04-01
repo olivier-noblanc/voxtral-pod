@@ -88,7 +88,7 @@ class SotaASR:
 
     def load(self) -> None:
         """
-        Charge les sous‑composants (diarisation et transcription) uniquement
+        Charge les sous‑components (diarisation et transcription) uniquement
         lorsqu'ils sont réellement nécessaires. Cela évite d'importer des
         dépendances lourdes (ex. resemblyzer) pendant les tests qui ne les
         utilisent pas.
@@ -96,15 +96,15 @@ class SotaASR:
         if self._loaded:
             return
 
-        # Instancier le moteur de diarisation si ce n'est pas déjà fait
+        # Instancier le engine de diarisation si ce n'est pas déjà fait
         if self.diarization_engine is None:
             if self._use_cpu_diarization:
                 from backend.core.diarization_cpu import LightDiarizationEngine
-                self.diarization_engine = LightDiarizationEngine()  # type: ignore[assignment]
+                self.diarization_engine = LightDiarizationEngine()
             else:
                 from backend.core.diarization import DiarizationEngine
-                # Initialise le moteur de diarisation; il gère lui‑même les fallbacks.
-                self.diarization_engine = DiarizationEngine(hf_token=self.hf_token, use_cpu=False)  # type: ignore[assignment]
+                # Initialise le engine de diarisation; il gère lui‑même les fallbacks.
+                self.diarization_engine = DiarizationEngine(hf_token=self.hf_token, use_cpu=False)
 
         # ``load`` may raise if heavy deps are missing; we protect against that.
         try:
@@ -123,7 +123,7 @@ class SotaASR:
                     return []
                 def load(self) -> None:
                     pass
-            self.diarization_engine = _NoOpEngine()  # type: ignore[assignment]
+            self.diarization_engine = _NoOpEngine()
         self.transcription_engine.load()
         self._loaded = True
 
@@ -161,7 +161,7 @@ class SotaASR:
                         return 0.0
                     if hasattr(v, "item"): 
                         try:
-                            item = v.item() # type: ignore
+                            item = v.item()
                             return float(item)
                         except Exception:  # noqa: S110
                             pass
@@ -170,7 +170,7 @@ class SotaASR:
                             return float(v[0])
                         return 0.0
                     try:
-                        return float(v) # type: ignore
+                        return float(v)
                     except (TypeError, ValueError):
                         return 0.0
 
@@ -229,7 +229,7 @@ class SotaASR:
                 words, _, used_fallback, raw_data = await asyncio.to_thread(
                     self.transcription_engine.transcribe, audio_np, progress_callback=None
                 )
-                diar_segments = []  # type: ignore[var-annotated]
+                diar_segments = []
             if progress_callback:
                 progress_callback("Fusion des résultats...", 80)
         else:
@@ -252,7 +252,7 @@ class SotaASR:
 
         # 4. Merge
         print(
-            f"[*] Post-traitement: Alignement de {len(words)} mots avec "
+            f"[*] Post-traitement: Alignment de {len(words)} mots avec "
             f"{len(diar_segments)} segments de locuteurs..."
         )
         words_with_speakers = assign_speakers_to_words(words, diar_segments)
@@ -264,7 +264,7 @@ class SotaASR:
         if raw_data and raw_data.get("type") == "albert_batch" and raw_data.get("segments"):
             print("[*] Utilisation des segments originaux d'Albert pour préserver le formatage.")
             from collections import Counter
-            # On utilise les segments d'Albert et on leur assigne le speaker prédominant des mots qu'ils contiennent
+            # On utilise les segments d'Albert et on leur assign le speaker prédominant des mots qu'ils contiennent
             segments = []
             albert_segments = raw_data["segments"]
             for a_seg in albert_segments:
@@ -293,7 +293,7 @@ class SotaASR:
         print("[*] Post-traitement: Formattage du texte final...")
         output_lines = []
         if used_fallback:
-            output_lines.append("[SYSTÈME] : Transcrit via moteur local (Fallback CPU - Quota Albert atteint)")
+            output_lines.append("[SYSTÈME] : Transcript via motor local (Fallback CPU - Quota Albert atteint)")
             output_lines.append("")
             
         for s in segments:

@@ -137,30 +137,91 @@ def convert_audio(src_path: str, dst_path: str, format: str = "mp3") -> str:
     return dst_path
 
 
+def _split_text(text: str, max_words: int = 2500) -> list[str]:
+    """Splits text into chunks of roughly max_words, attempting to respect line breaks."""
+    words = text.split()
+    if len(words) <= max_words:
+        return [text]
+
+    chunks = []
+    lines = text.splitlines(keepends=True)
+    current_chunk: list[str] = []
+    current_count = 0
+
+    for line in lines:
+        line_word_count = len(line.split())
+        if current_count + line_word_count > max_words and current_chunk:
+            chunks.append("".join(current_chunk).strip())
+            current_chunk = [line]
+            current_count = line_word_count
+        else:
+            current_chunk.append(line)
+            current_count += line_word_count
+    
+    if current_chunk:
+        chunks.append("".join(current_chunk).strip())
+    
+    return chunks
+
+
 async def summarize_text(text: str) -> str:
     if not text.strip():
         return ""
-    print(f"[*] Post-traitement: Début de la synthèse Albert ({len(text.split())} mots)...")
-    prompt = (
-        "Résume de façon structurée le texte suivant, en français, "
-        "en conservant les informations essentielles :\n\n"
-        f"{text}"
-    )
-    res = await _call_albert(prompt)
-    print("[*] Post-traitement: Synthèse terminée.")
-    return res
+    
+    word_count = len(text.split())
+    if word_count < 4000:
+        print(f"[*] Post-traitement: Début de la synthèse Albert ({word_count} mots)...")
+        prompt = (
+            "Résume de façon structurée le texte suivant, en français, "
+            "en conservant les informations essentielles :\n\n"
+            f"{text}"
+        )
+        res = await _call_albert(prompt)
+        print("[*] Post-traitement: Synthèse terminée.")
+        return res
+    else:
+        # Map-Reduce approach for long texts
+        print(f"[*] Post-traitement: Synthèse par segments pour {word_count} mots...")
+        chunks = _split_text(text, 3000)
+        summaries = []
+        for i, chunk in enumerate(chunks):
+            print(f"    - Segment {i+1}/{len(chunks)}")
+            p = f"Résume le texte suivant en gardant les points clés :\n\n{chunk}"
+            summaries.append(await _call_albert(p))
+        
+        # Final merge
+        print("[*] Post-traitement: Fusion des synthèses...")
+        final_prompt = (
+            "Voici plusieurs résumés partiels d'une même réunion. "
+            "Fusionne-les en un seul compte-rendu structuré et cohérent, en français :\n\n" +
+            "\n\n---\n\n".join(summaries)
+        )
+        return await _call_albert(final_prompt)
 
 
 async def extract_actions_text(text: str) -> list[str]:
     """Extract decisions and TODO actions via Albert."""
-    print(f"[*] Post-traitement: Extraction des actions Albert ({len(text.split())} mots)...")
-    assistant = AlbertAssistant()
-    prompt = (
-        "Liste les décisions, actions et points à faire (TODO) mentionnés dans le texte "
-        "ci‑dessous, sous forme de puces, en français :\n\n"
-        f"{text}"
-    )
-    raw = await assistant.get_completion(prompt)
+    word_count = len(text.split())
+    if word_count < 5000:
+        print(f"[*] Post-traitement: Extraction des actions Albert ({word_count} mots)...")
+        assistant = AlbertAssistant()
+        prompt = (
+            "Liste les décisions, actions et points à faire (TODO) mentionnés dans le texte "
+            "ci‑dessous, sous forme de puces, en français :\n\n"
+            f"{text}"
+        )
+        raw = await assistant.get_completion(prompt)
+    else:
+        # Chunked extraction
+        print(f"[*] Post-traitement: Extraction des actions par segments ({word_count} mots)...")
+        chunks = _split_text(text, 4000)
+        all_lines = []
+        for i, chunk in enumerate(chunks):
+            print(f"    - Segment {i+1}/{len(chunks)}")
+            p = f"Liste les actions et décisions dans ce segment :\n\n{chunk}"
+            all_lines.append(await _call_albert(p))
+        raw = "\n".join(all_lines)
+
     actions = [line.strip("- ").strip() for line in raw.splitlines() if line.strip()]
     print(f"[*] Post-traitement: {len(actions)} actions identifiées.")
     return actions
@@ -169,20 +230,38 @@ async def extract_actions_text(text: str) -> list[str]:
 async def clean_text(text: str) -> str:
     if not text.strip():
         return ""
-    print(f"[*] Post-traitement: Nettoyage du texte Albert ({len(text.split())} mots)...")
-    prompt = (
-        "Supprime les tics de langage (euh, bah, alors, ...) du texte suivant, "
-        "sans en altérer le sens. Formate le texte avec des paragraphes "
-        "et une ponctuation soignée pour une lisibilité maximale. "
-        "Renvoie uniquement le texte nettoyé en français :\n\n"
-        f"{text}"
-    )
-    logger.debug(f"Prompt Albert (Clean) - Longueur: {len(prompt)}, Début: {prompt[:100]}...")
-    res = await _call_albert(prompt)
-    if not res:
-        logger.warning("Albert API (Clean) a renvoyé un résultat vide.")
+    
+    word_count = len(text.split())
+    if word_count < 3000:
+        print(f"[*] Post-traitement: Nettoyage du texte Albert ({word_count} mots)...")
+        prompt = (
+            "Supprime les tics de langage (euh, bah, alors, ...) du texte suivant, "
+            "sans en altérer le sens. Formate le texte avec des paragraphes "
+            "et une ponctuation soignée pour une lisibilité maximale. "
+            "Renvoie uniquement le texte nettoyé en français :\n\n"
+            f"{text}"
+        )
+        res = await _call_albert(prompt)
     else:
-        logger.info(f"Albert API (Clean) a renvoyé {len(res)} caractères.")
+        # Chunked cleaning to avoid truncation
+        print(f"[*] Post-traitement: Nettoyage par segments pour {word_count} mots...")
+        chunks = _split_text(text, 2000)
+        cleaned_chunks = []
+        for i, chunk in enumerate(chunks):
+            print(f"    - Nettoyage segment {i+1}/{len(chunks)}...")
+            prompt = (
+                "Nettoie le texte suivant (enlève les tics de langage, corrige la ponctuation). "
+                "Ne résume pas, garde tout le contenu informatif. "
+                "Renvoie uniquement le texte nettoyé :\n\n"
+                f"{chunk}"
+            )
+            cleaned_chunks.append(await _call_albert(prompt))
+        res = "\n\n".join(cleaned_chunks)
+
+    if not res:
+        logger.warning("Albert API a renvoyé un résultat vide.")
+    else:
+        logger.info(f"Albert API a renvoyé {len(res)} caractères.")
     
     print("[*] Post-traitement: Nettoyage terminé.")
     return res

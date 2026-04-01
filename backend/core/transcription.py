@@ -123,39 +123,25 @@ class TranscriptionEngine:
         """
         Transcribe audio and return (words, duration, used_fallback, raw_data).
         """
-
-        """
-        Transcribe audio and return (words, duration).
-        """
         # Tâche 1 : Optimisation des transcriptions partielles (CPU pur)
-        # Si c'est une transcription partielle, forcer l'utilisation du modèle local
         if is_partial and self.model_id != "mock":
-            # Forcer l'utilisation du modèle local pour les transcriptions partielles
             use_local_model = True
         else:
             use_local_model = not self.use_albert or self.model_id == "mock"
 
-        # NOTE : les transcriptions partielles sont toujours réalisées en local (CPU)
-        # Elles ne passent jamais par l'API Albert, même si le fallback est actif.
-        # Le basculement vers le modèle CPU ne dépend donc pas du rate‑limiter.
-        
-        # Tâche 2 : Bascule de secours (Fallback) sur limite de requêtes
         used_fallback = False
         if (
             self.use_albert and 
             not use_local_model and 
             albert_rate_limiter.should_use_cpu_fallback_mode()
         ):
-            # Task 2: Silent switch to local model (CPU)
             print("[*] Switching to local model (CPU fallback) due to rate limit")
             used_fallback = True
             use_local_model = True
-            # Charger le modèle local si nécessaire
             if self.model is None:
                 self.load()
         
         if use_local_model:
-            # Utiliser le modèle local (Whisper ou Vosk)
             if self.model_id == "mock":
                 duration = len(audio_np) / 16000
                 msg = "[MOCK] Transcription de test mélangée (Micro + Système)"
@@ -221,6 +207,7 @@ class TranscriptionEngine:
                     })
 
             return all_words, len(audio_np) / 16000, used_fallback, None
+
         # Utiliser l'API Albert
         res_words, res_dur, res_raw = self._transcribe_albert(
             audio_np, language, progress_callback, job_id=job_id
@@ -234,7 +221,6 @@ class TranscriptionEngine:
         afin de maximiser la durée de la tranche.
         """
         sr = 16000
-        # Fenêtre de recherche : les 3 dernières minutes du segment cible
         search_range_sec = 180
         start_sec = max(current_t, target_sec - search_range_sec)
         end_sec = min(len(audio_np) / sr, target_sec)
@@ -246,7 +232,6 @@ class TranscriptionEngine:
         if len(segment) == 0:
             return target_sec
 
-        # Analyse d'énergie par fenêtres de 200ms
         frame_len = int(sr * 0.2)
         num_frames = len(segment) // frame_len
         if num_frames == 0:
@@ -255,20 +240,15 @@ class TranscriptionEngine:
         frames = segment[:num_frames * frame_len].reshape(num_frames, frame_len)
         energies = np.sqrt(np.mean(frames.astype(np.float64) ** 2, axis=1))
 
-        # Seuil d'énergie de silence
         SILENCE_THRESHOLD = 1e-3
-
-        # On cherche le DERNIER silence dans cette fenêtre de recherche
         silent_indices = np.where(energies < SILENCE_THRESHOLD)[0]
         if silent_indices.size > 0:
             last_silent = silent_indices[-1]
             cut_sec = start_sec + (last_silent * frame_len) / sr
-            # Si le silence est très proche de la fin ou du début, on ajuste
             if cut_sec >= target_sec - 0.5 or cut_sec <= start_sec + 0.5:
                 return float(target_sec)
             return float(cut_sec)
 
-        # Fallback : cadre avec l'énergie la plus faible
         min_idx = np.argmin(energies)
         cut_sec = start_sec + (min_idx * frame_len) / sr
         if cut_sec >= target_sec - 0.5 or cut_sec <= start_sec + 0.5:
@@ -285,236 +265,133 @@ class TranscriptionEngine:
     ) -> tuple[list[dict[str, Any]], float, Optional[dict[str, Any]]]:
         """
         Découpe l'audio en tranches et les envoie à l'API Albert.
-        """
-
-        """
-        Découpe l'audio en tranches et les envoie à l'API Albert.
+        Gère le fractionnement automatique (split) en cas d'échec sur une grosse tranche.
         """
         duration_total = len(audio_np) / 16000
 
-        # Check if we should use mock mode due to rate limit
         if albert_rate_limiter.is_in_mock_mode():
             print("[*] Using mock mode for Albert (quota exceeded)")
-            # Return a mock transcription with an error message
-            return [
-                {
-                    "start": 0.0,
-                    "end": duration_total,
-                    "word": "[MOCK MODE] API quota exceeded. Use fallback mode."
-                }
-            ], duration_total, None
+            return [{"start": 0.0, "end": duration_total, "word": "[MOCK MODE] Quota exceeded."}], duration_total, None
 
-        tranches = []
+        initial_tranches: list[tuple[float, float]] = []
         t: float = 0.0
         while t < duration_total:
             remaining = duration_total - t
-            if remaining <= CHUNK_LIMIT_SEC + 60:  # +60s de marge finale
-                tranches.append((t, remaining))
+            if remaining <= CHUNK_LIMIT_SEC + 60:
+                initial_tranches.append((t, remaining))
                 break
-
             cut_point = self._find_best_cut(audio_np, t + CHUNK_LIMIT_SEC, current_t=int(t))
-            tranches.append((t, cut_point - t))
+            initial_tranches.append((t, cut_point - t))
             t = cut_point
 
         if job_id:
             from backend.state import append_job_log
-            append_job_log(job_id, f"Découpage terminé : {len(tranches)} tranches à traiter.")
+            append_job_log(job_id, f"Planification : {len(initial_tranches)} tranches (max {CHUNK_LIMIT_SEC}s).")
 
-        all_final_words = []
-        all_final_segments = []
+        all_final_words: list[dict[str, Any]] = []
+        all_final_segments: list[dict[str, Any]] = []
+        queue = initial_tranches.copy()
+        processed_count = 0
+        total_planned = len(queue)
 
-        for idx, (start_time, duration) in enumerate(tranches):
+        while queue:
+            start_time, duration = queue.pop(0)
             if progress_callback:
-                prog_base = 45 + int((idx / len(tranches)) * 40)
-                progress_callback(f"Albert ({idx+1}/{len(tranches)})", prog_base)
+                prog_base = 45 + int((processed_count / max(1, total_planned)) * 40)
+                progress_callback(f"Albert ({processed_count+1}/...)", prog_base)
 
-            chunk_audio = audio_np[
-                int(start_time * 16000): int((start_time + duration) * 16000)
-            ]
-            
-            # 1. Compression (fallback to MP3) – utilise ffmpeg via ffmpeg‑python
+            chunk_audio = audio_np[int(start_time * 16000): int((start_time + duration) * 16000)]
             import ffmpeg
             _ensure_ffmpeg()
             wav_buffer = io.BytesIO()
             sf.write(wav_buffer, chunk_audio, 16000, format='WAV', subtype='PCM_16')
             wav_buffer.seek(0)
 
-            # Conversion MP3 64k
-            out, err = (
-                ffmpeg
-                .input('pipe:0', format='wav')
-                .output('pipe:1', format='mp3', audio_bitrate='64k', vbr='on')
-                .run(input=wav_buffer.read(), capture_stdout=True, capture_stderr=True)
-            )
-            buffer = io.BytesIO(out)
-            mime_type = "audio/mpeg"
-            file_ext = "mp3"
+            try:
+                out, _ = (
+                    ffmpeg
+                    .input('pipe:0', format='wav')
+                    .output('pipe:1', format='mp3', audio_bitrate='64k')
+                    .run(input=wav_buffer.read(), capture_stdout=True, capture_stderr=True, quiet=True)
+                )
+                buffer = io.BytesIO(out)
+                size_mb = len(out) / (1024*1024)
+            except Exception as e:
+                print(f"[!] Erreur compression tranche {processed_count+1}: {e}")
+                raise e
 
-            # 2. Diagnostics détaillés
-            raw_bytes = buffer.getvalue()
-            size_mb = len(raw_bytes) / (1024*1024)
-            print(f"\n--- [DEBUG ALBERT] TRANCHE {idx+1}/{len(tranches)} ---")
-            print(f"[*] Durée segment: {duration:.2f} s")
-            print(f"[*] Taille payload: {len(raw_bytes)} octets ({size_mb:.2f} Mo)")
-            print(f"[*] Format: {file_ext} | MIME: {mime_type}")
-            
             if job_id:
                 from backend.state import append_job_log
-                append_job_log(job_id, f"Tranche {idx+1}/{len(tranches)} : Envoi de {duration:.1f}s ({size_mb:.2f}Mo)")
-            
+                append_job_log(job_id, f"Tranche @{start_time:.1f}s ({duration:.1f}s, {size_mb:.2f}Mo) - Envoi...")
+
             headers = {"Authorization": f"Bearer {self.albert_api_key}"}
-            files = {"file": (f"audio.{file_ext}", buffer, mime_type)}
+            files = {"file": ("audio.mp3", buffer, "audio/mpeg")}
             data = {"model": self.albert_model_id, "language": language, "response_format": "verbose_json"}
             
-            # 3. Requête avec Retry
-            last_err = None
             response = None
+            success = False
+            last_err = None
+            
             for attempt in range(3):
-                start_req = time.time()
                 try:
-                    # Vérification du rate limit avant l'envoi
                     if not albert_rate_limiter.can_make_request():
-                        print("[*] Rate limit active, waiting before request...")
-                        # Wait until the required interval
                         time.sleep(albert_rate_limiter.min_interval_seconds)
-                    
                     buffer.seek(0)
-                    print(f"[*] Tentative {attempt+1}/3 - Envoi en cours...")
-                    response = requests.post(
-                        f"{self.albert_base_url}/audio/transcriptions",
-                        headers=headers,
-                        files=files,
-                        data=data,
-                        timeout=1800
-                    )
-                    print(f"[*] Réponse reçue en {time.time() - start_req:.2f}s (Statut: {response.status_code})")
-                    
-                    # Enregistrer la requête avant de traiter la réponse
+                    response = requests.post(f"{self.albert_base_url}/audio/transcriptions", headers=headers, files=files, data=data, timeout=1800)
                     albert_rate_limiter.record_request()
-                    # Traiter la réponse du rate limiter
                     albert_rate_limiter.handle_response(response.status_code)
                     if response.status_code == 200:
-                        if job_id:
-                            from backend.state import append_job_log
-                            msg = f"Tranche {idx+1} reçue avec succès en {time.time() - start_req:.1f}s"
-                            append_job_log(job_id, msg)
+                        success = True
                         break
                     if response.status_code == 429:
-                        retry_after = int(
-                            response.headers.get("Retry-After", 2 ** (attempt + 1))
-                        )
-                        print(f"[!] Rate limit (429). Attente {retry_after}s avant retry...")
-                        time.sleep(retry_after)
-                        response = None  # ← reset pour forcer la détection d'échec
-                    elif response.status_code in [500, 502, 503, 504]:
-                        print(f"[!] Erreur serveur ({response.status_code}). "
-                              f"Retry dans {2**attempt}s...")
+                        time.sleep(int(response.headers.get("Retry-After", 2 ** (attempt + 1))))
+                    elif response.status_code >= 500:
                         time.sleep(2 ** attempt)
                     else:
-                        print(f"[!] Erreur API ({response.status_code}): {response.text}")
-                        break  # erreur non récupérable, on sort
-                        
+                        break
                 except Exception as e:
                     last_err = e
-                    print(f"[!] Exception réseau tranche {idx+1}: {type(e).__name__} - {e}")
-                    if attempt < 2:
-                        time.sleep(2 ** attempt)
+                    time.sleep(2 ** attempt)
 
-            if response is None or response.status_code != 200:
+            if not success:
                 status = response.status_code if response else "N/A"
-                detail = response.text[:200] if response else str(last_err)
-                raise Exception(f"Échec Tranche {idx+1} (Statut {status}): {detail}")
+                if duration > 600:
+                    if job_id:
+                        from backend.state import append_job_log
+                        append_job_log(job_id, f"  └─ Échec ({status}). Split en cours...")
+                    mid = duration / 2
+                    queue.insert(0, (start_time + mid, duration - mid))
+                    queue.insert(0, (start_time, mid))
+                    total_planned += 1
+                    buffer.close()
+                    continue
+                else:
+                    detail = response.text[:200] if response else str(last_err)
+                    raise Exception(f"Échec Albert Tranche {processed_count+1} ({status}): {detail}")
 
-            # 4. Traitement des résultats
-            if response is None:
-                raise Exception(f"Bug interne : response est None après vérification tranche {idx+1}")
             result = response.json()
-            
-            # [DEBUG] Stockage du JSON brut pour diagnostic futur
-            try:
-                debug_dir = os.path.join("debug_chunks", job_id or "unknown")
-                os.makedirs(debug_dir, exist_ok=True)
-                debug_file = os.path.join(debug_dir, f"chunk_{idx+1}.json")
-                with open(debug_file, "w", encoding="utf-8") as f:
-                    json.dump(result, f, indent=2, ensure_ascii=False)
-                if job_id:
-                    from backend.state import append_job_log
-                    msg_log = f"Tranche {idx+1} sauvegardée pour debug : {debug_file}"
-                    append_job_log(job_id, msg_log)
-            except Exception as e:
-                print(f"[!] Erreur stockage debug JSON: {e}")
-
-            chunk_words = []
+            chunk_words: list[dict[str, Any]] = []
             if result.get("words"):
-                chunk_words = [
-                    {
-                        "start": w["start"],
-                        "end": w["end"],
-                        "word": w["word"],
-                        "speaker": "UNKNOWN"
-                    }
-                    for w in result["words"]
-                ]
-                print(f"[*] Tranche {idx+1}: {len(chunk_words)} mots récupérés (format: words).")
+                chunk_words = [{"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"} for w in result["words"]]
             elif result.get("segments"):
-                segments = result["segments"]
-                for s in segments:
+                for s in result["segments"]:
                     if s.get("words"):
                         for w in s["words"]: 
-                            chunk_words.append({
-                                "start": w["start"],
-                                "end": w["end"],
-                                "word": w["word"],
-                                "speaker": "UNKNOWN"
-                            })
+                            chunk_words.append({"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"})
                     else:
-                        chunk_words.append({
-                            "start": s.get("start", 0.0), 
-                            "end": s.get("end", duration), 
-                            "word": s.get("text", "").strip(),
-                            "speaker": "UNKNOWN"
-                        })
-                print(
-                    f"[*] Tranche {idx+1}: {len(segments)} segments "
-                    f"({len(chunk_words)} mots) récupérés (format: segments)."
-                )
+                        chunk_words.append({"start": s.get("start", 0.0), "end": s.get("end", duration), "word": s.get("text", "").strip(), "speaker": "UNKNOWN"})
             
-            # Nouveau : Conserver les segments originaux (pour le formatage natif)
             if result.get("segments"):
                 for s in result["segments"]:
-                    all_final_segments.append({
-                        "start": s.get("start", 0.0) + start_time,
-                        "end": s.get("end", duration) + start_time,
-                        "text": s.get("text", "").strip()
-                    })
-            elif result.get("text") and not result.get("segments"):
-                # Si pas de segments, on en crée un gros pour la tranche
-                all_final_segments.append({
-                    "start": start_time,
-                    "end": start_time + duration,
-                    "text": result["text"].strip()
-                })
+                    all_final_segments.append({"start": s.get("start", 0.0) + start_time, "end": s.get("end", duration) + start_time, "text": s.get("text", "").strip()})
+            elif result.get("text"):
+                all_final_segments.append({"start": start_time, "end": start_time + duration, "text": result["text"].strip()})
 
-            # 5. Décalage des timestamps
-            if chunk_words:
-                print(
-                    f"[*] Tranche {idx+1}: Recalage temporel de "
-                    f"{len(chunk_words)} éléments (+{start_time:.2f}s)..."
-                )
             for w in chunk_words:
-                all_final_words.append({
-                    "start": w["start"] + start_time, 
-                    "end": w["end"] + start_time, 
-                    "word": w["word"],
-                    "speaker": w.get("speaker", "UNKNOWN")
-                })
+                all_final_words.append({"start": w["start"] + start_time, "end": w["end"] + start_time, "word": w["word"], "speaker": "UNKNOWN"})
             
             buffer.close()
+            processed_count += 1
 
-        # Construction d'un objet "raw" consolidé
-        raw_payload = {
-            "type": "albert_batch",
-            "segments": all_final_segments,
-            "words": all_final_words
-        }
+        raw_payload = {"type": "albert_batch", "segments": all_final_segments, "words": all_final_words}
         return all_final_words, duration_total, raw_payload

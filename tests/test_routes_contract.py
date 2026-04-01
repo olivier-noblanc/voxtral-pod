@@ -85,6 +85,7 @@ def test_api_routes_are_used_in_frontend() -> None:
         "transcriptions/",
         "speaker_profiles",
         "cleanup",
+        "job_log/{job_id}",
     }
 
     unused = (api_routes - fetch_paths) - allowed_unused

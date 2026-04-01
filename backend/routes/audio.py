@@ -22,7 +22,7 @@ router = APIRouter()
 @router.get("/download_audio/{client_id}/{filename}")
 async def download_audio(client_id: str, filename: str) -> FileResponse:
     if f"_{client_id}_" not in filename:
-        raise HTTPException(status_code=403, detail="Accès refusé : ce fichier n'appartient pas à votre session.")
+        raise HTTPException(status_code=403, detail="Accès refusé.")
     base_name = os.path.splitext(filename)[0]
     for subdir in ("live_audio", "batch_audio"):
         try:
@@ -42,7 +42,7 @@ async def download_audio(client_id: str, filename: str) -> FileResponse:
                     filename=filename,
                     headers={"Content-Disposition": f"attachment; filename={filename}"}
                 )
-        except HTTPException:
+        except Exception:
             continue
     raise HTTPException(status_code=404, detail="Fichier audio non trouvé.")
 
@@ -115,6 +115,9 @@ async def _gpu_job(assembled_path: str, file_id: str, client_id: str) -> None:
 
         # Auto-Cleanup/Formatting via Albert LLM
         try:
+            from backend.state import update_job
+            update_job(file_id, {"status": "processing:Nettoyage Albert...", "progress": 95})
+
             from backend.core.postprocess import clean_text
             cleaned = await clean_text(transcript)
             if cleaned and cleaned.strip():

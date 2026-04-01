@@ -7,7 +7,7 @@ import numpy as np
 # Ensure NNPACK is disabled for audio operations
 os.environ.setdefault("DISABLE_NNPACK", "1")
 
-def decode_audio(audio_path: str, sample_rate: int = 16000, timeout: int = 900) -> np.ndarray:
+def decode_audio(audio_path: str, sample_rate: int = 16000, timeout: int = 1800) -> np.ndarray:
     """
     Decode an audio file to a mono ``float32`` NumPy array using ``ffmpeg``.
     
@@ -22,7 +22,7 @@ def decode_audio(audio_path: str, sample_rate: int = 16000, timeout: int = 900) 
     sample_rate: int, optional
         Desired output sample rate (default 16000 Hz).
     timeout: int, optional
-        Timeout for the ffmpeg process in seconds (default 900).
+        Timeout for the ffmpeg process in seconds (default 1800).
 
     Returns
     -------
