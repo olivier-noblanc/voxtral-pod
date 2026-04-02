@@ -8,6 +8,12 @@ const CHUNK_SIZE = 4 * 1024 * 1024;
 // Counter to uniquely identify each transcript segment (used for drag‑and‑drop)
 let segmentCounter = 0;
 let audioDeviceCount;
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-log-job]');
+    if (btn) {
+        showLog(btn.dataset.logJob);
+    }
+});
 
 
 
@@ -632,7 +638,8 @@ async function pollStatus(id) {
             clearInterval(interval);
             localStorage.removeItem('pending_job');
             document.getElementById('uploadBtn').disabled = false;
-            const logBtn = `<button class="fr-btn fr-btn--sm fr-btn--tertiary fr-mt-1w" onclick="showLog('${id}')">Voir le log</button>`;
+             
+ 
             document.getElementById('batchStatus').innerHTML = "⚠️ Timeout : job introuvable ou serveur injoignable.<br>" + logBtn;
             return;
         }
@@ -656,13 +663,13 @@ async function pollStatus(id) {
                 clearInterval(interval);
                 localStorage.removeItem('pending_job');
                 document.getElementById('uploadBtn').disabled = false;
-                const logBtn = `<button class="fr-btn fr-btn--sm fr-btn--tertiary fr-mt-1w" onclick="showLog('${id}')">Voir le log</button>`;
+                const logBtn = `<button class="fr-btn fr-btn--sm fr-btn--tertiary fr-mt-1w" data-log-job="${id}">Voir le log</button>`;
                 document.getElementById('batchStatus').innerHTML = (data.status === "erreur" ? "❌ Erreur.<br>" : "❓ Pas de status.<br>") + logBtn;
             } else if (data.status.startsWith("processing:")) {
                 const pct = data.progress || 0;
                 const eta = data.eta ? " (ETA: " + data.eta + "s)" : '';
                 const statusLabel = (data.status && data.status.includes(":")) ? data.status.split(":")[1] : (data.status || "unknown");
-                const logBtn = `<button class="fr-btn fr-btn--sm fr-btn--tertiary fr-ml-2w" onclick="showLog('${id}')">Log</button>`;
+                const logBtn = `<button class="fr-btn fr-btn--sm fr-btn--tertiary fr-ml-2w" data-log-job="${id}">Log</button>`;
                 document.getElementById('batchStatus').innerHTML = "⏳ " + statusLabel + " — " + pct + "%" + eta + logBtn;
                 document.getElementById('uploadBtn').disabled = true;
                 const fill = document.getElementById('uploadProgressFill');
@@ -721,16 +728,19 @@ async function showLog(jobId) {
     const modal = document.getElementById('fr-modal-log');
     const content = document.getElementById('logContent');
     
-    if (!modal || !content) return;
+    if (!modal || !content) {
+        console.error('[showLog] Modal ou logContent introuvable dans le DOM');
+        return;
+    }
     
     content.innerText = "Chargement des logs...";
     
     // Ouvrir la modale via l'API DSFR si disponible
-    if (window.dsfr && window.dsfr.modal) {
-        dsfr(modal).modal.reveal();
-    } else {
+        if (window.dsfr && window.dsfr.modal) {
+            dsfr(modal).modal.disclose();
+        } else {
         // Fallback si DSFR n'est pas encore prêt
-        modal.setAttribute('opened', 'true');
+            modal.setAttribute('data-fr-opened', 'true');
     }
     
     await refreshLogs();

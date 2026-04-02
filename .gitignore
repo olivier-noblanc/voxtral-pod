@@ -17,6 +17,7 @@ __pycache__/
 .env.local
 .env.prod.local
 .env.dev.local
+live_*.json
 .env.test.local
 .env.local.local
 ruff*.txt

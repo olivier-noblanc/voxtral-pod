@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Voxtral Pod</title>
+    <link rel="stylesheet" href="/static/dsfr.min.css">
+    <link rel="stylesheet" href="/static/custom.css">
+    <script src="/static/app.js" defer></script>
+</head>
+<body>
+    <header class="fr-header">
+        <div class="fr-header__body">
+            <div class="fr-header__brand">
+                <p class="fr-logo">Voxtral</p>
+                <p class="fr-title">Pod</p>
+            </div>
+        </div>
+    </header>
+
+    <main id="liveTranscript" class="fr-container">
+        <!-- Live transcription will appear here -->
+    </main>
+
+    <div id="batchStatus"></div>
+
+    <footer class="fr-footer">
+        <p>© 2024 Voxtral</p>
+    </footer>
+</body>
+</html>

@@ -14,13 +14,13 @@ def clean_old_jobs(days: int) -> int:
     deleted_count = 0
     try:
         # SQLite datetime('now', '-90 days') will work reliably
-        with get_db() as conn:
-            cursor = conn.execute(
-                "DELETE FROM jobs WHERE created_at < datetime('now', ?)",
-                (f"-{days} days",)
-            )
-            deleted_count = cursor.rowcount
-            conn.commit()
+        conn = get_db()
+        cursor = conn.execute(
+            "DELETE FROM jobs WHERE created_at < datetime('now', ?)",
+            (f"-{days} days",)
+        )
+        deleted_count = cursor.rowcount
+        conn.commit()
     except Exception as e:
         print(f"Erreur lors du nettoyage des vieux jobs SQLite : {e}")
     return deleted_count

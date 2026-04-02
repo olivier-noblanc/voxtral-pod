@@ -1,4 +1,3 @@
-from typing import Any
 from fastapi.testclient import TestClient
 from pytest_snapshot.plugin import Snapshot
 

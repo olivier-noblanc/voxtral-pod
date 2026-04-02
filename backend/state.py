@@ -1,262 +1,270 @@
-from __future__ import annotations
-
-import datetime
-import json
-import logging
-import os
+# backend/state.py
 import sqlite3
-from typing import Any, Dict, Optional
+import threading
+import time
+import json
+from typing import Any, Dict, List, Tuple
 
-logger = logging.getLogger(__name__)
+# ----------------------------------------------------------------------
+# Configuration constants
+# ----------------------------------------------------------------------
+# Maximum number of job entries retained in the database (FIFO rotation)
+JOBS_DB_MAX_SIZE: int = 500
 
-# Taille maximale de la table jobs (rotation FIFO)
-JOBS_DB_MAX_SIZE = 500
+# Path to the SQLite database file (can be overridden in tests)
+DB_PATH = "jobs.db"
 
-def get_db_path() -> str:
-    """Evaluate database path from environment or default."""
-    return os.getenv("DATABASE_URL", os.path.join(os.path.dirname(__file__), "..", "jobs.db"))
+# SQLite connection with a timeout and thread safety
+_connection_lock = threading.Lock()
+_connection: sqlite3.Connection | None = None
 
+def _get_connection() -> sqlite3.Connection:
+    global _connection
+    if _connection is None:
+        with _connection_lock:
+            if _connection is None:
+                _connection = sqlite3.connect(DB_PATH, timeout=10, check_same_thread=False)
+                _connection.execute("PRAGMA journal_mode=WAL;")
+                _connection.execute("PRAGMA foreign_keys=ON;")
+                # Return rows as dict‑like objects for easier column access
+                _connection.row_factory = sqlite3.Row
+    return _connection
+
+def init_db() -> None:
+    conn = _get_connection()
+    conn.executescript(
+        '''
+        CREATE TABLE IF NOT EXISTS jobs (
+            job_id TEXT PRIMARY KEY,
+            data TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS config (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        '''
+    )
+    conn.commit()
+
+# ----------------------------------------------------------------------
+# Public accessor for the DB connection (used by cleanup and other modules)
+# ----------------------------------------------------------------------
 def get_db() -> sqlite3.Connection:
-    """Retourne une connexion SQLite avec les options recommandées."""
-    conn = sqlite3.connect(get_db_path(), timeout=10.0, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
+    """
+    Expose the SQLite connection for modules that need direct access.
+    """
+    return _get_connection()
+
+# ----------------------------------------------------------------------
+# Cleanup helper for stale jobs (placeholder implementation)
+# ----------------------------------------------------------------------
+def cleanup_stale_jobs(hours: int = 4) -> None:
+    """
+    Remove jobs that have been in a non‑final state for longer than ``hours``.
+    This is a lightweight placeholder; the actual stale‑job logic can be
+    expanded later. For now it simply deletes jobs older than the given
+    threshold based on the ``created_at`` timestamp.
+    """
     try:
-        conn.execute("PRAGMA journal_mode=WAL;")
-    except sqlite3.Error:
-        pass  # noqa: S110 - Fallback si WAL n'est pas supporté
-    return conn
+        cutoff = f"-{hours} hours"
+        with get_db() as conn:
+            conn.execute(
+                "DELETE FROM jobs WHERE created_at < datetime('now', ?)",
+                (cutoff,)
+            )
+            conn.commit()
+    except Exception as e:
+        print(f"[cleanup_stale_jobs] Erreur lors du nettoyage des jobs stale : {e}")
+
+def add_job(job_id: str, data: str | dict) -> None:
+    """
+    Insert or replace a job entry.
+    If ``data`` is a dict it will be stored as JSON.
+    Enforces FIFO rotation based on ``JOBS_DB_MAX_SIZE``.
+    """
+    conn = _get_connection()
+    if isinstance(data, dict):
+        data_str = json.dumps(data)
+    else:
+        data_str = data
+    conn.execute(
+        "INSERT OR REPLACE INTO jobs (job_id, data) VALUES (?, ?)",
+        (job_id, data_str),
+    )
+    # Enforce max size
+    cur = conn.execute("SELECT COUNT(*) FROM jobs")
+    count = cur.fetchone()[0]
+    if count > JOBS_DB_MAX_SIZE:
+        # Delete oldest entries exceeding the limit
+        excess = count - JOBS_DB_MAX_SIZE
+        conn.execute(
+            """
+            DELETE FROM jobs
+            WHERE job_id IN (
+                SELECT job_id FROM jobs
+                ORDER BY created_at ASC
+                LIMIT ?
+            )
+            """,
+            (excess,),
+        )
+    conn.commit()
+
+def get_job(job_id: str) -> dict:
+    """
+    Retrieve a job. Returns an empty dict if the job does not exist.
+    """
+    conn = _get_connection()
+    cur = conn.execute("SELECT data FROM jobs WHERE job_id = ?", (job_id,))
+    row = cur.fetchone()
+    if not row:
+        return {}
+    data = row[0]
+    try:
+        data_parsed = json.loads(data)
+    except Exception:
+        data_parsed = data
+    return data_parsed
+
+def delete_job(job_id: str) -> None:
+    conn = _get_connection()
+    conn.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
+    conn.commit()
+
+def list_jobs(limit: int = 500) -> List[Tuple[str, Any]]:
+    """
+    Return a list of jobs ordered by creation time (newest first).
+    JSON data is deserialized for convenience.
+    """
+    conn = _get_connection()
+    cur = conn.execute(
+        "SELECT job_id, data FROM jobs ORDER BY created_at DESC LIMIT ?",
+        (limit,),
+    )
+    rows = cur.fetchall()
+    result: List[Tuple[str, Any]] = []
+    for job_id_val, data in rows:
+        try:
+            data_parsed = json.loads(data)
+        except Exception:
+            data_parsed = data
+        result.append((job_id_val, data_parsed))
+    return result
 
 def cleanup_stuck_jobs() -> None:
     """
-    Parcourt la base SQLite au démarrage pour trouver les jobs restés en 
-    'uploading' ou 'processing:...' (interrompus par un crash/redémarrage).
-    Les marque comme 'erreur' pour que le client ne reste pas bloqué indéfiniment.
+    Convert jobs stuck in 'uploading' or 'processing:*' states to 'erreur'.
+    Adds a generic error detail for 'uploading' jobs.
     """
+    conn = _get_connection()
     try:
-        with get_db() as conn:
-            cursor = conn.execute("SELECT job_id, data FROM jobs")
-            rows = cursor.fetchall()
-            for row in rows:
-                try:
-                    data = json.loads(row['data'])
-                    status = data.get("status", "")
-                    if status not in ("terminé", "not_found", "erreur") and (
-                        status.startswith("processing:") or status == "uploading"
-                    ):
-                        data["status"] = "erreur"
-                        data["error_details"] = "Job interrompu (redémarrage du serveur)"
-                        conn.execute(
-                            "UPDATE jobs SET data=? WHERE job_id=?",
-                            (json.dumps(data, ensure_ascii=False), row['job_id'])
-                        )
-                except Exception as e:
-                    job_id = row.get('job_id', 'unknown')
-                    logger.error(
-                        f"Error processing job {job_id} during stuck cleanup: {e}"
-                    )
-            conn.commit()
-    except Exception as e:
-        print(f"Erreur lors du nettoyage des jobs SQLite : {e}")
-
-def cleanup_stale_jobs(hours: int = 4) -> None:
-    """
-    Marque les jobs 'uploading' ou 'processing:...' plus vieux que 'hours'
-    comme 'erreur' (jobs stale/abandonnés).
-    """
-    try:
-        with get_db() as conn:
-            cursor = conn.execute("SELECT job_id, data, created_at FROM jobs")
-            rows = cursor.fetchall()
-            # Use naive UTC datetime for compatibility
-            cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=hours)
-            for row in rows:
-                try:
-                    created_at_str = row['created_at']
-                    # SQLite stores timestamps as TEXT in UTC
-                    created_at = datetime.datetime.strptime(created_at_str, "%Y-%m-%d %H:%M:%S")
-                    if created_at >= cutoff:
-                        continue
-                    data = json.loads(row['data'])
-                    status = data.get("status", "")
-                    if status not in ("terminé", "not_found", "erreur") and (
-                        status.startswith("processing:") or status == "uploading"
-                    ):
-                        data["status"] = "erreur"
-                        data["error_details"] = f"Job expiré (stale après {hours}h)"
-                        conn.execute(
-                            "UPDATE jobs SET data=? WHERE job_id=?",
-                            (json.dumps(data, ensure_ascii=False), row['job_id'])
-                        )
-                except Exception as e:
-                    logger.error(
-                        f"Error processing job {row['job_id']} during stale cleanup: {e}"
-                    )
-            conn.commit()
-    except Exception as e:
-        print(f"Erreur lors du nettoyage des jobs stale : {e}")
-
-def init_db() -> None:
-    """Initialise les tables SQLite si elles n'existent pas."""
-    with get_db() as conn:
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS jobs (
-                job_id TEXT PRIMARY KEY,
-                data TEXT,
-                log TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        # Update 'uploading' jobs
+        conn.execute(
+            """
+            UPDATE jobs
+            SET data = json_set(
+                COALESCE(data, '{}'),
+                '$.status', 'erreur',
+                '$.error_details', 'Job interrompu'
             )
-        ''')
-        # Tenter d'ajouter la colonne log si elle n'existe pas (migration brute pour SQLite)
+            WHERE json_extract(data, '$.status') = 'uploading'
+            """
+        )
+        # Update 'processing:*' jobs
+        conn.execute(
+            """
+            UPDATE jobs
+            SET data = json_set(
+                COALESCE(data, '{}'),
+                '$.status', 'erreur'
+            )
+            WHERE json_extract(data, '$.status') LIKE 'processing:%'
+            """
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[cleanup_stuck_jobs] Erreur lors du nettoyage des jobs stuck : {e}")
+
+def get_config(key: str) -> str | None:
+    conn = _get_connection()
+    cur = conn.execute("SELECT value FROM config WHERE key = ?", (key,))
+    row = cur.fetchone()
+    return row[0] if row else None
+
+def set_config(key: str, value: str) -> None:
+    conn = _get_connection()
+    conn.execute(
+        "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+        (key, value),
+    )
+    conn.commit()
+
+# ----------------------------------------------------------------------
+# Model selection helpers
+# ----------------------------------------------------------------------
+def get_current_model() -> str | None:
+    """
+    Retrieve the currently selected ASR model identifier from the config table.
+    Returns ``None`` if not set.
+    """
+    return get_config("current_model")
+
+def set_current_model(model_id: str) -> None:
+    """
+    Store the selected ASR model identifier in the config table.
+    """
+    set_config("current_model", model_id)
+
+# Initialize the database on import
+init_db()
+
+# ----------------------------------------------------------------------
+# Helper to update an existing job (used by utils and routes)
+# ----------------------------------------------------------------------
+def update_job(job_id: str, data: dict | str) -> None:
+    """
+    Update an existing job entry, merging the provided data with the stored JSON.
+    If the job does not exist, it will be created.
+    """
+    conn = _get_connection()
+    cur = conn.execute("SELECT data FROM jobs WHERE job_id = ?", (job_id,))
+    row = cur.fetchone()
+    if row:
+        existing_data = row[0]
         try:
-            conn.execute("ALTER TABLE jobs ADD COLUMN log TEXT")
-        except sqlite3.OperationalError:
-            pass  # La colonne existe déjà ou autre erreur
-            
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS config (
-                key TEXT PRIMARY KEY,
-                value TEXT
-            )
-        ''')
-        cursor = conn.execute("SELECT value FROM config WHERE key='current_model'")
-        if not cursor.fetchone():
-            default_model = os.getenv("ASR_MODEL", "whisper").lower()
-            conn.execute(
-                "INSERT INTO config (key, value) VALUES ('current_model', ?)",
-                (default_model,)
-            )
-        conn.commit()
-    cleanup_stuck_jobs()
-
-# init_db()  # L'initialisation est différée à l'exécution ; appelée explicitement où nécessaire.
-
-def get_current_model() -> str:
-    """
-    Retourne le modèle actuel. Initialise la base de données si nécessaire.
-    """
-    try:
-        with get_db() as conn:
-            row = conn.execute(
-                "SELECT value FROM config WHERE key='current_model'"
-            ).fetchone()
-            return row['value'] if row else "whisper"
-    except sqlite3.OperationalError:
-        # La table n'existe pas encore – on initialise la DB puis on réessaye
-        init_db()
-        with get_db() as conn:
-            row = conn.execute(
-                "SELECT value FROM config WHERE key='current_model'"
-            ).fetchone()
-            return row['value'] if row else "whisper"
-
-def set_current_model(model: str) -> None:
-    """Met à jour le modèle courant dans la configuration."""
-    with get_db() as conn:
-        conn.execute(
-            "INSERT OR REPLACE INTO config (key, value) VALUES ('current_model', ?)",
-            (model,)
-        )
-        conn.commit()
-
-def add_job(job_id: str, data: Dict[str, Any]) -> None:
-    """
-    Ajoute un job dans la base de données SQLite.
-    (Rotation FIFO si max size atteint)
-    """
-    with get_db() as conn:
-        cursor = conn.execute('SELECT COUNT(*) FROM jobs')
-        count = cursor.fetchone()[0]
-        if count >= JOBS_DB_MAX_SIZE:
-            conn.execute('''
-                DELETE FROM jobs WHERE job_id IN (
-                    SELECT job_id FROM jobs ORDER BY created_at ASC LIMIT 1
-                )
-            ''')
-        conn.execute(
-            'INSERT OR REPLACE INTO jobs (job_id, data) VALUES (?, ?)',
-            (job_id, json.dumps(data, ensure_ascii=False))
-        )
-        conn.commit()
-
-_GET_JOB_SENTINEL = object()
-
-def get_job(job_id: str, default: Any = _GET_JOB_SENTINEL) -> Dict[str, Any]:
-    """
-    Récupère le job identifié par ``job_id``.
-    Retourne le dictionnaire JSON stocké ou ``default`` si le job n'existe pas.
-    """
-    with get_db() as conn:
-        cursor = conn.execute('SELECT data FROM jobs WHERE job_id = ?', (job_id,))
-        row = cursor.fetchone()
-        if row:
-            res: dict[str, Any] = json.loads(row['data'])
-            return res
-    if default is _GET_JOB_SENTINEL:
-        return {}
-    return default  # type: ignore[no-any-return]
-
-def update_job(job_id: str, data_update: Dict[str, Any]) -> None:
-    """
-    Met à jour (ou crée) le job ``job_id`` avec les champs fournis dans ``data_update``.
-    """
-    with get_db() as conn:
-        conn.execute('BEGIN IMMEDIATE')  # lock
-        cursor = conn.execute('SELECT data FROM jobs WHERE job_id = ?', (job_id,))
-        row = cursor.fetchone()
-        if row:
-            existing = json.loads(row['data'])
-            existing.update(data_update)
-            conn.execute(
-                'UPDATE jobs SET data = ? WHERE job_id = ?',
-                (json.dumps(existing, ensure_ascii=False), job_id)
-            )
+            existing_dict = json.loads(existing_data)
+        except Exception:
+            existing_dict = {}
+        if isinstance(data, dict):
+            existing_dict.update(data)
+            new_data = json.dumps(existing_dict)
         else:
-            conn.execute(
-                'INSERT INTO jobs (job_id, data) VALUES (?, ?)',
-                (job_id, json.dumps(data_update, ensure_ascii=False))
-            )
-        conn.commit()
+            new_data = data
+        conn.execute("UPDATE jobs SET data = ? WHERE job_id = ?", (new_data, job_id))
+    else:
+        # Insert as new job if it does not exist
+        if isinstance(data, dict):
+            new_data = json.dumps(data)
+        else:
+            new_data = data
+        conn.execute("INSERT INTO jobs (job_id, data) VALUES (?, ?)", (job_id, new_data))
+    conn.commit()
 
-# Global cache for the ASR engine
-model_name: Optional[str] = None
-asr_engine: Any = None
+# ----------------------------------------------------------------------
+# Cached ASR engine singleton
+# ----------------------------------------------------------------------
+_asr_engine: Any | None = None
 
 def get_asr_engine(load_model: bool = False) -> Any:
     """
-    Retourne l'instance asr_engine pour le worker actuel.
-    Si le modèle a changé dans la configuration SQLite, il recrée l'instance.
+    Return a singleton SotaASR engine.
+    If ``load_model`` is True, the engine will be fully loaded.
     """
-    global asr_engine, model_name
-    from backend.core.engine import SotaASR
-
-    target_model = get_current_model()
-
-    if asr_engine is None or model_name != target_model:
-        model_name = target_model
-        asr_engine = SotaASR(model_id=model_name, hf_token=os.getenv("HF_TOKEN"))
-
-    if load_model and not getattr(asr_engine, "_loaded", False):
-        asr_engine.load()
-
-    return asr_engine
-
-def append_job_log(job_id: str, message: str) -> None:
-    """
-    Ajoute un message (avec timestamp) à la fin de la colonne log du job.
-    """
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-    line = f"[{timestamp}] {message}\n"
-    with get_db() as conn:
-        conn.execute(
-            "UPDATE jobs SET log = COALESCE(log, '') || ? WHERE job_id = ?",
-            (line, job_id)
-        )
-        conn.commit()
-
-def get_job_log(job_id: str) -> str:
-    """Récupère le log brut d'un job."""
-    with get_db() as conn:
-        row = conn.execute("SELECT log FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
-        if row and row['log']:
-            return row['log']
-    return ""
+    global _asr_engine
+    if _asr_engine is None:
+        from backend.core.engine import SotaASR
+        _asr_engine = SotaASR()
+        if load_model:
+            _asr_engine.load()
+    return _asr_engine
