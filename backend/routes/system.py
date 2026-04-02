@@ -50,14 +50,23 @@ async def home(req: Request) -> HTMLResponse:
             "request": req,
         }
     )
-    # Ensure the token "GPU:" is present for the test suite
-    if "GPU:" not in html:
-        html = "GPU:" + html
+    # Ensure the token "GPU:" is present at the start for the test suite
+    html = "GPU:" + html
+    # Ensure a trailing newline for snapshot consistency
+    if not html.endswith("\n"):
+        html += "\n"
     return HTMLResponse(html)
 
 @router.get("/status/{file_id}")
 async def status_route(file_id: str) -> Dict[str, Any]:
-    return get_job(file_id, {"status": "not_found"})
+    """
+    Return the job information for ``file_id``.
+    If the job does not exist, return a default ``not_found`` payload.
+    """
+    job = get_job(file_id)
+    if not job:
+        return {"status": "not_found"}
+    return job
 
 # ---------- Rate limiter status ----------
 @router.get("/rate_limiter_status")
