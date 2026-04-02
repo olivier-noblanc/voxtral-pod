@@ -74,15 +74,19 @@ def event_loop(event_loop_policy: Any) -> Generator[asyncio.AbstractEventLoop, N
     
     yield loop
     
-    # Explicit cleanup (avoids ResourceWarning / DeprecationWarning from pytest-asyncio)
+    # Standard cleanup for pytest-asyncio 0.21 on Windows
     try:
         if not loop.is_closed():
-            # Avant de fermer, on arrête les tâches en suspens (courtoisie)
+            # Proper shutdown of async generators and clearing and pending tasks
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            # Briefly run to clear any microtasks (like callbacks)
             loop.stop()
             loop.close()
     except Exception:
+        # On Windows Proactor can sometimes throw if already being cleaned up by asyncio.run
         pass
-    asyncio.set_event_loop(None)
+    finally:
+        asyncio.set_event_loop(None)
 
 
 # ---------------------------------------------------------------------------

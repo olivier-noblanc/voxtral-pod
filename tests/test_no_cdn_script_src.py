@@ -14,10 +14,13 @@ def _all_files():
     """Retourne un générateur de chemins vers tous les fichiers du projet (sauf les dossiers virtuels)."""
     root = pathlib.Path(__file__).resolve().parents[1]  # dossier racine du projet
     # Exclure les dossiers typiquement ignorés (venv, __pycache__, .git, etc.)
-    ignore_dirs = {".git", "__pycache__", "venv", "node_modules", ".mypy_cache", ".pytest_cache"}
+    ignore_dirs = {".git", "__pycache__", "venv", "node_modules", ".mypy_cache", ".pytest_cache", "hf_cache"}
+    # On ne s'intéresse qu'aux fichiers susceptibles de contenir des balises HTML/JS
+    valid_suffixes = {".html", ".js", ".py", ".css", ".txt", ".md", ".json"}
     for path in root.rglob("*"):
         if path.is_file() and not any(part in ignore_dirs for part in path.parts):
-            yield path
+            if path.suffix.lower() in valid_suffixes:
+                yield path
 
 
 # Recherche d'un attribut src pointant vers un URL http(s) dans une balise <script>

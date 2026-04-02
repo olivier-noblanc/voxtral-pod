@@ -1,9 +1,8 @@
 # backend/state.py
+import json
 import sqlite3
 import threading
-import time
-import json
-from typing import Any, Dict, List, Tuple
+from typing import Any, List, Tuple
 
 # ----------------------------------------------------------------------
 # Configuration constants
@@ -18,6 +17,7 @@ DB_PATH = "jobs.db"
 _connection_lock = threading.Lock()
 _connection: sqlite3.Connection | None = None
 
+
 def _get_connection() -> sqlite3.Connection:
     global _connection
     if _connection is None:
@@ -30,10 +30,11 @@ def _get_connection() -> sqlite3.Connection:
                 _connection.row_factory = sqlite3.Row
     return _connection
 
+
 def init_db() -> None:
     conn = _get_connection()
     conn.executescript(
-        '''
+        """
         CREATE TABLE IF NOT EXISTS jobs (
             job_id TEXT PRIMARY KEY,
             data TEXT NOT NULL,
@@ -43,9 +44,10 @@ def init_db() -> None:
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
         );
-        '''
+        """
     )
     conn.commit()
+
 
 # ----------------------------------------------------------------------
 # Public accessor for the DB connection (used by cleanup and other modules)
@@ -56,28 +58,38 @@ def get_db() -> sqlite3.Connection:
     """
     return _get_connection()
 
+
 # ----------------------------------------------------------------------
 # Cleanup helper for stale jobs (placeholder implementation)
 # ----------------------------------------------------------------------
 def cleanup_stale_jobs(hours: int = 4) -> None:
     """
-    Remove jobs that have been in a non‑final state for longer than ``hours``.
-    This is a lightweight placeholder; the actual stale‑job logic can be
-    expanded later. For now it simply deletes jobs older than the given
-    threshold based on the ``created_at`` timestamp.
+    Mark jobs that have been in a non-final state for longer than ``hours`` as 'erreur'.
     """
+    cutoff = f"-{hours} hours"
     try:
-        cutoff = f"-{hours} hours"
-        with get_db() as conn:
-            conn.execute(
-                "DELETE FROM jobs WHERE created_at < datetime('now', ?)",
-                (cutoff,)
+        conn = _get_connection()
+        # On utilise json_set (pour SQLite >= 3.38) pour marquer le job en erreur.
+        # S'il n'y a pas de champ 'status', on ne touche pas.
+        conn.execute(
+            """
+            UPDATE jobs
+            SET data = json_set(
+                COALESCE(data, '{}'),
+                '$.status', 'erreur',
+                '$.error_details', 'Job expiré'
             )
-            conn.commit()
+            WHERE created_at < datetime('now', ?)
+            AND json_extract(data, '$.status') NOT IN ('terminé', 'erreur')
+            """,
+            (cutoff,)
+        )
+        conn.commit()
     except Exception as e:
-        print(f"[cleanup_stale_jobs] Erreur lors du nettoyage des jobs stale : {e}")
+        print(f"[cleanup_stale_jobs] Erreur lors du nettoyage : {e}")
 
-def add_job(job_id: str, data: str | dict) -> None:
+
+def add_job(job_id: str, data: str | dict[str, Any]) -> None:
     """
     Insert or replace a job entry.
     If ``data`` is a dict it will be stored as JSON.
@@ -111,7 +123,8 @@ def add_job(job_id: str, data: str | dict) -> None:
         )
     conn.commit()
 
-def get_job(job_id: str) -> dict:
+
+def get_job(job_id: str, default: Any = None) -> Any:
     """
     Retrieve a job. Returns an empty dict if the job does not exist.
     """
@@ -119,7 +132,7 @@ def get_job(job_id: str) -> dict:
     cur = conn.execute("SELECT data FROM jobs WHERE job_id = ?", (job_id,))
     row = cur.fetchone()
     if not row:
-        return {}
+        return {} if default is None else default
     data = row[0]
     try:
         data_parsed = json.loads(data)
@@ -127,10 +140,12 @@ def get_job(job_id: str) -> dict:
         data_parsed = data
     return data_parsed
 
+
 def delete_job(job_id: str) -> None:
     conn = _get_connection()
     conn.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
     conn.commit()
+
 
 def list_jobs(limit: int = 500) -> List[Tuple[str, Any]]:
     """
@@ -151,6 +166,7 @@ def list_jobs(limit: int = 500) -> List[Tuple[str, Any]]:
             data_parsed = data
         result.append((job_id_val, data_parsed))
     return result
+
 
 def cleanup_stuck_jobs() -> None:
     """
@@ -186,11 +202,13 @@ def cleanup_stuck_jobs() -> None:
     except Exception as e:
         print(f"[cleanup_stuck_jobs] Erreur lors du nettoyage des jobs stuck : {e}")
 
+
 def get_config(key: str) -> str | None:
     conn = _get_connection()
     cur = conn.execute("SELECT value FROM config WHERE key = ?", (key,))
     row = cur.fetchone()
     return row[0] if row else None
+
 
 def set_config(key: str, value: str) -> None:
     conn = _get_connection()
@@ -199,6 +217,7 @@ def set_config(key: str, value: str) -> None:
         (key, value),
     )
     conn.commit()
+
 
 # ----------------------------------------------------------------------
 # Model selection helpers
@@ -210,19 +229,22 @@ def get_current_model() -> str | None:
     """
     return get_config("current_model")
 
+
 def set_current_model(model_id: str) -> None:
     """
     Store the selected ASR model identifier in the config table.
     """
     set_config("current_model", model_id)
 
-# Initialize the database on import
-init_db()
+
+# Initialize the database on import (DEPRECATED - moved to main.py lifespan)
+# init_db()
+
 
 # ----------------------------------------------------------------------
 # Helper to update an existing job (used by utils and routes)
 # ----------------------------------------------------------------------
-def update_job(job_id: str, data: dict | str) -> None:
+def update_job(job_id: str, data: dict[str, Any] | str) -> None:
     """
     Update an existing job entry, merging the provided data with the stored JSON.
     If the job does not exist, it will be created.
@@ -251,10 +273,12 @@ def update_job(job_id: str, data: dict | str) -> None:
         conn.execute("INSERT INTO jobs (job_id, data) VALUES (?, ?)", (job_id, new_data))
     conn.commit()
 
+
 # ----------------------------------------------------------------------
 # Cached ASR engine singleton
 # ----------------------------------------------------------------------
 _asr_engine: Any | None = None
+
 
 def get_asr_engine(load_model: bool = False) -> Any:
     """
@@ -264,6 +288,7 @@ def get_asr_engine(load_model: bool = False) -> Any:
     global _asr_engine
     if _asr_engine is None:
         from backend.core.engine import SotaASR
+
         _asr_engine = SotaASR()
         if load_model:
             _asr_engine.load()

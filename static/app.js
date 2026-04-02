@@ -736,13 +736,35 @@ async function showLog(jobId) {
     content.innerText = "Chargement des logs...";
     
     // Ouvrir la modale via l'API DSFR si disponible
-        if (window.dsfr && window.dsfr.modal) {
-            dsfr(modal).modal.disclose();
-        } else {
-        // Fallback si DSFR n'est pas encore prêt
-            modal.setAttribute('data-fr-opened', 'true');
+    if (window.dsfr && window.dsfr.modal) {
+        dsfr(modal).modal.disclose();
+    } else {
+        // Fallback si DSFR n'est pas encore prêt ou absent
+        modal.setAttribute('data-fr-opened', 'true');
+        modal.classList.add('fr-modal--opened');
+        // On force l'affichage pour Playwright si DSFR n'est pas là
+        modal.style.display = 'flex';
+        modal.style.visibility = 'visible';
+        modal.style.opacity = '1';
+        if (typeof modal.showModal === 'function') {
+            try { modal.showModal(); } catch (e) { /* already open */ }
+        }
     }
-    
+
+    // Gestionnaire de fermeture pour le mode sans DSFR
+    const closeBtns = modal.querySelectorAll('[aria-controls="fr-modal-log"]');
+    closeBtns.forEach(btn => {
+        if (!btn.dataset.closeListener) {
+            btn.addEventListener('click', () => {
+                if (typeof modal.close === 'function') {
+                    try { modal.close(); } catch (e) { /* ignored */ }
+                }
+                modal.removeAttribute('data-fr-opened');
+            });
+            btn.dataset.closeListener = "true";
+        }
+    });
+
     await refreshLogs();
 }
 
@@ -910,11 +932,15 @@ window.onload = () => {
                     if (statusElem) statusElem.innerText = '✓ Terminé.';
                     loadHistory();
                 } else if (data.status === 'not_found' || !data.status || data.status === 'erreur') {
-                    if (data.status === 'erreur' && data.error_details) {
-                        alert("Erreur lors du traitement : " + data.error_details);
-                    }
-                    // Job orphelin/erreur : nettoyage
+                    const isError = data.status === 'erreur';
                     clearPendingJob();
+                    if (isError) {
+                        const statusElem = document.getElementById('batchStatus');
+                        if (statusElem) {
+                             const logBtn = `<button class="fr-btn fr-btn--sm fr-btn--tertiary fr-mt-1w" data-log-job="${pendingJob}">Voir le log</button>`;
+                             statusElem.innerHTML = "❌ Erreur.<br>" + logBtn;
+                        }
+                    }
                     loadHistory();
                 } else if (data.status === 'uploading') {
                     // Un upload ne peut pas être "en cours" au chargement de la page (la boucle JS est morte)

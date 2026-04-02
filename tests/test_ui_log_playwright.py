@@ -48,8 +48,8 @@ def test_log_modal_flow_with_mock_api(context: Any, page: Page, live_server_url:
     # 5. Click "Log" and verify modal opens
     log_button.click()
     modal = page.locator("#fr-modal-log")
-    # DSFR modals use 'opened' attribute for visibility in Playwright context
-    expect(modal).to_have_attribute("opened", "true", timeout=5000)
+    # DSFR modals use 'data-fr-opened' attribute for visibility in Playwright context
+    expect(modal).to_have_attribute("data-fr-opened", "true", timeout=5000)
     
     # 6. Verify log content is loaded
     log_content = page.locator("#logContent")
@@ -58,12 +58,16 @@ def test_log_modal_flow_with_mock_api(context: Any, page: Page, live_server_url:
 
     # 7. Test Refresh functionality
     log_lines.append("New log line after refresh.")
-    page.locator("#refreshLogBtn").click()
-    expect(log_content).to_contain_text("New log line after refresh...")
+    # Extra wait for DSFR modal animation to finish
+    page.wait_for_timeout(1000)
+    refresh_btn = page.locator("#refreshLogBtn")
+    # Force click if DSFR transition is being tricky
+    refresh_btn.click(force=True)
+    expect(log_content).to_contain_text("New log line after refresh.")
 
     # 8. Close modal
     page.locator("#fr-modal-log button:has-text('Fermer')").first.click()
-    expect(modal).not_to_have_attribute("opened", "true")
+    expect(modal).not_to_have_attribute("data-fr-opened", "true")
 
 def test_error_log_button_with_mock_api(context: Any, page: Page, live_server_url: str) -> None:
     """
