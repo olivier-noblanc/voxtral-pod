@@ -756,10 +756,15 @@ async function showLog(jobId) {
     closeBtns.forEach(btn => {
         if (!btn.dataset.closeListener) {
             btn.addEventListener('click', () => {
+                console.log('[showLog] Closing modal via button');
                 if (typeof modal.close === 'function') {
                     try { modal.close(); } catch (e) { /* ignored */ }
+                } else {
+                    // Fallback for non-dialog elements
+                    modal.removeAttribute('data-fr-opened');
+                    modal.classList.remove('fr-modal--opened');
+                    modal.style.display = '';
                 }
-                modal.removeAttribute('data-fr-opened');
             });
             btn.dataset.closeListener = "true";
         }
@@ -789,6 +794,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const refreshBtn = document.getElementById('refreshLogBtn');
     if (refreshBtn) {
         refreshBtn.addEventListener('click', refreshLogs);
+    }
+
+    const modal = document.getElementById('fr-modal-log');
+    if (modal) {
+        // Nettoyage centralisé lors de la fermeture (bouton, API ou touche Echap)
+        modal.addEventListener('close', () => {
+            console.log('[fr-modal-log] cleanup on close event');
+            modal.removeAttribute('data-fr-opened');
+            modal.classList.remove('fr-modal--opened');
+            modal.style.display = '';
+            modal.style.visibility = '';
+            modal.style.opacity = '';
+        });
     }
 });
 

@@ -68,6 +68,8 @@ def test_log_modal_flow_with_mock_api(context: Any, page: Page, live_server_url:
     # 8. Close modal
     page.locator("#fr-modal-log button:has-text('Fermer')").first.click()
     expect(modal).not_to_have_attribute("data-fr-opened", "true")
+    # Verify it is actually hidden from human eyes
+    expect(modal).not_to_be_visible()
 
 def test_error_log_button_with_mock_api(context: Any, page: Page, live_server_url: str) -> None:
     """
