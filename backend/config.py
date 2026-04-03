@@ -61,7 +61,7 @@ def setup_gpu() -> None:
     # Désactivation de NNPACK (pour éviter les warnings sur matériel non supporté).
     if hasattr(torch.backends, "nnpack"):
         if hasattr(torch.backends.nnpack, "enabled"):
-            torch.backends.nnpack.enabled = False  # type: ignore[attr-defined]
+            torch.backends.nnpack.enabled = False
     
     # Suppression agressive de l'initialisation NNPACK via variables d'env interne PyTorch
     os.environ["DISABLE_NNPACK"] = "1"

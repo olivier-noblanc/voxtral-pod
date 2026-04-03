@@ -124,7 +124,7 @@ def add_job(job_id: str, data: str | dict[str, Any]) -> None:
     conn.commit()
 
 
-def get_job(job_id: str, default: Any = None) -> Any:
+def get_job(job_id: str, default: Any = None) -> dict[str, Any] | Any:
     """
     Retrieve a job. Returns an empty dict if the job does not exist.
     """
@@ -272,6 +272,52 @@ def update_job(job_id: str, data: dict[str, Any] | str) -> None:
             new_data = data
         conn.execute("INSERT INTO jobs (job_id, data) VALUES (?, ?)", (job_id, new_data))
     conn.commit()
+
+
+def append_job_log(job_id: str, message: str) -> None:
+    """
+    Append a log message to the job's log array.
+    """
+    import datetime
+    ts = datetime.datetime.now().strftime("%H:%M:%S")
+    log_line = f"[{ts}] {message}"
+    
+    conn = _get_connection()
+    cur = conn.execute("SELECT data FROM jobs WHERE job_id = ?", (job_id,))
+    row = cur.fetchone()
+    if row:
+        existing_data = row[0]
+        try:
+            existing_dict = json.loads(existing_data)
+        except Exception:
+            existing_dict = {}
+        if isinstance(existing_dict, dict):
+            if "logs" not in existing_dict:
+                existing_dict["logs"] = []
+            existing_dict["logs"].append(log_line)
+            new_data = json.dumps(existing_dict)
+            conn.execute("UPDATE jobs SET data = ? WHERE job_id = ?", (new_data, job_id))
+            conn.commit()
+
+
+def get_job_log(job_id: str) -> str:
+    """
+    Retrieve the concatenated log lines for a job.
+    """
+    conn = _get_connection()
+    cur = conn.execute("SELECT data FROM jobs WHERE job_id = ?", (job_id,))
+    row = cur.fetchone()
+    if row:
+        existing_data = row[0]
+        try:
+            existing_dict = json.loads(existing_data)
+        except Exception:
+            return ""
+        if isinstance(existing_dict, dict):
+            logs = existing_dict.get("logs", [])
+            if isinstance(logs, list):
+                return "\n".join(logs)
+    return ""
 
 
 # ----------------------------------------------------------------------

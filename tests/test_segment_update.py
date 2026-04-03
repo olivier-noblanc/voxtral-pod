@@ -6,6 +6,7 @@ Vérifie que le parsing regex fonctionne correctement sur le format
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any, List, Tuple
 
 import pytest

@@ -1,4 +1,5 @@
 import unittest
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -7,7 +8,7 @@ from backend.core.transcription import TranscriptionEngine
 
 
 class TestAlbertSegmentation(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.engine = TranscriptionEngine(model_id="whisper")
         self.engine.albert_api_key = "test_key"
         
@@ -15,7 +16,7 @@ class TestAlbertSegmentation(unittest.TestCase):
     @patch("ffmpeg.input")
     @patch("soundfile.write")
     @patch("time.sleep")
-    def test_segmentation_logic(self, _mock_sleep, _mock_sf, mock_ffmpeg_input, mock_post):
+    def test_segmentation_logic(self, _mock_sleep: Any, _mock_sf: Any, mock_ffmpeg_input: Any, mock_post: Any) -> None:
         """
         Verifie la segmentation offline (tout est mocké).
         """
@@ -51,7 +52,7 @@ class TestAlbertSegmentation(unittest.TestCase):
         self.assertEqual(words[2]["start"], 81.0)
         self.assertEqual(duration, 150.0)
 
-    def test_find_best_cut_isolated(self):
+    def test_find_best_cut_isolated(self) -> None:
         """Test leger du helper de silence."""
         # Test minimaliste : sur un audio plat, il doit renvoyer la cible
         self.assertTrue(True)

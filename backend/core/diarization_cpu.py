@@ -164,7 +164,7 @@ class LightDiarizationEngine:
 
         logger.info("[*] Diarisation batch (WeSpeaker ONNX) : %s", audio_path)
         try:
-            from diarize import diarize as run_diarize  # type: ignore[import-untyped]
+            from diarize import diarize as run_diarize
             result = run_diarize(audio_path)
             
             segments = [

@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from backend.config import TRANSCRIPTIONS_DIR
 
 @pytest.fixture(scope="function")
-def setup_test_files():
+def setup_test_files() -> Any:
     # Create a temporary directory structure mimicking the real one
     temp_dir = tempfile.mkdtemp()
     

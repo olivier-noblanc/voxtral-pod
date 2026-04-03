@@ -90,7 +90,7 @@ class TranscriptionEngine:
     @property
     def use_albert(self) -> bool:
         """True si l'on doit passer par l'API Albert pour la transcription."""
-        return self.model_id in _ALBERT_MODEL_IDS or bool(self.albert_api_key)
+        return self.model_id in _ALBERT_MODEL_IDS
 
     def load(self) -> None:
         """Charge les modèles en mémoire (Whisper ou Vosk)."""
@@ -98,14 +98,17 @@ class TranscriptionEngine:
             print(f"[*] Transcription engine in {self.model_id} mode (no local weights needed).")
             return
 
-        if self.model_id == "whisper":
-            print(f"[*] Loading Faster-Whisper (large-v3) on {self.device}...")
-            compute_type = "float16" if self.device == "cuda" else "int8"
+        if self.model_id == "whisper" or self.model_id == "cpu":
+            # Si le modèle est cpu, on force le device à cpu
+            device_to_use = "cpu" if self.model_id == "cpu" else self.device
+            compute_to_use = "int8" if self.model_id == "cpu" else ("float16" if device_to_use == "cuda" else "int8")
+            
+            print(f"[*] Loading Faster-Whisper (large-v3) on {device_to_use}...")
             import faster_whisper
             self.model = faster_whisper.WhisperModel(
                 "large-v3",
-                device=self.device,
-                compute_type=compute_type,
+                device=device_to_use,
+                compute_type=compute_to_use,
             )
         else:
             import vosk
@@ -138,6 +141,9 @@ class TranscriptionEngine:
             print("[*] Switching to local model (CPU fallback) due to rate limit")
             used_fallback = True
             use_local_model = True
+            
+            # Switch definitively to CPU mode on fallback so we can load it.
+            self.model_id = "cpu"
             if self.model is None:
                 self.load()
         
@@ -152,7 +158,7 @@ class TranscriptionEngine:
 
             duration = len(audio_np) / 16000
 
-            if self.model_id == "whisper":
+            if self.model_id == "whisper" or self.model_id == "cpu":
                 segments, info = self.model.transcribe(
                     audio_np,
                     beam_size=5,
@@ -337,7 +343,13 @@ class TranscriptionEngine:
                     if not albert_rate_limiter.can_make_request():
                         time.sleep(albert_rate_limiter.min_interval_seconds)
                     buffer.seek(0)
-                    response = requests.post(f"{self.albert_base_url}/audio/transcriptions", headers=headers, files=files, data=data, timeout=1800)
+                    response = requests.post(
+                        f"{self.albert_base_url}/audio/transcriptions", 
+                        headers=headers, 
+                        files=files, 
+                        data=data, 
+                        timeout=1800
+                    )
                     albert_rate_limiter.record_request()
                     albert_rate_limiter.handle_response(response.status_code)
                     if response.status_code == 200:
@@ -353,8 +365,8 @@ class TranscriptionEngine:
                     last_err = e
                     time.sleep(2 ** attempt)
 
-            if not success:
-                status = response.status_code if response else "N/A"
+            if not success or response is None:
+                status = response.status_code if response is not None else "N/A"
                 if duration > 600:
                     if job_id:
                         from backend.state import append_job_log
@@ -365,30 +377,53 @@ class TranscriptionEngine:
                     total_planned += 1
                     buffer.close()
                     continue
-                else:
-                    detail = response.text[:200] if response else str(last_err)
-                    raise Exception(f"Échec Albert Tranche {processed_count+1} ({status}): {detail}")
+
+                detail = response.text[:200] if response is not None else str(last_err)
+                raise Exception(f"Échec Albert Tranche {processed_count+1} ({status}): {detail}")
 
             result = response.json()
             chunk_words: list[dict[str, Any]] = []
             if result.get("words"):
-                chunk_words = [{"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"} for w in result["words"]]
+                chunk_words = [
+                    {"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"}
+                    for w in result["words"]
+                ]
             elif result.get("segments"):
                 for s in result["segments"]:
                     if s.get("words"):
                         for w in s["words"]: 
-                            chunk_words.append({"start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"})
+                            chunk_words.append({
+                                "start": w["start"], "end": w["end"], "word": w["word"], "speaker": "UNKNOWN"
+                            })
                     else:
-                        chunk_words.append({"start": s.get("start", 0.0), "end": s.get("end", duration), "word": s.get("text", "").strip(), "speaker": "UNKNOWN"})
+                        chunk_words.append({
+                            "start": s.get("start", 0.0), 
+                            "end": s.get("end", duration), 
+                            "word": s.get("text", "").strip(), 
+                            "speaker": "UNKNOWN"
+                        })
             
             if result.get("segments"):
                 for s in result["segments"]:
-                    all_final_segments.append({"start": s.get("start", 0.0) + start_time, "end": s.get("end", duration) + start_time, "text": s.get("text", "").strip()})
+                    all_final_segments.append({
+                        "start": s.get("start", 0.0) + start_time,
+                        "end": s.get("end", duration) + start_time,
+                        "text": s.get("text", "").strip()
+                    })
             elif result.get("text"):
-                all_final_segments.append({"start": start_time, "end": start_time + duration, "text": result["text"].strip()})
+                all_final_segments.append({
+                    "start": start_time,
+                    "end": start_time + duration,
+                    "text": result["text"].strip()
+                })
 
             for w in chunk_words:
-                all_final_words.append({"start": w["start"] + start_time, "end": w["end"] + start_time, "word": w["word"], "speaker": "UNKNOWN"})
+                all_final_words.append({
+                    "start": w["start"] + start_time,
+                    "end": w["end"] + start_time,
+                    "word": w["word"],
+                    "speaker": "UNKNOWN"
+                })
             
             buffer.close()
             processed_count += 1

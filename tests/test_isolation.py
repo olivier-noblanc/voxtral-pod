@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 @pytest.fixture
-def setup_isolation_env():
+def setup_isolation_env() -> Any:
     # Setup temporary directory
     temp_dir = tempfile.mkdtemp()
     

@@ -4,6 +4,7 @@ Vérifie que /git_update et /change_model nécessitent X-Admin-Key
 quand ADMIN_API_KEY est définie dans l'environnement.
 """
 import os
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,7 +16,7 @@ _VALID_KEY = "test_admin_secret"
 @pytest.fixture(autouse=True)
 def mock_heavy_operations(monkeypatch: pytest.MonkeyPatch) -> None:
     """Bouche les appels lourds pour éviter un vrai git reset ou le chargement des modèles."""
-    def mock_run(*args, **kwargs):
+    def mock_run(*args: Any, **kwargs: Any) -> Any:
         class CompletedProc:
             stdout = "Mocked update"
             stderr = ""
@@ -50,7 +51,9 @@ class TestChangeModelAuth:
 class TestGitUpdateAuth:
     """Tests pour POST /git_update avec et sans ADMIN_API_KEY."""
 
-    def test_git_update_no_env_key_does_not_raise_403(self, monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+    def test_git_update_no_env_key_does_not_raise_403(
+        self, monkeypatch: pytest.MonkeyPatch, client: TestClient
+    ) -> None:
         monkeypatch.delenv("ADMIN_API_KEY", raising=False)
         resp = client.post("/git_update")
         assert resp.status_code != 403

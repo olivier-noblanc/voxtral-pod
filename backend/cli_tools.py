@@ -3,7 +3,7 @@ import argparse
 import keyring
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Voxtral CLI Tools")
     parser.add_argument("--set-key", help="Enregistrer une clé API dans le trousseau", choices=["albert_api_key"])
     parser.add_argument("--value", help="Valeur de la clé")

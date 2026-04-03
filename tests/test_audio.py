@@ -21,7 +21,7 @@ def _write_wav(file_path: str, audio_np: np.ndarray, sample_rate: int = 16000) -
     pcm16 = np.clip(audio_np * 32768.0, -32768, 32767).astype(np.int16)
     # Open a Wave_write object to write the synthetic audio.
     # Adding a type hint helps static analysers (and silences pylint warnings).
-    wf = wave.open(file_path, "wb")  # type: ignore[assignment]
+    wf = wave.open(file_path, "wb")
     wf.setnchannels(1)
     wf.setsampwidth(2)  # 2 bytes = 16 bits
     wf.setframerate(sample_rate)

@@ -104,7 +104,8 @@ def test_single_router_mount_in_main() -> None:
                  if kw.arg == "prefix" and isinstance(kw.value, ast.Constant)),
                 ""
             )
-            include_calls.append(f"include_router(prefix='{prefix}')")
+            prefix_str = str(prefix.decode() if isinstance(prefix, bytes) else prefix)
+            include_calls.append(f"include_router(prefix='{prefix_str}')")
 
     assert len(include_calls) == 1, (
         f"Attendu 1 seul app.include_router(), trouvé {len(include_calls)} : {include_calls}\n"

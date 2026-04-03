@@ -1,4 +1,5 @@
 import os
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -9,10 +10,10 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "backend", "templates")
 
 @pytest.fixture
-def templates():
+def templates() -> Jinja2Templates:
     return Jinja2Templates(directory=TEMPLATES_DIR)
 
-def test_diarization_view_rendering(templates):
+def test_diarization_view_rendering(templates: Jinja2Templates) -> None:
     """
     Vérifie que le template diarization_view.html est rendu sans erreur Jinja2.
     """
@@ -41,7 +42,7 @@ def test_diarization_view_rendering(templates):
     assert "10.500s" in rendered # Test du filtre format %.3f
     assert "audio_test.wav" in rendered
 
-def test_diarization_view_rendering_empty(templates):
+def test_diarization_view_rendering_empty(templates: Jinja2Templates) -> None:
     """
     Vérifie le rendu avec une liste de segments vide.
     """
@@ -60,7 +61,7 @@ def test_diarization_view_rendering_empty(templates):
 @pytest.mark.parametrize("invalid_segments", [
     [{"speaker": "A", "start": 0, "end": 1}] # Manque 'duration' (sera p-e absent si le code python change)
 ])
-def test_diarization_view_robustness(templates, invalid_segments):
+def test_diarization_view_robustness(templates: Jinja2Templates, invalid_segments: list[dict[str, Any]]) -> None:
     """
     Vérifie la robustesse du template si certaines clés manquent.
     """

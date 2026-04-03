@@ -1,12 +1,13 @@
 import pathlib
+from typing import Generator, List, Set
 
 
-def _files_with_extension(root: pathlib.Path, extensions):
+def _files_with_extension(root: pathlib.Path, extensions: Set[str]) -> Generator[pathlib.Path, None, None]:
     for path in root.rglob("*"):
         if path.suffix.lower() in extensions and path.is_file():
             yield path
 
-def _load_gitignore_patterns(root: pathlib.Path):
+def _load_gitignore_patterns(root: pathlib.Path) -> List[str]:
     """
     Charge les motifs d'ignorés depuis le fichier .gitignore à la racine du projet.
     Les lignes vides et les commentaires sont ignorés.

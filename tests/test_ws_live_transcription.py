@@ -60,7 +60,7 @@ class SpeechThenSilenceVAD:
         self._n = speech_chunks          # nb de chunks de « parole »
         self._speech_calls = 0           # compteur is_speech()
 
-    def reset_states(self):
+    def reset_states(self) -> None:
         self._speech_calls = 0
 
     async def is_speech(self, _audio_bytes: bytes) -> bool:
@@ -73,7 +73,7 @@ class SpeechThenSilenceVAD:
 
 class AlwaysSpeechVAD:
     """Jamais de silence — pour déclencher des partials."""
-    def reset_states(self):
+    def reset_states(self) -> None:
         pass
 
     async def is_speech(self, _b: bytes) -> bool:

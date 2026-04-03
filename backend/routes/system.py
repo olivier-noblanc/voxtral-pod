@@ -26,6 +26,7 @@ async def home(req: Request) -> HTMLResponse:
     current_model = get_current_model()
     if os.getenv("TESTING") == "1":
         current_model = "mock"
+        commit = "mock_commit"
     
     engine = get_asr_engine(load_model=False)
     
@@ -63,7 +64,7 @@ async def status_route(file_id: str) -> Dict[str, Any]:
     Return the job information for ``file_id``.
     If the job does not exist, return a default ``not_found`` payload.
     """
-    job = get_job(file_id)
+    job: Dict[str, Any] = get_job(file_id)
     if not job:
         return {"status": "not_found"}
     return job

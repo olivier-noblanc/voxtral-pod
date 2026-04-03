@@ -26,7 +26,7 @@ TRAVERSALS = [
 
 
 @pytest.mark.parametrize("payload", TRAVERSALS)
-def test_list_trans_path_traversal(payload):
+def test_list_trans_path_traversal(payload: str) -> None:
     """/transcriptions?client_id=<payload> doit retourner 400 ou [] jamais 200 avec un contenu."""
     resp = client.get("/transcriptions", params={"client_id": payload})
     # Soit rejeté (400), soit dossier introuvable (retourne [])
@@ -36,7 +36,7 @@ def test_list_trans_path_traversal(payload):
 
 
 @pytest.mark.parametrize("payload", TRAVERSALS)
-def test_get_trans_path_traversal(payload):
+def test_get_trans_path_traversal(payload: str) -> None:
     """/transcription/{filename}?client_id=<payload> doit retourner 400 ou 404."""
     resp = client.get("/transcription/test.txt", params={"client_id": payload})
     assert resp.status_code in (400, 404), (
@@ -45,7 +45,7 @@ def test_get_trans_path_traversal(payload):
 
 
 @pytest.mark.parametrize("payload", TRAVERSALS)
-def test_download_transcript_path_traversal_client(payload):
+def test_download_transcript_path_traversal_client(payload: str) -> None:
     """/download_transcript/{client_id}/file doit retourner 400 ou 404."""
     resp = client.get(f"/download_transcript/{payload}/test.txt")
     assert resp.status_code in (400, 404), (
@@ -54,7 +54,7 @@ def test_download_transcript_path_traversal_client(payload):
 
 
 @pytest.mark.parametrize("payload", TRAVERSALS)
-def test_download_transcript_path_traversal_filename(payload):
+def test_download_transcript_path_traversal_filename(payload: str) -> None:
     """/download_transcript/client/{filename} doit retourner 400 ou 404."""
     resp = client.get(f"/download_transcript/client/{payload}")
     assert resp.status_code in (400, 404), (
@@ -63,7 +63,7 @@ def test_download_transcript_path_traversal_filename(payload):
 
 
 @pytest.mark.parametrize("payload", TRAVERSALS)
-def test_view_path_traversal(payload):
+def test_view_path_traversal(payload: str) -> None:
     """/view/{client_id}/{filename} doit retourner 400 ou 404."""
     resp = client.get(f"/view/{payload}/test.txt")
     assert resp.status_code in (400, 404), (

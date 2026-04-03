@@ -16,7 +16,7 @@ def test_get_albert_api_key_logic() -> None:
             assert get_albert_api_key() == "keyring_key"
 
 @pytest.fixture
-def rate_limiter():
+def rate_limiter() -> AlbertRateLimiter:
     # Déclencher une nouvelle instance
     rl = AlbertRateLimiter()
     # On s'assure qu'on a une clé (via config ou mockée) pour que les tests de quota s'exécutent
@@ -24,7 +24,7 @@ def rate_limiter():
     rl._has_valid_api_key = True
     return rl
 
-def test_update_quota_info_success(rate_limiter):
+def test_update_quota_info_success(rate_limiter: AlbertRateLimiter) -> None:
     """Vérifie que le quota est correctement mis à jour depuis les réponses API."""
     
     mock_usage_resp = MagicMock()
@@ -52,7 +52,7 @@ def test_update_quota_info_success(rate_limiter):
         assert info["quota_limit"] == 2000
         assert info["last_quota_update"] > 0
 
-def test_update_quota_info_throttle(rate_limiter):
+def test_update_quota_info_throttle(rate_limiter: AlbertRateLimiter) -> None:
     """Vérifie que l'intervalle de rafraîchissement (600s) est respecté."""
     
     mock_resp = MagicMock()
@@ -70,7 +70,7 @@ def test_update_quota_info_throttle(rate_limiter):
         rate_limiter.update_quota_info()
         assert rate_limiter._last_quota_update == last_update
 
-def test_update_quota_info_error_handling(rate_limiter):
+def test_update_quota_info_error_handling(rate_limiter: AlbertRateLimiter) -> None:
     """Vérifie que les erreurs API ne font pas planter le rate limiter."""
     
     mock_resp = MagicMock()

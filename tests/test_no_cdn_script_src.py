@@ -6,11 +6,12 @@ les linté et de ne pas dépendre d’Internet.
 
 import pathlib
 import re
+from typing import Generator
 
 import pytest
 
 
-def _all_files():
+def _all_files() -> Generator[pathlib.Path, None, None]:
     """Retourne un générateur de chemins vers tous les fichiers du projet (sauf les dossiers virtuels)."""
     root = pathlib.Path(__file__).resolve().parents[1]  # dossier racine du projet
     # Exclure les dossiers typiquement ignorés (venv, __pycache__, .git, etc.)
@@ -27,8 +28,8 @@ def _all_files():
 CDN_SCRIPT_PATTERN = re.compile(r'<script\s+[^>]*src=["\']https?://[^"\']+["\']', re.IGNORECASE)
 
 
-@pytest.mark.parametrize("file_path", _all_files())
-def test_no_cdn_script_src(file_path: pathlib.Path):
+@pytest.mark.parametrize("file_path", list(_all_files()))
+def test_no_cdn_script_src(file_path: pathlib.Path) -> None:
     """Vérifie qu'aucune balise <script src=\"https://...\"> n'est présente dans le fichier donné."""
     try:
         content = file_path.read_text(encoding="utf-8")

@@ -3,7 +3,7 @@ import os
 import requests
 
 
-def ping_albert():
+def ping_albert() -> None:
     api_key = os.getenv("ALBERT_API_KEY")
     base_url = "https://albert.api.etalab.gouv.fr/v1"
     

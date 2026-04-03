@@ -6,12 +6,16 @@ Cette règle garantit que le CSS est placé dans des fichiers *.css afin de pouv
 
 import pathlib
 import re
+from typing import Generator
 
 import pytest
 
 
-def _python_files():
-    """Retourne un générateur de chemins vers tous les fichiers *.py du projet, en excluant les tests et les chemins ignorés par .gitignore."""
+def _python_files() -> Generator[pathlib.Path, None, None]:
+    """
+    Retourne un générateur de chemins vers tous les fichiers *.py du projet, 
+    en excluant les tests et les chemins ignorés par .gitignore.
+    """
     root = pathlib.Path(__file__).resolve().parents[1]  # dossier racine du projet
     # Charger les patterns .gitignore
     gitignore_path = root / ".gitignore"
@@ -34,8 +38,8 @@ def _python_files():
 STYLE_TAG_PATTERN = re.compile(r"<style>|<style>", re.IGNORECASE)
 
 
-@pytest.mark.parametrize("py_file", _python_files())
-def test_no_style_tags_in_python(py_file: pathlib.Path):
+@pytest.mark.parametrize("py_file", list(_python_files()))
+def test_no_style_tags_in_python(py_file: pathlib.Path) -> None:
     """Vérifie qu'aucune balise <style> n'est présente dans le fichier Python donné."""
     content = py_file.read_text(encoding="utf-8")
     matches = STYLE_TAG_PATTERN.search(content)

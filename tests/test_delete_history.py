@@ -4,13 +4,13 @@ Tests pour la suppression de l'historique des transcriptions et des fichiers aud
 from __future__ import annotations
 
 import os
-from typing import Any, Dict
+from typing import Dict, Generator
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 @pytest.fixture
-def setup_transcription() -> Dict[str, str]:
+def setup_transcription() -> Generator[Dict[str, str], None, None]:
     """
     Crée un fichier de transcription et son fichier audio associé
     dans le répertoire de test, puis le nettoie après le test.

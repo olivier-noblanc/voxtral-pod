@@ -7,7 +7,7 @@ sample_rate = 16000
 print(f"Testing decode of {audio_path}...")
 try:
     process = (
-        ffmpeg.input(audio_path)  # type: ignore[attr-defined]
+        ffmpeg.input(audio_path)
         .output("pipe:", format="f32le", acodec="pcm_f32le", ac=1, ar=sample_rate)
         .run_async(pipe_stdout=True, pipe_stderr=True)
     )

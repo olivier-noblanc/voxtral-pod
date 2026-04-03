@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Any, Any, Dict
+from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -40,8 +40,12 @@ def test_clean_old_jobs() -> None:
     # Insert jobs with old timestamp
     with get_db() as conn:
         conn.execute("DELETE FROM jobs") # start clean
-        conn.execute("INSERT INTO jobs (job_id, data, created_at) VALUES ('job_old', '{}', datetime('now', '-95 days'))")
-        conn.execute("INSERT INTO jobs (job_id, data, created_at) VALUES ('job_new', '{}', datetime('now', '-10 days'))")
+        conn.execute(
+            "INSERT INTO jobs (job_id, data, created_at) VALUES ('job_old', '{}', datetime('now', '-95 days'))"
+        )
+        conn.execute(
+            "INSERT INTO jobs (job_id, data, created_at) VALUES ('job_new', '{}', datetime('now', '-10 days'))"
+        )
         conn.commit()
     
     count = clean_old_jobs(90)
@@ -79,7 +83,7 @@ def test_compress_old_wavs(mock_subprocess: MagicMock, mock_dirs: Dict[str, Any]
     f2 = create_mock_file(live_audio / "new_audio.wav", 0.01) # very new
     
     # Mock ffmpeg success
-    def mock_run_side_effect(*args, **kwargs):
+    def mock_run_side_effect(*args: Any, **kwargs: Any) -> MagicMock:
         # cmd is likely args[0]
         cmd = args[0]
         # find the output file (usually the last argument or after -b:a 64k)

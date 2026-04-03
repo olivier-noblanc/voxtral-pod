@@ -17,7 +17,7 @@ class _FakeTorch(types.ModuleType):
     """Stub minimal de torch pour les tests sans GPU."""
     class cuda:
         @staticmethod
-        def is_available(): return False
+        def is_available() -> bool: return False
 
     class backends:
         class nnpack:
@@ -28,21 +28,21 @@ class _FakeTorch(types.ModuleType):
             allow_tf32 = False
 
     @staticmethod
-    def set_num_threads(n): pass
+    def set_num_threads(n: int) -> None: pass
     @staticmethod
-    def set_num_interop_threads(n): pass
+    def set_num_interop_threads(n: int) -> None: pass
 
     # Pour from_numpy & co utilisés ailleurs
     @staticmethod
-    def from_numpy(x): return x
+    def from_numpy(x: Any) -> Any: return x
 
 
-def _hide_torch():
+def _hide_torch() -> types.ModuleType | None:
     """Retire torch de sys.modules pour simuler son absence."""
     return sys.modules.pop("torch", None)
 
 
-def _restore_torch(original):
+def _restore_torch(original: types.ModuleType | None) -> None:
     if original is not None:
         sys.modules["torch"] = original
 

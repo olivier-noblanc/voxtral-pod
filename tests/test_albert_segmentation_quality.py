@@ -17,12 +17,12 @@ from backend.core.transcription import TranscriptionEngine
 class TestAlbertSegmentationQuality(unittest.TestCase):
     """Vérifie que la segmentation maximise la durée des tranches."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Initialisation du moteur de transcription."""
         self.engine = TranscriptionEngine(model_id="albert")
         self.sr = 16000
 
-    def test_find_best_cut_prefers_late_silence(self):
+    def test_find_best_cut_prefers_late_silence(self) -> None:
         """Vérifie que le moteur préfère couper au silence le plus tardif."""
         # 40 min = 2400s
         duration_total = 2500 
@@ -42,7 +42,7 @@ class TestAlbertSegmentationQuality(unittest.TestCase):
         self.assertGreater(cut, 2000, "La coupe est trop précoce (silence de 10s utilisé au lieu de 2390s).")
         self.assertAlmostEqual(cut, 2390.8, delta=1.0)
 
-    def test_find_best_cut_fallback_to_target(self):
+    def test_find_best_cut_fallback_to_target(self) -> None:
         """Vérifie que le moteur coupe à la target si aucun silence n'est trouvé."""
         duration_total = 2500
         # Audio sans silence (bruit blanc)

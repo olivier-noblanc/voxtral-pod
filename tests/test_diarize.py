@@ -12,7 +12,7 @@ from diarize import diarize
 try:
     import torch
     import torchaudio
-    def _mock_torchaudio_load(path, **kwargs):
+    def _mock_torchaudio_load(path: str, **kwargs: Any) -> tuple[Any, int]:
         data, sr = sf.read(path, dtype='float32')
         # Return (waveform, sample_rate) as expected by torchaudio.load
         # Waveform must be [channels, frames]
@@ -57,7 +57,7 @@ def test_diarize_benchmark() -> None:
     Test de performance (benchmark) pour la diarisation batch.
     S'assure que le RTF est < 1.0 sur un fichier réel.
     """
-    audio_to_use = AUDIO_FILE
+    audio_to_use: Optional[str] = AUDIO_FILE
     if not os.path.exists(audio_to_use):
         print(f"[*] Default file {AUDIO_FILE} missing, searching for fallback...")
         audio_to_use = get_heaviest_audio_file()

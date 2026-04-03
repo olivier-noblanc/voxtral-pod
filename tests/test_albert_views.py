@@ -3,21 +3,21 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Generator, List, Tuple
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 @pytest.fixture
-def mock_postprocess() -> Tuple[MagicMock, MagicMock, MagicMock]:
+def mock_postprocess() -> Generator[Tuple[MagicMock, MagicMock, MagicMock], None, None]:
     with patch("backend.core.postprocess.summarize_text", return_value="### Summary\n- Point A\n- Point B") as m1, \
          patch("backend.core.postprocess.extract_actions_text", return_value=["Action 1", "Action 2"]) as m2, \
          patch("backend.core.postprocess.clean_text", return_value="**Cleaned** Content") as m3:
         yield (m1, m2, m3)
 
 @pytest.fixture
-def setup_data() -> Dict[str, str]:
+def setup_data() -> Generator[Dict[str, str], None, None]:
     temp_dir = tempfile.mkdtemp()
     from backend import config as config_module
     from backend.routes import api as api_module

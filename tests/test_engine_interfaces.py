@@ -1,3 +1,4 @@
+from typing import Any
 import numpy as np
 import pytest
 
@@ -52,7 +53,7 @@ def test_noop_engine_interface() -> None:
     
     # Define a similar NoOpEngine to verify the pattern used in engine.py
     class _NoOpEngine:
-        def diarize(self, audio_float32, hook=None):
+        def diarize(self, audio_float32: Any, hook: Any = None) -> list[Any]:
             return []
     
     engine = _NoOpEngine()

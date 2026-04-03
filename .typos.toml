@@ -1,0 +1,2 @@
+[files]
+extend-exclude = ["**/*.py", "**/.venv/**", "**/venv/**", "**/__pycache__/**", "**/.mypy_cache/**", "**/.pytest_cache/**"]

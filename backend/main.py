@@ -40,7 +40,7 @@ app = FastAPI(title="SOTA ASR Server", version="4.0.0", lifespan=lifespan)
 
 # Trusted proxies for Real-IP
 _TRUSTED_PROXIES = os.getenv("TRUSTED_PROXIES", "127.0.0.1,::1").split(",")
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=_TRUSTED_PROXIES)
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=_TRUSTED_PROXIES)  # type: ignore[arg-type]
 
 # Static files should be outside backend/ in the repo root/static or build/
 static_path = os.path.join(BASE_DIR, "static")

@@ -16,44 +16,45 @@ from backend.state import update_job
 logger = logging.getLogger(__name__)
 
 # Markdown handling: use real markdown if available, otherwise fallback
+class _FallbackMarkdown:
+    @staticmethod
+    def markdown(text: str, **kwargs: Any) -> str:
+        """
+        Very small markdown subset renderer handling headings, lists, and bold.
+        """
+        # Convert **bold** to <strong> tags
+        text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+
+        lines = text.splitlines()
+        html_lines = []
+        in_list = False
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("### "):
+                if in_list:
+                    html_lines.append("</ul>")
+                    in_list = False
+                html_lines.append(f"<h3>{stripped[4:].strip()}</h3>")
+            elif stripped.startswith("- "):
+                if not in_list:
+                    html_lines.append("<ul>")
+                    in_list = True
+                html_lines.append(f"<li>{stripped[2:].strip()}</li>")
+            else:
+                if in_list:
+                    html_lines.append("</ul>")
+                    in_list = False
+                html_lines.append(line)
+        if in_list:
+            html_lines.append("</ul>")
+        return "\n".join(html_lines)
+
 _markdown_spec = importlib.util.find_spec("markdown")
 if _markdown_spec is not None:
-    import markdown as _markdown_lib
-    markdown = _markdown_lib
+    import markdown as real_markdown
+    markdown: Any = real_markdown
 else:
-    class _FallbackMarkdown:
-        @staticmethod
-        def markdown(text: str, **kwargs: object) -> str:
-            """
-            Very small markdown subset renderer handling headings, lists, and bold.
-            """
-            # Convert **bold** to <strong> tags
-            text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-
-            lines = text.splitlines()
-            html_lines = []
-            in_list = False
-            for line in lines:
-                stripped = line.strip()
-                if stripped.startswith("### "):
-                    if in_list:
-                        html_lines.append("</ul>")
-                        in_list = False
-                    html_lines.append(f"<h3>{stripped[4:].strip()}</h3>")
-                elif stripped.startswith("- "):
-                    if not in_list:
-                        html_lines.append("<ul>")
-                        in_list = True
-                    html_lines.append(f"<li>{stripped[2:].strip()}</li>")
-                else:
-                    if in_list:
-                        html_lines.append("</ul>")
-                        in_list = False
-                    html_lines.append(line)
-            if in_list:
-                html_lines.append("</ul>")
-            return "\n".join(html_lines)
-    markdown: Any = _FallbackMarkdown()
+    markdown = _FallbackMarkdown()
 
 # Setup Templates
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "backend", "templates"))

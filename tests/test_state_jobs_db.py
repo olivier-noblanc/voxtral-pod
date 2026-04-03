@@ -1,3 +1,6 @@
+from typing import Generator
+from pathlib import Path
+
 import pytest
 
 import backend.state as state
@@ -5,7 +8,7 @@ from backend.state import JOBS_DB_MAX_SIZE, add_job, get_job
 
 
 @pytest.fixture(autouse=True)
-def fresh_db(tmp_path, monkeypatch):
+def fresh_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     monkeypatch.setattr(state, "DB_PATH", str(tmp_path / "test.db"))
     state.init_db()
     yield

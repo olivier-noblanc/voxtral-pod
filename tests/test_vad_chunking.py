@@ -1,3 +1,4 @@
+from typing import Any, List
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -6,9 +7,9 @@ import numpy as np
 def test_run_silero_chunk_sizes() -> None:
     """Vérifie que _run_silero padde correctement tous les chunks à 512."""
     
-    received_sizes = []
+    received_sizes: List[int] = []
     
-    def fake_silero(tensor, sample_rate):
+    def fake_silero(tensor: Any, sample_rate: int) -> MagicMock:
         received_sizes.append(tensor.shape[0])
         assert tensor.shape[0] == 512, f"Silero reçu {tensor.shape[0]} au lieu de 512"
         mock_result = MagicMock()
