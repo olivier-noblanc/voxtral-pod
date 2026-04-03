@@ -35,11 +35,12 @@ def test_state_module_no_init_db_at_import() -> None:
     ]
     call_names = []
     for node in top_level_calls:
-        call = node.value
-        if isinstance(call.func, ast.Name):
-            call_names.append(call.func.id)
-        elif isinstance(call.func, ast.Attribute):
-            call_names.append(call.func.attr)
+        if isinstance(node.value, ast.Call):
+            call = node.value
+            if isinstance(call.func, ast.Name):
+                call_names.append(call.func.id)
+            elif isinstance(call.func, ast.Attribute):
+                call_names.append(call.func.attr)
 
     assert "init_db" not in call_names, (
         f"init_db() est encore appelé au module-level ! Calls trouvés: {call_names}"
