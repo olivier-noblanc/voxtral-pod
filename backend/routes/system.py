@@ -40,7 +40,7 @@ async def home(req: Request) -> HTMLResponse:
             '<option value="mock">MODE TEST (Mock ASR)</option>'
         )
     
-    # Render the template manually to avoid Jinja2TemplateResponse caching issues
+    # Render the template
     template = templates.get_template("index.html")
     html = template.render(
         {
@@ -51,8 +51,8 @@ async def home(req: Request) -> HTMLResponse:
             "request": req,
         }
     )
-    # Ensure the token "GPU:" is present at the start for the test suite
-    html = "GPU:" + html
+    # The template already contains "GPU:" in the info badge, which satisfies the tests.
+    
     # Ensure a trailing newline for snapshot consistency
     if not html.endswith("\n"):
         html += "\n"

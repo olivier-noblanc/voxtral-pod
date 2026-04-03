@@ -58,7 +58,7 @@ def test_diarize_benchmark() -> None:
     S'assure que le RTF est < 1.0 sur un fichier réel.
     """
     audio_to_use: Optional[str] = AUDIO_FILE
-    if not os.path.exists(audio_to_use):
+    if not audio_to_use or not os.path.exists(audio_to_use):
         print(f"[*] Default file {AUDIO_FILE} missing, searching for fallback...")
         audio_to_use = get_heaviest_audio_file()
         
